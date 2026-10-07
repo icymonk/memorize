@@ -1,0 +1,10 @@
+packages:
+  - functions
+allowBuilds:
+  '@firebase/util': true
+  protobufjs: true
+  vue-demi: true
+  re2: false
+  esbuild: false
+minimumReleaseAgeExclude:
+  - reka-ui@2.11.0
