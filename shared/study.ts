@@ -1,5 +1,5 @@
 /** 학습 모드 공용 로직 (VOC-20~23) */
-export const STUDY_MODES = ['flashcards', 'learn', 'write', 'match'] as const
+export const STUDY_MODES = ['flashcards', 'learn', 'write', 'match', 'review'] as const
 export type StudyMode = (typeof STUDY_MODES)[number]
 
 export function normalizeAnswer(s: string): string {

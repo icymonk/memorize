@@ -2,7 +2,7 @@ import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
-import { collection, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
+import { collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 
 // docs/dev/security.md — firestore.rules (0-8). 실행: 루트에서 `pnpm test:rules`
@@ -304,5 +304,29 @@ describe('study records (VOC-23·32)', () => {
     await assertSucceeds(getDoc(top('alice')))
     await assertFails(getDoc(top('lee')))
     await assertFails(setDoc(top('bob'), { entries: [] }))
+  })
+})
+
+describe('card states (VOC-40·44, WS-53)', () => {
+  const state = (uid: string, cardId: string, over: object = {}) => ({ uid, deckId: 'a', cardId, status: 'review', ease: 2.5, intervalDays: 1, due: new Date(), reps: 1, lapses: 0, correct: 1, wrong: 0, contentRev: 0, ...over })
+  const ref = (as: string, id: string) => doc(db(as), 'spaces', SID, 'cardStates', id)
+
+  it('members write only their own state with the {uid}_{cardId} id', async () => {
+    await assertSucceeds(setDoc(ref('bob', 'bob_c1'), state('bob', 'c1')))
+    await assertFails(setDoc(ref('bob', 'alice_c1'), state('alice', 'c1')))
+    await assertFails(setDoc(ref('bob', 'bob_c2'), state('bob', 'c1')))
+    await assertFails(setDoc(ref('bob', 'bob_c3'), state('bob', 'c3', { status: 'genius' })))
+    await assertFails(setDoc(ref('pat', 'pat_c1'), state('pat', 'c1')))
+    await assertSucceeds(updateDoc(ref('bob', 'bob_c1'), { intervalDays: 3 }))
+    await assertFails(updateDoc(ref('bob', 'bob_c1'), { deckId: 'b' }))
+    await assertFails(updateDoc(ref('alice', 'bob_c1'), { intervalDays: 9 }))
+  })
+
+  it('due queries: own space query and collection group need uid == me', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'cardStates', 'bob_c1'), state('bob', 'c1')))
+    const bob = db('bob')
+    await assertSucceeds(getDocs(query(collection(bob, 'spaces', SID, 'cardStates'), where('uid', '==', 'bob'), where('due', '<=', new Date()))))
+    await assertSucceeds(getDocs(query(collectionGroup(bob, 'cardStates'), where('uid', '==', 'bob'))))
+    await assertFails(getDocs(query(collectionGroup(bob, 'cardStates'), where('uid', '==', 'alice'))))
   })
 })
