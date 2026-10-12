@@ -44,13 +44,13 @@ async function onDone(r: ModeResult) {
   <div v-if="loading" class="text-muted-foreground p-10 text-center text-sm">
     …
   </div>
-  <ReviewResult v-else-if="result" :result="result" :back="`/s/${sid}`" />
+  <ReviewResult v-else-if="result" :result="result" :back="`/s/${sid}/decks`" />
   <div v-else-if="!items.length" class="flex flex-col items-center gap-4 p-10 text-center">
     <p class="text-muted-foreground text-sm">
       {{ ko.vocab.review.empty }}
     </p>
     <Button variant="outline" as-child>
-      <NuxtLink :to="`/s/${sid}`">
+      <NuxtLink :to="`/s/${sid}/decks`">
         {{ ko.vocab.study.result.back }}
       </NuxtLink>
     </Button>
