@@ -351,3 +351,83 @@ describe('deck progress (VOC-41·45)', () => {
     await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'cardStates', 'bob_c9'), { uid: 'bob', deckId: 'a', cardId: 'c9', status: 'new', ease: 2.5, intervalDays: 0, due: new Date(Date.UTC(9999, 0, 1)), reps: 0, lapses: 0, correct: 0, wrong: 0, contentRev: 0, starred: true }))
   })
 })
+
+describe('pages and blocks (NOTE-01·10)', () => {
+  const page = (o: object = {}) => ({
+    type: 'page', title: '', icon: '', cover: null, ownerId: 'bob', root: 'shared', parentId: null, order: 'V', ancestorIds: [], props: {},
+    visibility: 'space', groupIds: [], sharedWith: [], editorIds: [], reviewerIds: [], excerpt: '', blockCount: 0, textLength: 0,
+    lock: null, ownerStatus: 'active', createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...o,
+  })
+  const block = (uid: string, o: object = {}) => ({
+    type: 'paragraph', parentBlockId: null, order: 'V', attrs: {}, content: [{ type: 'text', text: 'hi' }], rev: 1, updatedBy: uid, updatedAt: serverTimestamp(), ...o,
+  })
+  const seed = (path: string, data: object) => env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, path), data))
+  const pageRef = (uid: string, id: string, sid = SID) => doc(db(uid), 'spaces', sid, 'pages', id)
+
+  it('members create pages as themselves with empty stats', async () => {
+    await assertSucceeds(setDoc(pageRef('bob', 'p1'), page()))
+    await assertFails(setDoc(pageRef('bob', 'p2'), page({ ownerId: 'alice' })))
+    await assertFails(setDoc(pageRef('bob', 'p3'), page({ blockCount: 3 })))
+    await assertFails(setDoc(pageRef('bob', 'p4'), page({ visibility: 'people' })))
+    await assertFails(setDoc(pageRef('pat', 'p5'), page({ ownerId: 'pat' })))
+    await assertSucceeds(setDoc(pageRef('alice', 'mine', 'p_alice'), page({ ownerId: 'alice', root: 'private', visibility: 'private' })))
+    await assertFails(setDoc(pageRef('alice', 'open', 'p_alice'), page({ ownerId: 'alice' })))
+  })
+
+  it('private pages and their blocks are hidden from others', async () => {
+    await seed('pages/priv', page({ visibility: 'private', root: 'private' }))
+    await seed('pages/priv/blocks/b1', block('bob'))
+    await assertSucceeds(getDoc(pageRef('bob', 'priv')))
+    await assertSucceeds(getDocs(collection(db('bob'), 'spaces', SID, 'pages', 'priv', 'blocks')))
+    await assertFails(getDoc(pageRef('alice', 'priv')))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'pages', 'priv', 'blocks')))
+    const pages = collection(db('alice'), 'spaces', SID, 'pages')
+    await assertSucceeds(getDocs(query(pages, or(where('visibility', '==', 'space'), where('ownerId', '==', 'alice')))))
+    await assertFails(getDocs(pages))
+  })
+
+  it('owner and editors write blocks with page meta in one batch; others read only', async () => {
+    await seed('pages/a', page({ editorIds: ['mia'] }))
+    for (const uid of ['bob', 'mia']) {
+      const d = db(uid)
+      const batch = writeBatch(d)
+      batch.set(doc(d, 'spaces', SID, 'pages', 'a', 'blocks', `b-${uid}`), block(uid))
+      batch.update(doc(d, 'spaces', SID, 'pages', 'a'), { excerpt: 'hi', blockCount: 1, textLength: 2, updatedAt: serverTimestamp() })
+      await assertSucceeds(batch.commit())
+    }
+    await assertSucceeds(getDoc(doc(db('alice'), 'spaces', SID, 'pages', 'a', 'blocks', 'b-bob')))
+    await assertFails(setDoc(doc(db('alice'), 'spaces', SID, 'pages', 'a', 'blocks', 'x'), block('alice')))
+    await assertFails(deleteDoc(doc(db('alice'), 'spaces', SID, 'pages', 'a', 'blocks', 'b-bob')))
+    await assertFails(updateDoc(pageRef('alice', 'a'), { title: 'x', updatedAt: serverTimestamp() }))
+  })
+
+  it('block writes must be attributed to the writer and well-formed', async () => {
+    await seed('pages/a', page())
+    const ref = doc(db('bob'), 'spaces', SID, 'pages', 'a', 'blocks', 'b')
+    await assertFails(setDoc(ref, block('alice')))
+    await assertFails(setDoc(ref, block('bob', { order: '' })))
+    await assertFails(setDoc(ref, block('bob', { content: 'text' })))
+    await assertSucceeds(setDoc(ref, block('bob')))
+    await assertSucceeds(deleteDoc(ref))
+  })
+
+  it('a 400-block batch with page meta passes', async () => {
+    await seed('pages/big', page())
+    const d = db('bob')
+    const batch = writeBatch(d)
+    for (let i = 0; i < 399; i++) batch.set(doc(d, 'spaces', SID, 'pages', 'big', 'blocks', `b${i}`), block('bob', { order: `a${i + 1}` }))
+    batch.update(doc(d, 'spaces', SID, 'pages', 'big'), { blockCount: 399, updatedAt: serverTimestamp() })
+    await assertSucceeds(batch.commit())
+  })
+
+  it('only the owner changes sharing; editors keep to content; owner or manager deletes', async () => {
+    await seed('pages/a', page({ ownerId: 'mia', editorIds: ['bob'] }))
+    await assertFails(updateDoc(pageRef('bob', 'a'), { visibility: 'private', updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(pageRef('bob', 'a'), { title: '함께', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(pageRef('mia', 'a'), { ownerId: 'bob', updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(pageRef('mia', 'a'), { editorIds: [], updatedAt: serverTimestamp() }))
+    await assertFails(deleteDoc(pageRef('bob', 'a')))
+    await seed('pages/c', page())
+    await assertSucceeds(deleteDoc(pageRef('alice', 'c')))
+  })
+})
