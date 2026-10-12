@@ -118,6 +118,10 @@ export async function createPage(db: Firestore, sid: string, uid: string, opts: 
   return ref.id
 }
 
+export async function updatePageIcon(db: Firestore, sid: string, pageId: string, icon: string) {
+  await updateDoc(doc(pagesOf(db, sid), pageId), { icon, updatedAt: serverTimestamp() })
+}
+
 export async function updatePageTitle(db: Firestore, sid: string, pageId: string, title: string) {
   await updateDoc(doc(pagesOf(db, sid), pageId), { title, updatedAt: serverTimestamp() })
 }
