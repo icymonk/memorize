@@ -4,7 +4,7 @@ import type { CardField } from '#shared/schemas/deck'
 import type { Card } from '../services/cards'
 import type { Deck } from '../services/decks'
 import { cardInput, DIFFICULTY, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
-import { Volume2Icon } from '@lucide/vue'
+import { ChevronDownIcon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
@@ -27,6 +27,10 @@ const form = ref(empty())
 const pending = ref(false)
 const selectClass = 'border-input bg-background h-9 rounded-md border px-3 text-sm'
 const has = (field: CardField) => props.deck.fields.includes(field)
+/** 단어·뜻·발음이 기본, 나머지 항목은 접어 둔다 */
+const EXTRA: CardField[] = ['pos', 'examples', 'forms', 'synonyms', 'antonyms', 'collocations', 'tip', 'tags', 'difficulty', 'image']
+const hasExtras = computed(() => EXTRA.some(has))
+const showMore = ref(false)
 
 const lines = (s: string) => s.split('\n').map(x => x.trim()).filter(Boolean)
 const list = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
@@ -35,6 +39,7 @@ const opt = (s: string) => s.trim() || undefined
 watch(open, (value) => {
   if (!value) return
   const c = props.card
+  showMore.value = !!c && !!(c.pos || c.examples.length || c.forms || c.synonyms.length || c.antonyms.length || c.collocations.length || c.tip || c.tags.length || c.difficulty)
   form.value = c
     ? {
         front: c.front,
@@ -138,15 +143,20 @@ async function submit() {
           </p>
         </div>
 
-        <div v-if="has('pos') || has('phonetic')" class="grid grid-cols-2 gap-3">
-          <div v-if="has('pos')" class="flex flex-col gap-2">
-            <Label for="card-pos">{{ label.pos }}</Label>
-            <Input id="card-pos" v-model="form.pos" maxlength="30" />
-          </div>
-          <div v-if="has('phonetic')" class="flex flex-col gap-2">
-            <Label for="card-phonetic">{{ label.phonetic }}</Label>
-            <Input id="card-phonetic" v-model="form.phonetic" maxlength="100" />
-          </div>
+        <div class="flex flex-col gap-2">
+          <Label for="card-phonetic">{{ label.phonetic }}</Label>
+          <Input id="card-phonetic" v-model="form.phonetic" maxlength="100" />
+        </div>
+
+        <button v-if="hasExtras" type="button" class="text-muted-foreground hover:text-foreground flex items-center gap-1 self-start text-sm" :aria-expanded="showMore" @click="showMore = !showMore">
+          <ChevronDownIcon :class="['size-4 transition-transform', showMore && 'rotate-180']" />
+          {{ showMore ? t.lessFields : t.moreFields }}
+        </button>
+
+        <template v-if="showMore">
+        <div v-if="has('pos')" class="flex flex-col gap-2">
+          <Label for="card-pos">{{ label.pos }}</Label>
+          <Input id="card-pos" v-model="form.pos" maxlength="30" />
         </div>
 
         <div v-if="has('examples')" class="flex flex-col gap-2">
@@ -207,6 +217,7 @@ async function submit() {
         <p v-if="has('image')" class="text-muted-foreground text-xs">
           {{ label.image }}: {{ t.imageComingSoon }}
         </p>
+        </template>
       </form>
 
       <DialogFooter>
