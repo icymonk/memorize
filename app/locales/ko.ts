@@ -320,6 +320,16 @@ export const ko = {
       duration: (sec: number) => sec >= 60 ? `${Math.floor(sec / 60)}분 ${Math.round(sec % 60)}초` : `${(Math.round(sec * 10) / 10)}초`,
       saveFailed: '학습 기록을 저장하지 못했어요.',
     },
+    copy: {
+      button: '복사',
+      title: '단어장 복사',
+      description: '내가 속한 다른 공간으로 복사해 고칠 수 있어요. 학습 기록, 공동 편집자, 이미지·녹음은 복사되지 않아요.',
+      target: '어디로 복사할까요?',
+      submit: '복사하기',
+      noTarget: '복사할 수 있는 다른 공간이 없어요.',
+      done: '복사했어요.',
+      from: (name: string) => `${name || '다른 공간'}에서 복사함`,
+    },
     progress: {
       mine: '내 진도',
       percent: (mastered: number, total: number) => `${total ? Math.round(mastered / total * 100) : 0}% 외움 (${mastered}/${total})`,

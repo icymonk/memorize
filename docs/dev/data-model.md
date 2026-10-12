@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.3 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.4 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -175,7 +175,7 @@ spaces/{sid}/decks/{deckId}
   visibility: 'private' | 'group' | 'space', groupIds[]     # VOC-01
   createdBy, editPolicy: 'author'|'collaborators'|'everyone', collaboratorIds[]
   cardCount, learnerCount               # 서버 관리
-  copiedFrom?: { spaceId, deckId }
+  copiedFrom?: { spaceId, deckId, spaceName }   # spaceName: 복사 당시 원본 공간 이름 (WS-63 표시용)
   deletedAt?, createdAt, updatedAt
 
 spaces/{sid}/decks/{deckId}/cards/{cardId}
@@ -404,6 +404,7 @@ users/{uid}/avatar/{fileName}
 - 없음
 
 ## 16. 변경 이력
+- v2.4: `decks.copiedFrom.spaceName`(WS-63, 원본 공간을 나간 뒤에도 표시)
 - v2.3: `spaces.ownershipTransfer`(WS-25)
 - v2.2: `invites`에 `code` 필드(컬렉션 그룹 조회용)
 - v2.1: 확정 — 내 공간에 개인 독서·독후감 추가, 최대 인원 기본 100명 확정

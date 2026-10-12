@@ -5,10 +5,11 @@ import type { Deck, DeckFolder } from '~/features/vocab/services/decks'
 import type { CardState, DeckProgress } from '~/features/vocab/services/srs'
 import { canDeleteContent, canEditContent } from '#shared/permissions'
 import { STUDY_MODES } from '#shared/study'
-import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardPasteIcon, PencilIcon, PlusIcon, StarIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
+import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardPasteIcon, CopyIcon, PencilIcon, PlusIcon, StarIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
 import CardFormDialog from '~/features/vocab/components/CardFormDialog.vue'
+import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import DeckFormDialog from '~/features/vocab/components/DeckFormDialog.vue'
 import PasteCardsDialog from '~/features/vocab/components/PasteCardsDialog.vue'
 import { useSpeech } from '~/features/vocab/composables/useSpeech'
@@ -34,6 +35,7 @@ const members = ref<Member[]>([])
 const loading = ref(true)
 const missing = ref(false)
 const editOpen = ref(false)
+const copyOpen = ref(false)
 const cards = ref<Card[]>([])
 const cardOpen = ref(false)
 const editingCard = ref<Card | null>(null)
@@ -201,9 +203,13 @@ async function remove() {
             <span v-if="space.current?.kind === 'workspace'">{{ t.learnerCount(deck.learnerCount) }}</span>
             <span v-if="space.current?.kind === 'workspace' && author">{{ t.by(author) }}</span>
             <span v-if="folderName">{{ folderName }}</span>
+            <span v-if="deck.copiedFrom">{{ t.copy.from(deck.copiedFrom.spaceName ?? '') }}</span>
           </div>
         </div>
         <div class="flex gap-2">
+          <Button variant="outline" size="sm" @click="copyOpen = true">
+            <CopyIcon />{{ t.copy.button }}
+          </Button>
           <Button v-if="canEdit" variant="outline" size="sm" @click="editOpen = true">
             <PencilIcon />{{ t.edit }}
           </Button>
@@ -396,6 +402,7 @@ async function remove() {
         </ul>
       </section>
 
+      <CopyDeckDialog v-model:open="copyOpen" :from-space-id="sid" :deck-id="deckId" />
       <CardFormDialog v-model:open="cardOpen" :deck="deck" :card="editingCard" :next-order="nextOrder" :count="cards.length" @saved="reloadCards" />
       <PasteCardsDialog v-model:open="pasteOpen" :deck="deck" :next-order="nextOrder" :count="cards.length" @saved="reloadCards" />
 
