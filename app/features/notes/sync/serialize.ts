@@ -3,9 +3,9 @@ import type { JSONContent } from '@tiptap/core'
 import { compareOrder } from './order'
 
 /** 들여쓰기 = 자식 블록인 노션식 목록 블록. 첫 줄(itemLine)이 블록 본문, 나머지 자식이 자식 블록 */
-export const LIST_TYPES: ReadonlySet<string> = new Set(['bulletItem', 'todoItem', 'toggle'])
+export const LIST_TYPES: ReadonlySet<string> = new Set(['bulletItem', 'numberedItem', 'todoItem', 'toggle'])
 /** UniqueID를 갖는 블록 노드 */
-export const BLOCK_TYPES = ['paragraph', 'heading', 'blockquote', 'codeBlock', 'horizontalRule', ...LIST_TYPES]
+export const BLOCK_TYPES = ['paragraph', 'heading', 'blockquote', 'callout', 'codeBlock', 'horizontalRule', 'video', ...LIST_TYPES]
 
 export interface BlockData {
   type: string
