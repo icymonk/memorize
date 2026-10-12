@@ -3,6 +3,7 @@ import type { Member } from '~/features/space/services/invites'
 import type { Card } from '~/features/vocab/services/cards'
 import type { Deck, DeckFolder } from '~/features/vocab/services/decks'
 import { canDeleteContent, canEditContent } from '#shared/permissions'
+import { STUDY_MODES } from '#shared/study'
 import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardPasteIcon, PencilIcon, PlusIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
@@ -195,6 +196,14 @@ async function remove() {
           #{{ tag }}
         </Badge>
       </div>
+
+      <nav v-if="cards.length" class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <Button v-for="m in STUDY_MODES" :key="m" variant="outline" class="h-12" as-child>
+          <NuxtLink :to="`/s/${sid}/study/${deckId}?mode=${m}`">
+            {{ t.study.modes[m] }}
+          </NuxtLink>
+        </Button>
+      </nav>
 
       <section class="flex flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-2">

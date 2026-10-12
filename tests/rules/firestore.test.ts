@@ -278,3 +278,31 @@ describe('cards (VOC-10·11·13)', () => {
     await assertSucceeds(batch.commit())
   })
 })
+
+describe('study records (VOC-23·32)', () => {
+  const session = (over: object = {}) => ({ uid: 'bob', deckId: 'a', mode: 'learn', cards: 10, correct: 8, newlyMastered: 0, durationSec: 60, startedAt: serverTimestamp(), endedAt: serverTimestamp(), ...over })
+  const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'studySessions', id)
+
+  it('members write only their own sessions; nobody edits them', async () => {
+    await assertSucceeds(setDoc(ref('bob', 's1'), session()))
+    await assertFails(setDoc(ref('bob', 's2'), session({ uid: 'alice' })))
+    await assertFails(setDoc(ref('bob', 's3'), session({ mode: 'cheat' })))
+    await assertFails(setDoc(ref('pat', 's4'), session({ uid: 'pat' })))
+    await assertFails(updateDoc(ref('bob', 's1'), { correct: 10 }))
+  })
+
+  it('others read sessions only when progress sharing allows', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'studySessions', 's1'), session()))
+    await assertSucceeds(getDoc(ref('alice', 's1')))
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'members', 'bob'), { hideProgress: true }))
+    await assertFails(getDoc(ref('alice', 's1')))
+    await assertSucceeds(getDoc(ref('bob', 's1')))
+  })
+
+  it('match ranking is readable by members and server-only', async () => {
+    const top = (uid: string) => doc(db(uid), 'spaces', SID, 'decks', 'a', 'matchTop', 'top')
+    await assertSucceeds(getDoc(top('alice')))
+    await assertFails(getDoc(top('lee')))
+    await assertFails(setDoc(top('bob'), { entries: [] }))
+  })
+})

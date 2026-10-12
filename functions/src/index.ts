@@ -5,3 +5,4 @@ export { cancelSpaceDeletion, createWorkspace, scheduleSpaceDeletion } from './c
 export { createInvite, decideJoinRequest, getInvite, joinSpace } from './callable/invite'
 export { leaveSpace, removeMember, respondOwnership, setManager, transferOwnership } from './callable/member'
 export { onCardWritten } from './trigger/card'
+export { onStudySessionCreated } from './trigger/studySession'

@@ -9,6 +9,11 @@ service cloud.firestore {
     function isManager(sid) { return isMember(sid) && get(memberPath(sid)).data.access in ['owner', 'manager']; }
     function onlyChanges(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
     function space(sid) { return get(/databases/$(database)/documents/spaces/$(sid)).data; }
+    function seesProgress(sid, ownerUid) {   // 진도 공유 (ACC-22, WS-04)
+      return signedIn() && (ownerUid == uid()
+        || (isMember(sid) && space(sid).settings.progressSharing == 'everyone'
+          && get(/databases/$(database)/documents/spaces/$(sid)/members/$(ownerUid)).data.get('hideProgress', false) != true));
+    }
     function isText(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
 
     // shared/schemas/space.ts 와 같은 값
@@ -102,6 +107,22 @@ service cloud.firestore {
         allow update: if isMember(sid) && seeDeck(deck()) && editDeck(deck())
           && validCard(request.resource.data) && request.resource.data.contentRev == resource.data.contentRev;
         allow delete: if isMember(sid) && seeDeck(deck()) && editDeck(deck());
+      }
+
+      match /studySessions/{id} {
+        allow read: if seesProgress(sid, resource.data.uid);
+        allow create: if isMember(sid) && request.resource.data.uid == uid()
+          && request.resource.data.mode in ['flashcards', 'learn', 'write', 'match']
+          && request.resource.data.cards is int && request.resource.data.correct is int
+          && request.resource.data.durationSec is number && request.resource.data.endedAt == request.time;
+      }
+
+      match /deckProgress/{id} {
+        allow read: if seesProgress(sid, resource.data.uid);
+      }
+
+      match /decks/{deckId}/matchTop/{docId} {
+        allow read: if isMember(sid);
       }
 
       match /deckFolders/{folderId} {
