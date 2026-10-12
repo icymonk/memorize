@@ -152,6 +152,77 @@ service cloud.firestore {
         allow delete: if isMember(sid) && (resource.data.ownerId == uid() || isManager(sid));
       }
 
+      // NOTE-01·10 노트 페이지와 블록 (docs/dev/editor.md). 공개 범위 세분화·공동 편집자 지정·잠금은 1-C4
+      // NOTE-50·54·60: 공개 범위(나만·지정한 사람·공간 전체), 공동 편집자, 공유 페이지 편집 정책, 편집 잠금(90초)
+      function seesPage(p) {
+        return p.deletedAt == null && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds);
+      }
+      function editsPage(p) {
+        return p.ownerId == uid() || uid() in p.editorIds || (p.root == 'shared' && p.get('editPolicy', 'everyone') == 'everyone');
+      }
+      function lockFree(p) {
+        return p.get('lock', null) == null || p.lock.uid == uid() || p.lock.at < request.time - duration.value(90, 's');
+      }
+      match /pages/{pageId} {
+        function pg() { return resource.data; }
+        function np() { return request.resource.data; }
+        function validPage(x) {
+          return x.type in ['page'] && isText(x.title, 0, 200) && isText(x.icon, 0, 16)
+            && x.root in ['private', 'shared'] && (x.parentId == null || x.parentId is string) && isText(x.order, 1, 256)
+            && x.visibility in ['private', 'people', 'space'] && x.editorIds is list && x.editorIds.size() <= 50
+            && x.get('sharedWith', []) is list && x.get('sharedWith', []).size() <= 50
+            && x.get('editPolicy', 'everyone') in ['everyone', 'editors']
+            && isText(x.excerpt, 0, 200) && x.blockCount is int && x.textLength is int
+            && (sid.matches('p_.*') == false || x.visibility == 'private');
+        }
+        function parentOk(x) {
+          return (x.parentId == null && x.ancestorIds.size() == 0)
+            || (x.parentId is string && x.ancestorIds.size() <= 9
+              && get(/databases/$(database)/documents/spaces/$(sid)/pages/$(x.parentId)).data.root == x.root
+              && get(/databases/$(database)/documents/spaces/$(sid)/pages/$(x.parentId)).data.deletedAt == null
+              && get(/databases/$(database)/documents/spaces/$(sid)/pages/$(x.parentId)).data.ancestorIds.concat([x.parentId]) == x.ancestorIds);
+        }
+        // 휴지통의 페이지는 작성자·버린 사람만 본다 (NOTE-22). 옮기기·휴지통은 서버(movePage·trashPage·restorePage)
+        allow read: if isMember(sid) && (pg().ownerId == uid() || pg().get('deletedBy', '') == uid()
+          || seesPage(pg()));
+        allow create: if isMember(sid)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid))
+          && np().ownerId == uid() && validPage(np()) && np().blockCount == 0 && np().textLength == 0 && np().lock == null
+          && np().deletedAt == null && parentOk(np())
+          && np().createdAt == request.time && np().updatedAt == request.time;
+        allow update: if isMember(sid) && (pg().ownerId == uid() || seesPage(pg())) && editsPage(pg()) && validPage(np())
+          && (!np().diff(pg()).affectedKeys().hasAny(['lock']) || (lockFree(pg())
+            && (np().lock == null || (np().lock.uid == uid() && np().lock.at == request.time))))
+          && pg().deletedAt == null
+          && !np().diff(pg()).affectedKeys().hasAny(['ownerId', 'type', 'createdAt', 'copiedFrom', 'missionIds', 'commentCount', 'feedbackCount', 'reactionCounts',
+            'parentId', 'ancestorIds', 'deletedAt', 'deletedBy', 'trashRootId'])
+          && (pg().ownerId == uid() || !np().diff(pg()).affectedKeys().hasAny(['visibility', 'root', 'groupIds', 'sharedWith', 'editorIds', 'reviewerIds', 'editPolicy']))
+          && np().updatedAt == request.time;
+        allow delete: if false;
+      }
+
+      // NOTE-21 즐겨찾기·최근 본 페이지: 나만 읽고 쓴다
+      match /userPrefs/{userId} {
+        allow read: if isMember(sid) && userId == uid();
+        allow write: if isMember(sid) && userId == uid()
+          && request.resource.data.keys().hasOnly(['favoritePageIds', 'recentPageIds'])
+          && request.resource.data.favoritePageIds is list && request.resource.data.favoritePageIds.size() <= 50
+          && request.resource.data.recentPageIds is list && request.resource.data.recentPageIds.size() <= 20;
+      }
+
+      match /pages/{pageId}/blocks/{blockId} {
+        function page() { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(pageId)).data; }
+        function seePage(p) { return p.ownerId == uid() || seesPage(p); }
+        function editPage(p) { return p.deletedAt == null && editsPage(p) && lockFree(p); }
+        function validBlock(b) {
+          return isText(b.type, 1, 40) && (b.parentBlockId == null || b.parentBlockId is string) && isText(b.order, 1, 256)
+            && b.attrs is map && b.content is list && b.rev is int && b.updatedBy == uid() && b.updatedAt == request.time;
+        }
+        allow read: if isMember(sid) && seePage(page());
+        allow create, update: if isMember(sid) && seePage(page()) && editPage(page()) && validBlock(request.resource.data);
+        allow delete: if isMember(sid) && seePage(page()) && editPage(page());
+      }
+
       // WS-10·11: 생성은 서버(createInvite, 코드 유일성). 만든 사람·매니저가 보고 끄고 켠다
       match /invites/{code} {
         function mine() { return resource.data.createdBy == uid(); }

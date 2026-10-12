@@ -13,15 +13,27 @@ const createOpen = ref(false)
 const joinOpen = ref(false)
 const loadError = ref(false)
 
+/** WS-40: 첫 화면에서는 마지막으로 쓴 공간(없으면 내 공간)으로 바로 들어간다 */
+function enterLastSpace(noAccess: boolean) {
+  const account = auth.account
+  if (!account) return
+  const last = noAccess ? null : space.lastSpaceId()
+  const target = space.spaces.find(s => s.id === last && !s.deleteScheduledAt)?.id ?? account.personalSpaceId
+  navigateTo(`/s/${target}`, { replace: true })
+}
+
 watch(() => auth.account, (account) => {
-  if (account) space.loadMySpaces().then(() => { loadError.value = false }).catch(() => { loadError.value = true })
+  if (!account) return
+  space.loadMySpaces()
+    .then(() => {
+      loadError.value = false
+      enterLastSpace(route.query.notice === 'noAccess')
+    })
+    .catch(() => { loadError.value = true })
 }, { immediate: true })
 
 onMounted(() => {
-  if (route.query.notice === 'noAccess') {
-    toast.error(ko.space.noAccess)
-    navigateTo({ path: '/', query: {} }, { replace: true })
-  }
+  if (route.query.notice === 'noAccess') toast.error(ko.space.noAccess)
 })
 
 definePageMeta({ layout: false })

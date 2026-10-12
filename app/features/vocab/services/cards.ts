@@ -32,6 +32,9 @@ export async function addCards(db: Firestore, sid: string, deckId: string, input
   }
 }
 
+/** 표 편집에서 새로 넣는 카드의 ID */
+export const newCardId = (db: Firestore, sid: string, deckId: string) => doc(cardsOf(db, sid, deckId)).id
+
 export async function saveCard(db: Firestore, sid: string, deckId: string, card: Card) {
   await setDoc(doc(cardsOf(db, sid, deckId), card.id), toDoc(card))
 }

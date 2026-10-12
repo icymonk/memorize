@@ -1,0 +1,216 @@
+<script setup lang="ts">
+import type { Page } from '~/features/notes/services/pages'
+import type { SaveStatus } from '~/features/notes/sync/writer'
+import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, StarIcon, Trash2Icon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
+import { useDebounceFn } from '@vueuse/core'
+import { LIMITS } from '#shared/limits'
+import BlockEditor from '~/features/notes/components/BlockEditor.vue'
+import ShareDialog from '~/features/notes/components/ShareDialog.vue'
+import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, updatePageTitle } from '~/features/notes/services/pages'
+import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
+import { errorMessage } from '~/lib/errors'
+import { cn } from '~/lib/utils'
+import { ko } from '~/locales/ko'
+
+/** NOTE-01·10: 페이지 편집 — 블록 편집기와 자동 저장 상태 */
+const t = ko.notes
+const route = useRoute()
+const space = useSpaceStore()
+const auth = useAuthStore()
+const { $firestore } = useNuxtApp()
+
+const sid = computed(() => space.current!.id)
+const pageId = computed(() => route.params.pageId as string)
+const page = ref<Page | null>(null)
+const loading = ref(true)
+const loadError = ref(false)
+const title = ref('')
+const blockStatus = ref<SaveStatus>('saved')
+const titleSaving = ref(false)
+const titleFailed = ref(false)
+const blockCount = ref(0)
+const editorRef = ref<InstanceType<typeof BlockEditor>>()
+const notes = useNotesStore()
+const headings = ref<{ id: string, level: number, text: string }[]>([])
+const crumbs = computed(() => (page.value ? notes.ancestors(page.value) : []))
+const canTrash = computed(() => !!page.value && !page.value.deletedAt && (page.value.ownerId === auth.user!.uid || ['owner', 'manager'].includes(space.membership?.access ?? '')))
+/** 사이드바에서 제목을 바꾸면 여기도 따라간다 */
+watch(() => notes.byId.get(pageId.value)?.title, (v) => { if (v !== undefined && !titleSaving.value) title.value = v })
+
+function jump(id: string) {
+  document.querySelector(`.note-editor [data-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+async function toTrash() {
+  if (!page.value || !window.confirm(t.trashConfirm(page.value.title || t.untitled))) return
+  try {
+    editorRef.value?.flush()
+    await notes.trash(page.value.id)
+    toast.success(t.trashed)
+    await navigateTo(`/s/${sid.value}/notes`)
+  }
+  catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
+}
+
+const shareOpen = ref(false)
+const live = computed(() => notes.byId.get(pageId.value) ?? page.value)
+/** NOTE-60: 다른 사람이 90초 안에 갱신한 잠금이 있으면 읽기만 */
+const lockedBy = computed(() => {
+  const l = live.value?.lock
+  if (!l || l.uid === auth.user!.uid || !l.at) return null
+  return Date.now() - l.at.toMillis() < 90_000 ? l.name : null
+})
+const canEdit = computed(() => !!page.value && !page.value.deletedAt && canEditPage(live.value ?? page.value, auth.user!.uid))
+const editable = computed(() => canEdit.value && !lockedBy.value)
+let lockTimer: ReturnType<typeof setInterval> | undefined
+const myName = () => auth.user?.displayName || auth.user?.email?.split('@')[0] || ''
+function holdLock() {
+  if (!canEdit.value || lockedBy.value) return
+  setLock($firestore, sid.value, pageId.value, { uid: auth.user!.uid, name: myName() }).catch(() => {})
+}
+watch(canEdit, (v) => {
+  clearInterval(lockTimer)
+  if (!v) return
+  holdLock()
+  lockTimer = setInterval(holdLock, LOCK_REFRESH_MS)
+})
+onBeforeUnmount(() => {
+  clearInterval(lockTimer)
+  if (canEdit.value && !lockedBy.value) setLock($firestore, sid.value, pageId.value, null).catch(() => {})
+})
+const status = computed<SaveStatus>(() => {
+  if (blockStatus.value !== 'saved') return blockStatus.value
+  if (titleFailed.value) return 'error'
+  return titleSaving.value ? 'saving' : 'saved'
+})
+
+async function load() {
+  loading.value = true
+  try {
+    page.value = await getPage($firestore, sid.value, pageId.value)
+    title.value = page.value?.title ?? ''
+    if (page.value && !page.value.deletedAt) notes.visit(page.value)
+    loadError.value = false
+  }
+  catch {
+    loadError.value = true
+  }
+  finally {
+    loading.value = false
+  }
+}
+onMounted(load)
+
+const saveTitle = useDebounceFn(async () => {
+  try {
+    await updatePageTitle($firestore, sid.value, pageId.value, title.value.trim().slice(0, 200))
+    titleFailed.value = false
+  }
+  catch {
+    titleFailed.value = true
+  }
+  finally {
+    titleSaving.value = false
+  }
+}, SAVE_DELAY_MS)
+function onTitle() {
+  titleSaving.value = true
+  saveTitle()
+}
+
+onBeforeRouteLeave(() => { editorRef.value?.flush() })
+</script>
+
+<template>
+  <div class="mx-auto flex w-full max-w-5xl gap-8">
+  <div class="flex min-w-0 max-w-3xl flex-1 flex-col gap-4">
+    <div class="flex items-center justify-between gap-3 text-sm">
+      <nav class="text-muted-foreground flex min-w-0 items-center gap-1">
+        <NuxtLink :to="`/s/${sid}/notes`" class="hover:text-foreground flex shrink-0 items-center gap-1">
+          <ArrowLeftIcon class="size-4" />
+          {{ t.back }}
+        </NuxtLink>
+        <template v-for="c in crumbs" :key="c.id">
+          <ChevronRightIcon class="size-3.5 shrink-0" />
+          <NuxtLink :to="`/s/${sid}/notes/${c.id}`" class="hover:text-foreground max-w-40 truncate">{{ c.title || t.untitled }}</NuxtLink>
+        </template>
+      </nav>
+      <span class="flex shrink-0 items-center gap-1">
+      <span
+        v-if="page && editable"
+        role="status"
+        :class="cn('flex items-center gap-1.5 text-xs', status === 'error' || status === 'tooLarge' ? 'text-destructive' : 'text-muted-foreground')"
+      >
+        <LoaderIcon v-if="status === 'saving'" class="size-3.5 animate-spin" />
+        <CloudOffIcon v-else-if="status === 'offline'" class="size-3.5" />
+        {{ t.status[status] }}
+      </span>
+      <span v-else-if="page" class="text-muted-foreground text-xs">{{ t.readOnly }}</span>
+        <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="notes.isFavorite(page.id) ? t.removeFavorite : t.addFavorite" @click="notes.toggleFavorite(page.id)">
+          <StarIcon :class="notes.isFavorite(page.id) && 'fill-amber-400 text-amber-500'" />
+        </Button>
+        <Button v-if="page && page.ownerId === auth.user?.uid && !page.deletedAt" variant="ghost" size="sm" @click="shareOpen = true">
+          {{ t.share.button }}
+        </Button>
+        <Button v-if="canTrash" variant="ghost" size="icon" class="size-8" :aria-label="t.moveToTrash" @click="toTrash">
+          <Trash2Icon />
+        </Button>
+      </span>
+    </div>
+    <p v-if="page?.deletedAt" class="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">
+      {{ t.inTrash }}
+    </p>
+    <p v-else-if="lockedBy" class="bg-muted rounded-md px-3 py-2 text-sm">
+      {{ t.editingBy(lockedBy) }}
+    </p>
+    <ShareDialog v-if="page" v-model:open="shareOpen" :page="live ?? page" @saved="page = { ...page!, ...$event }" />
+
+    <p v-if="loadError" class="text-destructive text-sm">
+      {{ t.loadFailed }}
+    </p>
+    <div v-else-if="loading" class="flex flex-col gap-3">
+      <Skeleton class="h-10 w-1/2" />
+      <Skeleton class="h-5 w-3/4" />
+    </div>
+    <p v-else-if="!page" class="text-muted-foreground py-12 text-center text-sm">
+      {{ t.notFound }}
+    </p>
+    <template v-else>
+      <input
+        v-model="title"
+        :readonly="!editable"
+        maxlength="200"
+        :placeholder="t.untitled"
+        class="placeholder:text-muted-foreground/60 w-full bg-transparent text-3xl font-bold outline-none"
+        @input="onTitle"
+        @keydown.enter.prevent="editorRef?.focus()"
+      >
+      <p v-if="blockCount > LIMITS.pageBlockWarn" class="text-muted-foreground text-xs">
+        {{ t.tooManyBlocks(LIMITS.pageBlockWarn) }}
+      </p>
+      <BlockEditor
+        ref="editorRef"
+        :space-id="sid"
+        :page-id="pageId"
+        :editable="editable"
+        @status="blockStatus = $event"
+        @loaded="blockCount = $event"
+        @error="loadError = true"
+        @headings="headings = $event"
+      />
+    </template>
+  </div>
+  <aside v-if="headings.length" class="sticky top-4 hidden w-48 shrink-0 self-start xl:block">
+    <p class="text-muted-foreground mb-2 text-xs font-medium">
+      {{ t.toc }}
+    </p>
+    <ul class="flex flex-col gap-1 text-sm">
+      <li v-for="h in headings" :key="h.id" :style="{ paddingLeft: `${(h.level - 1) * 12}px` }">
+        <button type="button" class="text-muted-foreground hover:text-foreground line-clamp-2 text-left" @click="jump(h.id)">
+          {{ h.text || t.untitled }}
+        </button>
+      </li>
+    </ul>
+  </aside>
+  </div>
+</template>
