@@ -1,6 +1,6 @@
 # 보안 규칙
 
-> 상태: 확정 · v2.1 — 현재 `firestore.rules`·`storage.rules`는 전체 차단. 0단계에서 이 설계로 교체한다.
+> 상태: 확정 · v2.2 — 현재 `firestore.rules`·`storage.rules`는 전체 차단. 0단계에서 이 설계로 교체한다.
 
 ## 1. 원칙
 - **화면의 권한 표시는 편의, 실제 강제는 규칙과 서버 기능.**
@@ -127,7 +127,7 @@ match /spaces/{sid}/pages/{pageId} {
 ```
 - 목록 쿼리도 규칙을 만족해야 한다: 남의 노트는 `visibility == 'space'` / `group` / `sharedWith array-contains me` 쿼리를 따로 실행해 합친다.
 - 공개 범위·공유 대상은 **작성자만** 바꾼다. 피드백 요청·미션 제출로 인한 추가는 서버 기능이 한다.
-- 블록 쓰기의 `page()` 읽기 횟수는 에뮬레이터로 검증 ([editor.md](./editor.md#12-확인-필요)).
+- 블록 쓰기의 `page()` 읽기 횟수: 에뮬레이터 검증 완료(S1, [spikes.md](./spikes.md)). 같은 문서는 묶음 전체에서 한 번만 센다. `exists()`와 `get()`은 따로 세는 것으로 보이므로 `isMember`는 `get()` 하나로 줄이는 것을 검토.
 - 내 일지 모아 보기: `match /{path=**}/pages/{pageId}`에 `resource.data.ownerId == uid()` 허용.
 
 ### 공통
@@ -216,5 +216,6 @@ match /b/{bucket}/o {
 - 없음
 
 ## 8. 변경 이력
+- v2.2: 블록 쓰기 규칙 읽기 횟수 검증 결과 반영
 - v2.1: 확정 — 비공개 노트 첨부 파일 보호는 3단계에서
 - v2.0: 확정 기능명세 기준으로 새로 작성

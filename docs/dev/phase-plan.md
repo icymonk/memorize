@@ -1,6 +1,6 @@
 # 0~1단계 작업 분해
 
-> 상태: 확정 · v2.1 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
+> 상태: 확정 · v2.2 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
 
 ## 진행 상황
 | 작업 | 상태 | 비고 |
@@ -9,10 +9,11 @@
 | 0-3 서버 기능 기본 틀 | 일부 | `authedCallable`(로그인·zod 검증·오류), 서울 리전, App Check 파라미터(`ENFORCE_APP_CHECK`) |
 | 0-4 로그인 | 코드 완료 · 배포 전 | 구글·이메일 링크 로그인, `auth` 스토어, `auth.global`, `ensureAccount`·`completeOnboarding`, `/welcome` |
 | 0-5 레이아웃 | 일부 | default(사이드바)·auth·focus 레이아웃, 첫 화면. 공간 전환은 0-6 이후 |
-| 0-2 Firebase 설정 | 대기 | Firebase CLI 로그인 필요 |
+| 0-2 Firebase 설정 | 대기 | Firebase CLI 로그인 필요. 2nd gen 실행 서비스 계정에 "서비스 계정 토큰 생성자" 역할 부여(S4) |
+| 기술 검증 S1~S5 | 완료 | 모두 통과, 설계 변경 없음 → [spikes.md](./spikes.md) |
 
 ## 먼저 할 검증 (기술 확인)
-본 작업 전에 짧게 확인해 설계를 확정한다. 결과는 해당 문서에 반영.
+본 작업 전에 짧게 확인해 설계를 확정한다. 결과는 해당 문서에 반영. **결과: [spikes.md](./spikes.md) — 모두 통과.**
 
 | # | 확인할 것 | 관련 문서 | 실패 시 대안 |
 | --- | --- | --- | --- |
@@ -84,5 +85,6 @@
 - 없음
 
 ## 변경 이력
+- v2.2: 기술 검증 S1~S5 완료(spikes.md), 0-2에 서비스 계정 역할 부여 추가
 - v2.1: 확정 — Firebase 프로젝트 `memorize-c6c1b` 사용, Blaze 전환 후 0-2 진행
 - v2.0: 확정 기능명세 기준으로 새로 작성

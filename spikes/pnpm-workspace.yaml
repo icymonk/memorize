@@ -1,0 +1,4 @@
+# Standalone workspace so spike deps never touch the app lockfile.
+allowBuilds:
+  '@firebase/util': true
+  protobufjs: true
