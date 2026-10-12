@@ -1,6 +1,6 @@
 # 개발 환경 · 코드 규칙 · 테스트 · 배포 · 모니터링
 
-> 상태: 확정 · v2.3
+> 상태: 확정 · v2.4
 
 ## 1. 개발 환경
 | 항목 | 명령 / 내용 |
@@ -53,8 +53,10 @@ E2E 핵심 흐름:
 5. (2단계) 보호자 → 아이 계정 → 아이 로그인 코드로 로그인 → 보호자가 아이 비공개 노트 열람
 
 ## 4. Git
-- 저장소: Git 초기화됨 (기본 브랜치 `main`).
-- `main` 보호, 기능 브랜치 `feat/<기능>-<내용>`, 리뷰 후 합치기.
+- 저장소: Git 초기화됨. 브랜치는 `main` ← `develop` ← 기능 브랜치.
+  - `main`: 운영. `develop`에서 PR로만 합친다. 합치면 운영 배포.
+  - `develop`: 개발 통합(GitHub 기본 브랜치). 기능 브랜치를 PR로 합친다. 배포는 하지 않는다.
+  - 기능 브랜치 `feat/<기능>-<내용>`: `develop`에서 만들고, 리뷰 후 `develop`에 합치기.
 - 커밋: Conventional Commits (`feat(vocab): …`, `fix(notes): …`).
 
 ## 5. 배포
@@ -88,6 +90,7 @@ E2E 핵심 흐름:
 - 없음
 
 ## 8. 변경 이력
+- v2.4: 브랜치 전략 `main` ← `develop` ← 기능 브랜치
 - v2.3: Hosting 사이트를 `memorize-hub`로 지정
 - v2.2: GitHub Actions 배포(미리보기·운영)와 필요한 시크릿·변수(`ENFORCE_APP_CHECK` 포함)
 - v2.1: 확정 — pnpm 통일, Git 초기화, Firebase 프로젝트 `memorize-c6c1b`
