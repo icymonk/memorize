@@ -25,3 +25,30 @@ export function can(ctx: SpaceContext, action: SpaceAction): boolean {
       return isManager || (ctx.settings?.[SETTING_KEY[action]] ?? 'everyone') === 'everyone'
   }
 }
+
+/** 공유 콘텐츠(단어장 등) 판정 — docs/dev/security.md 3절. 규칙과 같은 기준 */
+export interface ContentDoc {
+  createdBy: string
+  visibility: 'private' | 'group' | 'space'
+  groupIds: string[]
+  editPolicy: 'author' | 'collaborators' | 'everyone'
+  collaboratorIds: string[]
+}
+
+export function canSeeContent(d: ContentDoc, uid: string, myGroupIds: string[] = []): boolean {
+  return d.visibility === 'space' || d.createdBy === uid
+    || (d.visibility === 'group' && d.groupIds.some(g => myGroupIds.includes(g)))
+}
+
+/** VOC-02 편집 범위 */
+export function canEditContent(d: ContentDoc, uid: string): boolean {
+  return d.createdBy === uid
+    || (d.editPolicy === 'collaborators' && d.collaboratorIds.includes(uid))
+    || d.editPolicy === 'everyone'
+}
+
+export function canDeleteContent(ctx: SpaceContext, d: ContentDoc, uid: string): boolean {
+  const m = ctx.member
+  if (!m || m.status !== 'active') return false
+  return d.createdBy === uid || m.access === 'owner' || m.access === 'manager'
+}

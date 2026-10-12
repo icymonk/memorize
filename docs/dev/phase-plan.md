@@ -1,6 +1,6 @@
 # 0~1단계 작업 분해
 
-> 상태: 확정 · v2.6 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
+> 상태: 확정 · v2.12 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
 
 ## 진행 상황
 | 작업 | 상태 | 비고 |
@@ -11,6 +11,12 @@
 | 0-5 레이아웃 | 일부 | default(사이드바)·auth·focus 레이아웃, 첫 화면. 공간 전환은 0-6 이후 |
 | 0-6 워크스페이스 | 일부 | `createWorkspace`, 공간 목록(사이드바·첫 화면), 만들기 창, `/s/:spaceId` 셸·`space` 미들웨어·`space` 스토어, `/s/:id/settings`(일반·기능·운영 방식·최대 인원 표시), `scheduleSpaceDeletion`·`cancelSpaceDeletion`, `shared/permissions.ts`. 남은 것: `cronSpaceDeletion`(Cloud Scheduler API 필요) |
 | 0-7 초대·멤버 | 일부 | `createInvite`·`getInvite`·`joinSpace`·`decideJoinRequest`, `/invite/:code`, 코드로 참여, `/s/:id/members`(멤버·초대·가입 대기), `setManager`·`removeMember`·`leaveSpace`·`transferOwnership`·`respondOwnership`. 남은 것: `onMemberWritten`(나간 멤버 노트 처리, 노트 기능과 함께) |
+| 1-B1 단어장 목록·만들기 | 일부 | `decks`·`deckFolders` 규칙(공개 대상·편집 범위·`whoCanCreate`), `shared/schemas/deck.ts`, `canSeeContent`·`canEditContent`·`canDeleteContent`, `/s/:id/decks`(폴더·태그 거르기)·`/s/:id/decks/:deckId`, 만들기·설정 창. 남은 것: 그룹 공개(그룹 기능과 함께), 진도 표시(1-B5) |
+| 1-B2 카드 입력 | 일부 | `cards` 규칙(단어장 편집 범위·`contentRev` 서버 전용), `onCardWritten`(카드 수·`contentRev`), 카드 한 장 추가·수정(단어장 항목별), 붙여넣기 입력(`shared/paste.ts`, 미리보기), 표 편집·순서 바꾸기, 기기 음성 발음·목소리 선택. 남은 것: 이미지·녹음 올리기(파일 기능과 함께), 유의어·반의어 카드 연결 |
+| 1-B3 학습 모드 | 일부 | `/s/:id/study/:deckId?mode=` (낱말카드·학습하기·쓰기·매칭), `shared/study.ts`(오타 허용·보기·라운드·순위), `studySessions`·`deckProgress`·`matchTop` 규칙, `onStudySessionCreated`(매칭 순위·내 최고 기록), 키보드 조작, 기기에 이어하기, 결과 화면. 남은 것: 별표 카드만(1-B5), 매칭 쌍 수 고르기, 활동 피드 반영(1-A4) |
+| 1-B4 간격 반복·오늘의 복습 | 일부 | `shared/srs.ts`(SM-2 단순화판, 다시/어려움/알맞음/쉬움), `cardStates` 규칙·컬렉션 그룹 읽기·색인, 단어장 복습(오늘 복습할 카드 + 새 카드 하루 20장), `/s/:id/review`(공간 오늘의 복습), `/review`(전체 오늘의 복습), 홈 카드·사이드바, 카드 삭제 시 학습 기록 정리(`onCardWritten`). 남은 것: 하루 상한을 학습 설정(ACC-24)에서 바꾸기, 하루 새 카드 수를 날짜 기준으로 세기, 전체 복습 결과 기록 |
+| 1-B5 학습 상태·진도·별표·멤버 진도 | 일부 | 카드별 상태·맞힘/틀림·다음 복습(VOC-40), `onCardStateWritten`로 `deckProgress`(외움·학습 중)와 `learnerCount` 집계, 단어장 목록·상세 진도율(VOC-41), 별표와 "별표 카드만" 낱말카드(VOC-42·20), 멤버 진도(VOC-45, 진도 공유 '모두'일 때). 남은 것: 학습하기·쓰기에서 카드 상태 갱신, 오답 노트(3단계) |
+| 1-B6 개인 단어장·단어장 복사 | 일부 | 내 공간 단어장은 1-B1부터 같은 화면으로 동작(VOC-06). `copyContent` callable(단어장만): 볼 수 있는 단어장을 내가 만들 수 있는 다른 공간으로 복사, 작성자는 복사한 사람, 폴더·공개 대상·공동 편집자 초기화, 학습 기록·이미지·녹음 제외, "○○에서 복사함" 표시(VOC-04, WS-60~64). 남은 것: 파일 복사(파일 기능과 함께), 노트 복사(1-C) |
 | 0-2 Firebase 설정 | 대기 | Firebase CLI 로그인 필요. 2nd gen 실행 서비스 계정에 "서비스 계정 토큰 생성자" 역할 부여(S4) |
 | 기술 검증 S1~S5 | 완료 | 모두 통과, 설계 변경 없음 → [spikes.md](./spikes.md) |
 
@@ -87,6 +93,12 @@
 - 없음
 
 ## 변경 이력
+- v2.12: 1-B6 단어장 복사 진행 상황
+- v2.11: 1-B5 학습 상태·진도·별표 진행 상황
+- v2.10: 1-B4 간격 반복·오늘의 복습 진행 상황
+- v2.9: 1-B3 학습 모드 진행 상황
+- v2.8: 1-B2 카드 입력 진행 상황
+- v2.7: 1-B1 단어장 목록·만들기 진행 상황
 - v2.6: 0-7 멤버 관리 진행 상황
 - v2.5: 0-7 초대·참여 진행 상황
 - v2.4: 0-6 설정·삭제 유예 진행 상황

@@ -8,6 +8,12 @@ service cloud.firestore {
     function isMember(sid) { return signedIn() && exists(memberPath(sid)) && get(memberPath(sid)).data.status == 'active'; }
     function isManager(sid) { return isMember(sid) && get(memberPath(sid)).data.access in ['owner', 'manager']; }
     function onlyChanges(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
+    function space(sid) { return get(/databases/$(database)/documents/spaces/$(sid)).data; }
+    function seesProgress(sid, ownerUid) {   // 진도 공유 (ACC-22, WS-04)
+      return signedIn() && (ownerUid == uid()
+        || (isMember(sid) && space(sid).settings.progressSharing == 'everyone'
+          && get(/databases/$(database)/documents/spaces/$(sid)/members/$(ownerUid)).data.get('hideProgress', false) != true));
+    }
     function isText(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
 
     // shared/schemas/space.ts 와 같은 값
@@ -24,6 +30,11 @@ service cloud.firestore {
         && s.whoCanHost in ['everyone', 'managers']
         && s.progressSharing in ['everyone', 'self']
         && s.ranking == resource.data.settings.ranking;
+    }
+
+    // WS-53 전체 오늘의 복습: 내 기록만 모든 공간에서
+    match /{path=**}/cardStates/{id} {
+      allow read: if signedIn() && resource.data.uid == uid();
     }
 
     match /users/{userId} {
@@ -45,6 +56,100 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isMember(sid);
+      }
+
+      // VOC-01·02·03·05 — docs/dev/security.md 3절 공유 콘텐츠
+      match /decks/{deckId} {
+        function d() { return resource.data; }
+        function nd() { return request.resource.data; }
+        function canSee() {
+          return d().visibility == 'space' || d().createdBy == uid()
+            || (d().visibility == 'group' && get(memberPath(sid)).data.get('groupIds', []).hasAny(d().groupIds));
+        }
+        function canEdit() {
+          return d().createdBy == uid()
+            || (d().editPolicy == 'collaborators' && uid() in d().collaboratorIds)
+            || d().editPolicy == 'everyone';
+        }
+        function validDeck(x) {
+          return isText(x.title, 1, 80) && isText(x.description, 0, 500)
+            && x.langFrom is string && x.langTo is string && (x.folderId == null || x.folderId is string)
+            && x.visibility in ['private', 'group', 'space'] && x.groupIds is list && x.groupIds.size() <= 20
+            && x.editPolicy in ['author', 'collaborators', 'everyone'] && x.collaboratorIds is list && x.collaboratorIds.size() <= 50
+            && x.tags is list && x.tags.size() <= 10 && x.fields is list
+            && (sid.matches('p_.*') == false || x.visibility == 'private' || x.visibility == 'space');
+        }
+        allow read: if isMember(sid) && canSee();
+        allow create: if isMember(sid)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid))
+          && nd().createdBy == uid() && validDeck(nd())
+          && nd().cardCount == 0 && nd().learnerCount == 0
+          && nd().createdAt == request.time && nd().updatedAt == request.time;
+        allow update: if isMember(sid) && canSee() && canEdit() && validDeck(nd())
+          && !nd().diff(d()).affectedKeys().hasAny(['createdBy', 'copiedFrom', 'cardCount', 'learnerCount', 'createdAt'])
+          && (d().createdBy == uid() || !nd().diff(d()).affectedKeys().hasAny(['visibility', 'groupIds', 'editPolicy', 'collaboratorIds']))
+          && nd().updatedAt == request.time;
+        allow delete: if isMember(sid) && (d().createdBy == uid() || isManager(sid));
+      }
+
+      // VOC-03: 폴더는 멤버 누구나 만들고, 만든 사람·매니저가 고치고 지운다
+      match /decks/{deckId}/cards/{cardId} {
+        function deck() { return get(/databases/$(database)/documents/spaces/$(sid)/decks/$(deckId)).data; }
+        function seeDeck(dk) {
+          return dk.visibility == 'space' || dk.createdBy == uid()
+            || (dk.visibility == 'group' && get(memberPath(sid)).data.get('groupIds', []).hasAny(dk.groupIds));
+        }
+        function editDeck(dk) {
+          return dk.createdBy == uid() || (dk.editPolicy == 'collaborators' && uid() in dk.collaboratorIds) || dk.editPolicy == 'everyone';
+        }
+        function validCard(c) {
+          return isText(c.front, 1, 200) && c.back is list && c.back.size() >= 1 && c.back.size() <= 10
+            && c.order is number && c.examples is list && c.examples.size() <= 10 && c.tags is list && c.tags.size() <= 10;
+        }
+        allow read: if isMember(sid) && seeDeck(deck());
+        allow create: if isMember(sid) && seeDeck(deck()) && editDeck(deck())
+          && validCard(request.resource.data) && request.resource.data.contentRev == 0;
+        allow update: if isMember(sid) && seeDeck(deck()) && editDeck(deck())
+          && validCard(request.resource.data) && request.resource.data.contentRev == resource.data.contentRev;
+        allow delete: if isMember(sid) && seeDeck(deck()) && editDeck(deck());
+      }
+
+      match /cardStates/{id} {   // VOC-40
+        function validState(d) {
+          return d.uid == uid() && id == uid() + '_' + d.cardId && d.deckId is string
+            && d.status in ['new', 'learning', 'review', 'mastered'] && d.due is timestamp
+            && d.ease is number && d.intervalDays is number;
+        }
+        allow read: if seesProgress(sid, resource.data.uid);
+        allow create: if isMember(sid) && validState(request.resource.data);
+        allow update: if isMember(sid) && resource.data.uid == uid() && validState(request.resource.data)
+          && request.resource.data.deckId == resource.data.deckId;
+        allow delete: if isMember(sid) && resource.data.uid == uid();
+      }
+
+      match /studySessions/{id} {
+        allow read: if seesProgress(sid, resource.data.uid);
+        allow create: if isMember(sid) && request.resource.data.uid == uid()
+          && request.resource.data.mode in ['flashcards', 'learn', 'write', 'match', 'review']
+          && request.resource.data.cards is int && request.resource.data.correct is int
+          && request.resource.data.durationSec is number && request.resource.data.endedAt == request.time;
+      }
+
+      match /deckProgress/{id} {
+        allow read: if seesProgress(sid, resource.data.uid);
+      }
+
+      match /decks/{deckId}/matchTop/{docId} {
+        allow read: if isMember(sid);
+      }
+
+      match /deckFolders/{folderId} {
+        allow read: if isMember(sid);
+        allow create: if isMember(sid) && request.resource.data.ownerId == uid()
+          && isText(request.resource.data.name, 1, 40) && request.resource.data.order is number;
+        allow update: if isMember(sid) && (resource.data.ownerId == uid() || isManager(sid))
+          && onlyChanges(['name', 'order']) && isText(request.resource.data.name, 1, 40);
+        allow delete: if isMember(sid) && (resource.data.ownerId == uid() || isManager(sid));
       }
 
       // WS-10·11: 생성은 서버(createInvite, 코드 유일성). 만든 사람·매니저가 보고 끄고 켠다

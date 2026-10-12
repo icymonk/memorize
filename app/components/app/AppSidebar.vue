@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { HouseIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon, TicketIcon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, CalendarCheckIcon, HouseIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon, TicketIcon, UsersIcon } from '@lucide/vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
 import JoinWithCodeDialog from '~/features/space/components/JoinWithCodeDialog.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
@@ -13,7 +13,8 @@ const joinOpen = ref(false)
 
 const personalSpacePath = computed(() => auth.account ? `/s/${auth.account.personalSpaceId}` : undefined)
 const activeSpaceId = computed(() => 'spaceId' in route.params ? route.params.spaceId : null)
-const currentWorkspace = computed(() => space.current?.kind === 'workspace' && space.current.id === activeSpaceId.value ? space.current : null)
+const currentSpace = computed(() => space.current && space.current.id === activeSpaceId.value ? space.current : null)
+const currentWorkspace = computed(() => currentSpace.value?.kind === 'workspace' ? currentSpace.value : null)
 
 watch(() => auth.account, (account) => {
   if (account) space.loadMySpaces().catch(() => {})
@@ -53,10 +54,10 @@ watch(() => auth.account, (account) => {
         </SidebarMenu>
       </SidebarGroup>
 
-      <SidebarGroup v-if="currentWorkspace">
-        <SidebarGroupLabel>{{ currentWorkspace.name }}</SidebarGroupLabel>
+      <SidebarGroup v-if="currentSpace">
+        <SidebarGroupLabel>{{ currentWorkspace ? currentWorkspace.name : ko.nav.personalSpace }}</SidebarGroupLabel>
         <SidebarMenu>
-          <SidebarMenuItem>
+          <SidebarMenuItem v-if="currentWorkspace">
             <SidebarMenuButton as-child :tooltip="ko.space.settings.home" :is-active="route.path === `/s/${currentWorkspace.id}`">
               <NuxtLink :to="`/s/${currentWorkspace.id}`">
                 <LayoutDashboardIcon />
@@ -64,7 +65,23 @@ watch(() => auth.account, (account) => {
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.vocab !== false">
+            <SidebarMenuButton as-child :tooltip="ko.vocab.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/decks`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/decks`">
+                <BookOpenIcon />
+                <span>{{ ko.vocab.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.vocab !== false">
+            <SidebarMenuButton as-child :tooltip="ko.vocab.review.nav" :is-active="route.path === `/s/${currentSpace.id}/review`">
+              <NuxtLink :to="`/s/${currentSpace.id}/review`">
+                <CalendarCheckIcon />
+                <span>{{ ko.vocab.review.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentWorkspace">
             <SidebarMenuButton as-child :tooltip="ko.members.nav" :is-active="route.path === `/s/${currentWorkspace.id}/members`">
               <NuxtLink :to="`/s/${currentWorkspace.id}/members`">
                 <UsersIcon />
@@ -72,7 +89,7 @@ watch(() => auth.account, (account) => {
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
+          <SidebarMenuItem v-if="currentWorkspace">
             <SidebarMenuButton as-child :tooltip="ko.space.settings.nav" :is-active="route.path === `/s/${currentWorkspace.id}/settings`">
               <NuxtLink :to="`/s/${currentWorkspace.id}/settings`">
                 <SettingsIcon />

@@ -36,6 +36,7 @@ export default defineNuxtConfig({
         appId: '',
       },
       useEmulator: false,
+      sentryDsn: '',
     },
   },
 })

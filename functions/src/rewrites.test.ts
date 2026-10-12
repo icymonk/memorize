@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { REGION } from '../../shared/limits'
 
 const root = resolve(import.meta.dirname, '../..')
-const exported = [...readFileSync(resolve(root, 'functions/src/index.ts'), 'utf8').matchAll(/export \{([^}]*)\}/g)]
+const exported = [...readFileSync(resolve(root, 'functions/src/index.ts'), 'utf8').matchAll(/export \{([^}]*)\} from '\.\/callable\//g)]
   .flatMap(m => m[1]!.split(',').map(s => s.trim()).filter(Boolean))
 const rewrites: { source: string, function?: { functionId: string, region: string } }[]
   = JSON.parse(readFileSync(resolve(root, 'firebase.json'), 'utf8')).hosting.rewrites
