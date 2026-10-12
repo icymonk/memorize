@@ -5,6 +5,7 @@ const messages: Record<string, string> = {
   'auth/popup-closed-by-user': ko.errors.popupClosed,
   'auth/cancelled-popup-request': ko.errors.popupClosed,
   'auth/popup-blocked': ko.errors.popupBlocked,
+  'auth/unauthorized-domain': ko.errors.unauthorizedDomain,
   'auth/invalid-email': ko.errors.invalidEmail,
   'auth/invalid-action-code': ko.errors.linkExpired,
   'auth/expired-action-code': ko.errors.linkExpired,

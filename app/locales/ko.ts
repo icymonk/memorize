@@ -194,6 +194,7 @@ export const ko = {
   },
   errors: {
     popupClosed: '로그인 창이 닫혔어요.',
+    unauthorizedDomain: '이 주소에서는 로그인할 수 없어요. 관리자에게 알려 주세요.',
     popupBlocked: '팝업이 차단되었어요. 브라우저에서 팝업을 허용해 주세요.',
     invalidEmail: '이메일 주소를 확인해 주세요.',
     linkExpired: '로그인 링크가 만료되었거나 이미 사용되었어요. 다시 요청해 주세요.',

@@ -1,6 +1,6 @@
 # 개발 환경 · 코드 규칙 · 테스트 · 배포 · 모니터링
 
-> 상태: 확정 · v2.5
+> 상태: 확정 · v2.6
 
 ## 1. 개발 환경
 | 항목 | 명령 / 내용 |
@@ -68,6 +68,7 @@ E2E 핵심 흐름:
 - **GitHub Actions** (`.github/workflows/deploy.yml`): PR마다 미리보기 채널(7일, 주소는 PR 댓글), `main`에 머지되면 운영 배포. 수동 실행(`workflow_dispatch`)도 된다.
   - 시크릿 `FIREBASE_SERVICE_ACCOUNT`: 배포용 서비스 계정 키(JSON).
   - 변수 `NUXT_PUBLIC_FIREBASE_*`: 앱 설정(`.env.example`과 같은 이름). 빌드 때 앱에 들어가는 공개 값.
+  - 운영 빌드의 `authDomain`은 `memorize-hub.web.app`(변수 `FIREBASE_PROD_AUTH_DOMAIN`으로 변경 가능). 앱과 로그인 처리 주소가 다른 사이트면 브라우저의 서드파티 저장소 차단으로 팝업 로그인이 실패한다. Google OAuth 클라이언트의 승인된 리디렉션 URI에 `https://memorize-hub.web.app/__/auth/handler`가 있어야 한다.
   - 변수 `FIREBASE_DEPLOY_ONLY`: 운영 배포 대상. 기본 `hosting,firestore`. Blaze 전환과 Storage 버킷 생성 후 `hosting,firestore,storage,functions`로 바꾼다.
   - 변수 `ENFORCE_APP_CHECK`: 서버 기능 App Check 강제 여부(기본 `false`). 비대화형 배포는 파라미터 값을 물을 수 없어 배포 직전에 `functions/.env`로 넘긴다. App Check를 켠 뒤 `true`.
 
@@ -90,6 +91,7 @@ E2E 핵심 흐름:
 - 없음
 
 ## 8. 변경 이력
+- v2.6: 운영 authDomain을 Hosting 사이트로
 - v2.5: 규칙 테스트 위치·실행 방법(`tests/rules`, `pnpm test:rules`)
 - v2.4: 브랜치 전략 `main` ← `develop` ← 기능 브랜치
 - v2.3: Hosting 사이트를 `memorize-hub`로 지정
