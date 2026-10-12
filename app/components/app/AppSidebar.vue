@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { BookOpenIcon, CalendarCheckIcon, FileTextIcon, LayoutDashboardIcon, SettingsIcon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, CalendarCheckIcon, FileTextIcon, LayoutDashboardIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
 import JoinWithCodeDialog from '~/features/space/components/JoinWithCodeDialog.vue'
 import SpaceSwitcher from '~/features/space/components/SpaceSwitcher.vue'
@@ -14,6 +15,9 @@ const joinOpen = ref(false)
 const activeSpaceId = computed(() => 'spaceId' in route.params ? route.params.spaceId : null)
 const currentSpace = computed(() => space.current && space.current.id === activeSpaceId.value ? space.current : null)
 const currentWorkspace = computed(() => currentSpace.value?.kind === 'workspace' ? currentSpace.value : null)
+const notes = useNotesStore()
+const activePageId = computed(() => 'pageId' in route.params ? route.params.pageId : null)
+const notesOn = computed(() => !!currentSpace.value && currentSpace.value.modules?.notes !== false)
 
 watch(() => auth.account, (account) => {
   if (account) space.loadMySpaces().catch(() => {})
@@ -84,6 +88,35 @@ watch(() => auth.account, (account) => {
         </SidebarMenu>
       </SidebarGroup>
 
+      <template v-if="currentSpace && notesOn">
+        <SidebarGroup v-if="notes.favorites.length" class="group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel>{{ ko.notes.favorites }}</SidebarGroupLabel>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="p in notes.favorites" :key="p.id">
+              <SidebarMenuButton as-child size="sm" :is-active="activePageId === p.id">
+                <NuxtLink :to="`/s/${currentSpace.id}/notes/${p.id}`">
+                  <StarIcon class="text-amber-500" />
+                  <span>{{ p.title || ko.notes.untitled }}</span>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+        <PageTree v-if="currentWorkspace" :sid="currentSpace.id" root="shared" :label="ko.notes.sharedPages" :can-create="space.can('create')" />
+        <PageTree :sid="currentSpace.id" root="private" :label="currentWorkspace ? ko.notes.myPages : ko.notes.pages" :can-create="true" />
+        <SidebarGroup class="group-data-[collapsible=icon]:hidden">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton as-child size="sm" :is-active="route.path === `/s/${currentSpace.id}/notes/trash`">
+                <NuxtLink :to="`/s/${currentSpace.id}/notes/trash`">
+                  <Trash2Icon />
+                  <span>{{ ko.notes.trash }}</span>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+      </template>
     </SidebarContent>
 
     <SidebarFooter>

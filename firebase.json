@@ -114,6 +114,27 @@
         }
       },
       {
+        "source": "/fn/movePage",
+        "function": {
+          "functionId": "movePage",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/trashPage",
+        "function": {
+          "functionId": "trashPage",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/restorePage",
+        "function": {
+          "functionId": "restorePage",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

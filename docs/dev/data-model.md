@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.4 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.5 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -136,7 +136,11 @@ spaces/{sid}/pages/{pageId}
   ownerStatus: 'active' | 'left'        # 작성자가 나가면 'left' → 본인 외 숨김 (WS-23)
   copiedFrom?: { spaceId, pageId }
   commentCount, feedbackCount, reactionCounts   # 서버 관리
-  deletedAt?, createdAt, updatedAt
+  deletedAt: Timestamp | null, deletedBy?, trashRootId?   # NOTE-22 휴지통 (함께 버린 하위 페이지는 같은 trashRootId)
+  createdAt, updatedAt
+
+spaces/{sid}/userPrefs/{uid}                     # NOTE-21, 본인만
+  favoritePageIds[] (≤50), recentPageIds[] (≤20)
 
 spaces/{sid}/pages/{pageId}/blocks/{blockId}     # blockId = 편집기 UniqueID
   type                                  # paragraph, heading, bulletItem, todo, toggle, image, embed, drawing …
@@ -404,6 +408,7 @@ users/{uid}/avatar/{fileName}
 - 없음
 
 ## 16. 변경 이력
+- v2.5: 페이지 휴지통 필드(`deletedAt`은 항상 기록, `deletedBy`·`trashRootId`), `userPrefs` 추가
 - v2.4: `decks.copiedFrom.spaceName`(WS-63, 원본 공간을 나간 뒤에도 표시)
 - v2.3: `spaces.ownershipTransfer`(WS-25)
 - v2.2: `invites`에 `code` 필드(컬렉션 그룹 조회용)

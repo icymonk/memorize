@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import type { Page } from '~/features/notes/services/pages'
 import type { SaveStatus } from '~/features/notes/sync/writer'
-import { ArrowLeftIcon, CloudOffIcon, LoaderIcon } from '@lucide/vue'
+import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, StarIcon, Trash2Icon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
 import { useDebounceFn } from '@vueuse/core'
 import { LIMITS } from '#shared/limits'
 import BlockEditor from '~/features/notes/components/BlockEditor.vue'
 import { canEditPage, getPage, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
+import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
 
@@ -28,8 +30,28 @@ const titleSaving = ref(false)
 const titleFailed = ref(false)
 const blockCount = ref(0)
 const editorRef = ref<InstanceType<typeof BlockEditor>>()
+const notes = useNotesStore()
+const headings = ref<{ id: string, level: number, text: string }[]>([])
+const crumbs = computed(() => (page.value ? notes.ancestors(page.value) : []))
+const canTrash = computed(() => !!page.value && !page.value.deletedAt && (page.value.ownerId === auth.user!.uid || ['owner', 'manager'].includes(space.membership?.access ?? '')))
+/** 사이드바에서 제목을 바꾸면 여기도 따라간다 */
+watch(() => notes.byId.get(pageId.value)?.title, (v) => { if (v !== undefined && !titleSaving.value) title.value = v })
 
-const editable = computed(() => !!page.value && canEditPage(page.value, auth.user!.uid))
+function jump(id: string) {
+  document.querySelector(`.note-editor [data-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+async function toTrash() {
+  if (!page.value || !window.confirm(t.trashConfirm(page.value.title || t.untitled))) return
+  try {
+    editorRef.value?.flush()
+    await notes.trash(page.value.id)
+    toast.success(t.trashed)
+    await navigateTo(`/s/${sid.value}/notes`)
+  }
+  catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
+}
+
+const editable = computed(() => !!page.value && !page.value.deletedAt && canEditPage(page.value, auth.user!.uid))
 const status = computed<SaveStatus>(() => {
   if (blockStatus.value !== 'saved') return blockStatus.value
   if (titleFailed.value) return 'error'
@@ -41,6 +63,7 @@ async function load() {
   try {
     page.value = await getPage($firestore, sid.value, pageId.value)
     title.value = page.value?.title ?? ''
+    if (page.value && !page.value.deletedAt) notes.visit(page.value)
     loadError.value = false
   }
   catch {
@@ -73,12 +96,20 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-3xl flex-col gap-4">
+  <div class="mx-auto flex w-full max-w-5xl gap-8">
+  <div class="flex min-w-0 max-w-3xl flex-1 flex-col gap-4">
     <div class="flex items-center justify-between gap-3 text-sm">
-      <NuxtLink :to="`/s/${sid}/notes`" class="text-muted-foreground hover:text-foreground flex items-center gap-1">
-        <ArrowLeftIcon class="size-4" />
-        {{ t.back }}
-      </NuxtLink>
+      <nav class="text-muted-foreground flex min-w-0 items-center gap-1">
+        <NuxtLink :to="`/s/${sid}/notes`" class="hover:text-foreground flex shrink-0 items-center gap-1">
+          <ArrowLeftIcon class="size-4" />
+          {{ t.back }}
+        </NuxtLink>
+        <template v-for="c in crumbs" :key="c.id">
+          <ChevronRightIcon class="size-3.5 shrink-0" />
+          <NuxtLink :to="`/s/${sid}/notes/${c.id}`" class="hover:text-foreground max-w-40 truncate">{{ c.title || t.untitled }}</NuxtLink>
+        </template>
+      </nav>
+      <span class="flex shrink-0 items-center gap-1">
       <span
         v-if="page && editable"
         role="status"
@@ -89,7 +120,17 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         {{ t.status[status] }}
       </span>
       <span v-else-if="page" class="text-muted-foreground text-xs">{{ t.readOnly }}</span>
+        <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="notes.isFavorite(page.id) ? t.removeFavorite : t.addFavorite" @click="notes.toggleFavorite(page.id)">
+          <StarIcon :class="notes.isFavorite(page.id) && 'fill-amber-400 text-amber-500'" />
+        </Button>
+        <Button v-if="canTrash" variant="ghost" size="icon" class="size-8" :aria-label="t.moveToTrash" @click="toTrash">
+          <Trash2Icon />
+        </Button>
+      </span>
     </div>
+    <p v-if="page?.deletedAt" class="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">
+      {{ t.inTrash }}
+    </p>
 
     <p v-if="loadError" class="text-destructive text-sm">
       {{ t.loadFailed }}
@@ -122,7 +163,21 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         @status="blockStatus = $event"
         @loaded="blockCount = $event"
         @error="loadError = true"
+        @headings="headings = $event"
       />
     </template>
+  </div>
+  <aside v-if="headings.length" class="sticky top-4 hidden w-48 shrink-0 self-start xl:block">
+    <p class="text-muted-foreground mb-2 text-xs font-medium">
+      {{ t.toc }}
+    </p>
+    <ul class="flex flex-col gap-1 text-sm">
+      <li v-for="h in headings" :key="h.id" :style="{ paddingLeft: `${(h.level - 1) * 12}px` }">
+        <button type="button" class="text-muted-foreground hover:text-foreground line-clamp-2 text-left" @click="jump(h.id)">
+          {{ h.text || t.untitled }}
+        </button>
+      </li>
+    </ul>
+  </aside>
   </div>
 </template>

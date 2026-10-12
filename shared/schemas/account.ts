@@ -1,6 +1,7 @@
 import type { CreateInviteInput, CreateInviteOutput, DecideJoinRequestInput, InviteCodeInput, InvitePreview, JoinSpaceOutput } from './invite'
 import type { CancelSpaceDeletionInput, CreateWorkspaceInput, CreateWorkspaceOutput, MemberTargetInput, RespondOwnershipInput, ScheduleSpaceDeletionInput, SetManagerInput, TransferOwnershipInput } from './space'
 import type { CopyContentInput, CopyContentOutput } from './copy'
+import type { MovePageInput, PageOpOutput, PageRefInput } from './page'
 import { z } from 'zod'
 
 export const personalSpaceId = (uid: string) => `p_${uid}`
@@ -41,4 +42,7 @@ export interface Callables {
   transferOwnership: { input: TransferOwnershipInput, output: { ok: true } }
   respondOwnership: { input: RespondOwnershipInput, output: { ok: true } }
   copyContent: { input: CopyContentInput, output: CopyContentOutput }
+  movePage: { input: MovePageInput, output: PageOpOutput }
+  trashPage: { input: PageRefInput, output: PageOpOutput }
+  restorePage: { input: PageRefInput, output: PageOpOutput }
 }

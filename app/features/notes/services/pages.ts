@@ -1,6 +1,8 @@
 import type { Firestore, Timestamp } from 'firebase/firestore'
 import type { StoredBlock } from '../sync/serialize'
-import { addDoc, collection, doc, getDoc, getDocs, or, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import type { Functions } from 'firebase/functions'
+import { addDoc, and, collection, doc, getDoc, getDocs, onSnapshot, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { callFn } from '~/lib/functions'
 import { keyBetween } from '../sync/order'
 
 export type PageVisibility = 'private' | 'people' | 'group' | 'space'
@@ -13,12 +15,16 @@ export interface Page {
   ownerId: string
   root: 'private' | 'shared'
   parentId: string | null
+  ancestorIds: string[]
   order: string
   visibility: PageVisibility
   editorIds: string[]
   excerpt: string
   blockCount: number
   textLength: number
+  deletedAt?: Timestamp | null
+  deletedBy?: string
+  trashRootId?: string
   createdAt?: Timestamp
   updatedAt?: Timestamp
 }
@@ -27,10 +33,41 @@ const pagesOf = (db: Firestore, sid: string) => collection(db, 'spaces', sid, 'p
 
 export const canEditPage = (p: Pick<Page, 'ownerId' | 'editorIds'>, uid: string) => p.ownerId === uid || (p.editorIds ?? []).includes(uid)
 
-/** 규칙이 허용하는 것만 조회: 공간 전체 공개 + 내 페이지 (공개 범위 세분화는 1-C4) */
+/** 규칙이 허용하는 것만 조회: 휴지통이 아닌 공간 전체 공개 + 내 페이지 (공개 범위 세분화는 1-C4) */
+const visiblePages = (db: Firestore, sid: string, uid: string) =>
+  query(pagesOf(db, sid), and(where('deletedAt', '==', null), or(where('visibility', '==', 'space'), where('ownerId', '==', uid))))
+
 export async function listPages(db: Firestore, sid: string, uid: string): Promise<Page[]> {
-  const snap = await getDocs(query(pagesOf(db, sid), or(where('visibility', '==', 'space'), where('ownerId', '==', uid))))
+  const snap = await getDocs(visiblePages(db, sid, uid))
   return snap.docs.map(d => ({ id: d.id, ...d.data() }) as Page)
+}
+
+/** 사이드바 페이지 트리: 제목·이동이 바로 보이도록 구독 */
+export function watchPages(db: Firestore, sid: string, uid: string, cb: (pages: Page[]) => void, onError: (e: unknown) => void) {
+  return onSnapshot(visiblePages(db, sid, uid), snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Page)), onError)
+}
+
+/** NOTE-22: 내가 버린 페이지 */
+export async function listTrash(db: Firestore, sid: string, uid: string): Promise<Page[]> {
+  const snap = await getDocs(query(pagesOf(db, sid), where('deletedBy', '==', uid)))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as Page).filter(p => p.deletedAt)
+}
+
+export const movePage = (fns: Functions, spaceId: string, pageId: string, parentId: string | null, order: string) =>
+  callFn(fns, 'movePage', { spaceId, pageId, parentId, order })
+export const trashPage = (fns: Functions, spaceId: string, pageId: string) => callFn(fns, 'trashPage', { spaceId, pageId })
+export const restorePage = (fns: Functions, spaceId: string, pageId: string) => callFn(fns, 'restorePage', { spaceId, pageId })
+
+export interface UserPrefs { favoritePageIds: string[], recentPageIds: string[] }
+const prefsRef = (db: Firestore, sid: string, uid: string) => doc(db, 'spaces', sid, 'userPrefs', uid)
+
+export async function getPrefs(db: Firestore, sid: string, uid: string): Promise<UserPrefs> {
+  const snap = await getDoc(prefsRef(db, sid, uid))
+  return { favoritePageIds: snap.get('favoritePageIds') ?? [], recentPageIds: snap.get('recentPageIds') ?? [] }
+}
+
+export async function savePrefs(db: Firestore, sid: string, uid: string, prefs: UserPrefs) {
+  await setDoc(prefsRef(db, sid, uid), { favoritePageIds: prefs.favoritePageIds.slice(0, 50), recentPageIds: prefs.recentPageIds.slice(0, 20) })
 }
 
 export async function getPage(db: Firestore, sid: string, pageId: string): Promise<Page | null> {
@@ -38,21 +75,23 @@ export async function getPage(db: Firestore, sid: string, pageId: string): Promi
   return snap.exists() ? { id: snap.id, ...snap.data() } as Page : null
 }
 
-/** 워크스페이스에서는 공유 페이지, 내 공간에서는 나만 보는 페이지로 만든다 */
-export async function createPage(db: Firestore, sid: string, uid: string, personal: boolean): Promise<string> {
+/** NOTE-20: 공유 페이지(공간 전체) 또는 내 페이지(나만). 하위 페이지는 부모의 갈래·공개 범위를 따른다 */
+export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null }): Promise<string> {
   const now = serverTimestamp()
+  const parent = opts.parent ?? null
+  const root = parent?.root ?? opts.root
   const ref = await addDoc(pagesOf(db, sid), {
     type: 'page',
     title: '',
     icon: '',
     cover: null,
     ownerId: uid,
-    root: personal ? 'private' : 'shared',
-    parentId: null,
-    order: keyBetween(null, null),
-    ancestorIds: [],
+    root,
+    parentId: parent?.id ?? null,
+    order: keyBetween(opts.after ?? null, null),
+    ancestorIds: parent ? [...(parent.ancestorIds ?? []), parent.id] : [],
     props: {},
-    visibility: personal ? 'private' : 'space',
+    visibility: parent?.visibility ?? (root === 'private' ? 'private' : 'space'),
     groupIds: [],
     sharedWith: [],
     editorIds: [],
@@ -62,6 +101,7 @@ export async function createPage(db: Firestore, sid: string, uid: string, person
     textLength: 0,
     lock: null,
     ownerStatus: 'active',
+    deletedAt: null,
     createdAt: now,
     updatedAt: now,
   })
