@@ -2,11 +2,11 @@ import type { MatchEntry, StudyMode } from '#shared/study'
 import type { Firestore } from 'firebase/firestore'
 import { addDoc, collection, doc, getDoc, serverTimestamp } from 'firebase/firestore'
 
-export interface SessionResult { deckId: string, mode: StudyMode, cards: number, correct: number, durationSec: number, startedAt: Date }
+export interface SessionResult { deckId?: string, mode: StudyMode, cards: number, correct: number, durationSec: number, startedAt: Date }
 
 /** VOC-32: 한 회가 끝나면 기록 (활동·매칭 순위는 서버 트리거가 처리) */
 export async function recordSession(db: Firestore, sid: string, uid: string, r: SessionResult) {
-  await addDoc(collection(db, 'spaces', sid, 'studySessions'), { ...r, uid, newlyMastered: 0, endedAt: serverTimestamp() })
+  await addDoc(collection(db, 'spaces', sid, 'studySessions'), { ...Object.fromEntries(Object.entries(r).filter(([, v]) => v !== undefined)), uid, newlyMastered: 0, endedAt: serverTimestamp() })
 }
 
 export async function getMatchTop(db: Firestore, sid: string, deckId: string): Promise<MatchEntry[]> {

@@ -1,13 +1,22 @@
 <script setup lang="ts">
 import OwnershipTransferBanner from '~/features/space/components/OwnershipTransferBanner.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
+import { DAILY_LIMITS, endOfToday } from '#shared/srs'
 import { getMembership } from '~/features/space/services/spaces'
+import { listDueStates } from '~/features/vocab/services/srs'
 import { ko } from '~/locales/ko'
 
 const space = useSpaceStore()
 const auth = useAuthStore()
 const { $firestore } = useNuxtApp()
 const transferFrom = ref('')
+const dueCount = ref<number | null>(null)
+
+watch(() => space.current?.id, async (sid) => {
+  dueCount.value = null
+  if (!sid || !auth.user || space.current?.modules?.vocab === false) return
+  dueCount.value = (await listDueStates($firestore, sid, auth.user.uid, endOfToday(Date.now()), DAILY_LIMITS.reviewCards).catch(() => [])).length
+}, { immediate: true })
 
 watch(() => space.current?.ownershipTransfer, async (transfer) => {
   transferFrom.value = ''
@@ -36,6 +45,26 @@ watch(() => space.current?.ownershipTransfer, async (transfer) => {
     <p v-if="space.current.description" class="text-muted-foreground">
       {{ space.current.description }}
     </p>
+    <Card v-if="space.current.modules?.vocab !== false">
+      <CardHeader>
+        <CardTitle>{{ ko.vocab.review.title }}</CardTitle>
+        <CardDescription>
+          {{ space.current.kind === 'personal' ? ko.vocab.review.allDescription : dueCount ? ko.vocab.review.due(dueCount) : ko.vocab.review.empty }}
+        </CardDescription>
+      </CardHeader>
+      <CardFooter class="gap-2">
+        <Button v-if="dueCount" as-child>
+          <NuxtLink :to="`/s/${space.current.id}/review`">
+            {{ ko.vocab.review.start }} ({{ dueCount }})
+          </NuxtLink>
+        </Button>
+        <Button v-if="space.current.kind === 'personal'" variant="outline" as-child>
+          <NuxtLink to="/review">
+            {{ ko.vocab.review.startAll }}
+          </NuxtLink>
+        </Button>
+      </CardFooter>
+    </Card>
     <Card>
       <CardHeader>
         <CardDescription>{{ ko.nav.comingSoon }}</CardDescription>

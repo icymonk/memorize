@@ -32,6 +32,11 @@ service cloud.firestore {
         && s.ranking == resource.data.settings.ranking;
     }
 
+    // WS-53 전체 오늘의 복습: 내 기록만 모든 공간에서
+    match /{path=**}/cardStates/{id} {
+      allow read: if signedIn() && resource.data.uid == uid();
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && userId == uid();
     }
@@ -109,10 +114,23 @@ service cloud.firestore {
         allow delete: if isMember(sid) && seeDeck(deck()) && editDeck(deck());
       }
 
+      match /cardStates/{id} {   // VOC-40
+        function validState(d) {
+          return d.uid == uid() && id == uid() + '_' + d.cardId && d.deckId is string
+            && d.status in ['new', 'learning', 'review', 'mastered'] && d.due is timestamp
+            && d.ease is number && d.intervalDays is number;
+        }
+        allow read: if seesProgress(sid, resource.data.uid);
+        allow create: if isMember(sid) && validState(request.resource.data);
+        allow update: if isMember(sid) && resource.data.uid == uid() && validState(request.resource.data)
+          && request.resource.data.deckId == resource.data.deckId;
+        allow delete: if isMember(sid) && resource.data.uid == uid();
+      }
+
       match /studySessions/{id} {
         allow read: if seesProgress(sid, resource.data.uid);
         allow create: if isMember(sid) && request.resource.data.uid == uid()
-          && request.resource.data.mode in ['flashcards', 'learn', 'write', 'match']
+          && request.resource.data.mode in ['flashcards', 'learn', 'write', 'match', 'review']
           && request.resource.data.cards is int && request.resource.data.correct is int
           && request.resource.data.durationSec is number && request.resource.data.endedAt == request.time;
       }

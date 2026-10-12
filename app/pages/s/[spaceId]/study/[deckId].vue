@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { MatchEntry, StudyMode } from '#shared/study'
 import type { Member } from '~/features/space/services/invites'
-import type { ModeResult } from '~/features/vocab/components/study/types'
+import type { ModeResult, ReviewItem } from '~/features/vocab/components/study/types'
 import type { Card } from '~/features/vocab/services/cards'
 import type { Deck } from '~/features/vocab/services/decks'
+import { DAILY_LIMITS, endOfToday } from '#shared/srs'
 import { MATCH_PAIRS, STUDY_MODES } from '#shared/study'
 import { RefreshCwIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
@@ -11,9 +12,11 @@ import { listMembers } from '~/features/space/services/invites'
 import FlashcardsMode from '~/features/vocab/components/study/FlashcardsMode.vue'
 import LearnMode from '~/features/vocab/components/study/LearnMode.vue'
 import MatchMode from '~/features/vocab/components/study/MatchMode.vue'
+import ReviewSession from '~/features/vocab/components/study/ReviewSession.vue'
 import WriteMode from '~/features/vocab/components/study/WriteMode.vue'
 import { listCards } from '~/features/vocab/services/cards'
 import { getDeck } from '~/features/vocab/services/decks'
+import { listDeckStates } from '~/features/vocab/services/srs'
 import { getBestMatchMs, getMatchTop, recordSession } from '~/features/vocab/services/study'
 import { ko } from '~/locales/ko'
 
@@ -29,7 +32,7 @@ const sid = computed(() => space.current!.id)
 const uid = computed(() => auth.user!.uid)
 const deckId = computed(() => route.params.deckId as string)
 const mode = computed<StudyMode>(() => (STUDY_MODES as readonly string[]).includes(route.query.mode as string) ? route.query.mode as StudyMode : 'flashcards')
-const minCards = computed(() => ({ flashcards: 1, learn: 4, write: 1, match: MATCH_PAIRS.min })[mode.value])
+const minCards = computed(() => ({ flashcards: 1, learn: 4, write: 1, match: MATCH_PAIRS.min, review: 1 })[mode.value])
 
 const deck = ref<Deck | null>(null)
 const cards = ref<Card[]>([])
@@ -40,6 +43,7 @@ const startedAt = ref(new Date())
 const ranking = ref<MatchEntry[]>([])
 const previousBest = ref<number | null>(null)
 const members = ref<Member[]>([])
+const reviewItems = ref<ReviewItem[]>([])
 
 const resumeKey = computed(() => `${sid.value}.${deckId.value}.${mode.value}.${uid.value}`)
 const accuracy = computed(() => result.value && result.value.cards ? Math.round(result.value.correct / result.value.cards * 100) : 0)
@@ -50,6 +54,14 @@ onMounted(async () => {
     const [d, c] = await Promise.all([getDeck($firestore, sid.value, deckId.value), listCards($firestore, sid.value, deckId.value)])
     deck.value = d
     cards.value = c
+    if (mode.value === 'review') {
+      // VOC-26: 이 단어장에서 오늘 복습할 카드 + 아직 안 본 새 카드(하루 상한까지)
+      const states = new Map((await listDeckStates($firestore, sid.value, uid.value, deckId.value)).map(s => [s.cardId, s]))
+      const until = endOfToday(Date.now())
+      const due = c.filter(card => (states.get(card.id)?.due ?? Infinity) <= until).map(card => ({ sid: sid.value, deckId: deckId.value, card, state: states.get(card.id)! }))
+      const fresh = c.filter(card => !states.has(card.id)).slice(0, DAILY_LIMITS.newCards).map(card => ({ sid: sid.value, deckId: deckId.value, card, state: null }))
+      reviewItems.value = [...due.sort((a, b) => a.state.due - b.state.due), ...fresh]
+    }
     if (mode.value === 'match') {
       const [best, m] = await Promise.all([getBestMatchMs($firestore, sid.value, uid.value, deckId.value), listMembers($firestore, sid.value)])
       previousBest.value = best
@@ -95,6 +107,17 @@ function again() {
   <div v-else-if="cards.length < minCards" class="flex flex-col items-center gap-4 p-10 text-center">
     <p class="text-muted-foreground text-sm">
       {{ t.needCards(minCards) }}
+    </p>
+    <Button variant="outline" as-child>
+      <NuxtLink :to="`/s/${sid}/decks/${deckId}`">
+        {{ t.result.back }}
+      </NuxtLink>
+    </Button>
+  </div>
+
+  <div v-else-if="mode === 'review' && !reviewItems.length && !result" class="flex flex-col items-center gap-4 p-10 text-center">
+    <p class="text-muted-foreground text-sm">
+      {{ ko.vocab.review.empty }}
     </p>
     <Button variant="outline" as-child>
       <NuxtLink :to="`/s/${sid}/decks/${deckId}`">
@@ -171,7 +194,7 @@ function again() {
           {{ t.result.back }}
         </NuxtLink>
       </Button>
-      <Button @click="again">
+      <Button v-if="mode !== 'review'" @click="again">
         {{ t.result.again }}
       </Button>
     </div>
@@ -181,6 +204,7 @@ function again() {
     <FlashcardsMode v-if="mode === 'flashcards'" :key="run" :cards="cards" :lang="deck.langFrom" :resume-key="resumeKey" @done="onDone" />
     <LearnMode v-else-if="mode === 'learn'" :key="run" :cards="cards" :resume-key="resumeKey" @done="onDone" />
     <WriteMode v-else-if="mode === 'write'" :key="run" :cards="cards" :resume-key="resumeKey" @done="onDone" />
+    <ReviewSession v-else-if="mode === 'review'" :items="reviewItems" :uid="uid" @done="onDone" />
     <MatchMode v-else :key="run" :cards="cards" @done="onDone" />
   </template>
 </template>

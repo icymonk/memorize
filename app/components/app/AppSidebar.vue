@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpenIcon, HouseIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon, TicketIcon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, CalendarCheckIcon, HouseIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon, TicketIcon, UsersIcon } from '@lucide/vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
 import JoinWithCodeDialog from '~/features/space/components/JoinWithCodeDialog.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
@@ -70,6 +70,14 @@ watch(() => auth.account, (account) => {
               <NuxtLink :to="`/s/${currentSpace.id}/decks`">
                 <BookOpenIcon />
                 <span>{{ ko.vocab.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.vocab !== false">
+            <SidebarMenuButton as-child :tooltip="ko.vocab.review.nav" :is-active="route.path === `/s/${currentSpace.id}/review`">
+              <NuxtLink :to="`/s/${currentSpace.id}/review`">
+                <CalendarCheckIcon />
+                <span>{{ ko.vocab.review.nav }}</span>
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
