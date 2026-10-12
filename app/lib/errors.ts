@@ -15,6 +15,8 @@ const messages: Record<string, string> = {
   'functions/failed-precondition': ko.errors.accountNotReady,
   'functions/permission-denied': ko.errors.permissionDenied,
   'permission-denied': ko.errors.permissionDenied,
+  'functions/not-found': ko.errors.notFound,
+  'functions/resource-exhausted': ko.errors.spaceFull,
 }
 
 /** 사용자에게 보여줄 오류 문구. 무시해도 되는 오류(팝업 닫기)는 null */

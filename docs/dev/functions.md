@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.1 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.2 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -35,9 +35,11 @@
 | 이름 | 하는 일 | 기능 ID | 단계 |
 | --- | --- | --- | --- |
 | `createWorkspace` | 공간 + 소유자 멤버 문서 + 기본 과목·스탬프·템플릿 생성 | WS-01 | 0 |
+| `createInvite` | 초대 링크·코드 생성("초대 가능자" 확인). 6자리 코드를 모든 공간에서 유일하게 발급 (`invites` 컬렉션 그룹 `code` 필드로 중복 확인) | WS-10·11 | 0 |
+| `getInvite` | 초대 화면 미리보기. 멤버가 아니어도 공간 이름·아이콘·소개·멤버 수와 상태(사용 가능/이미 멤버/대기/사용 불가/가득 참)만 반환 | WS-10·11 | 0 |
 | `joinSpace` | 초대 코드/링크 확인(만료·횟수·인원) → 멤버 생성 또는 승인 대기 | WS-10·11·13 | 0 |
 | `sendEmailInvite` | 이메일 초대 기록(`emailInvites`) 생성 → 초대 메일 발송 (방식은 아래 2-1). 해당 이메일로 로그인하면 `joinSpace`가 기록을 찾아 바로 가입 | WS-12 | 2 |
-| `decideJoinRequest` | 가입 승인/거절 | WS-13 | 2 |
+| `decideJoinRequest` | 가입 승인/거절 | WS-13 | 0 (가입 방식 설정 WS-03과 함께) |
 | `setManager` / `removeMember` / `leaveSpace` | 운영 권한 변경, 내보내기, 나가기 (노트 `ownerStatus` 갱신) | WS-22~24 | 0 |
 | `transferOwnership` / `acceptOwnership` | 소유권 넘기기 (상대 수락) | WS-25 | 0 |
 | `scheduleSpaceDeletion` / `cancelSpaceDeletion` | 7일 유예 삭제 | WS-07 | 0 |
@@ -135,5 +137,6 @@
 - 없음
 
 ## 6. 변경 이력
+- v2.2: `createInvite`·`getInvite` 추가(코드 유일성·비멤버 미리보기), `decideJoinRequest`를 0단계로
 - v2.1: 확정 — 초대 메일은 Firebase Auth 이메일 링크 우선, 필요 시 Trigger Email + 무료 SMTP (2-1)
 - v2.0: 확정 기능명세 기준으로 새로 작성

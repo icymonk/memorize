@@ -110,5 +110,5 @@ export const useSpaceStore = defineStore('space', () => {
     return spaceId
   }
 
-  return { spaces, loaded, current, membership, personalSpace, workspaces, loadMySpaces, enter, can, update, scheduleDeletion, cancelDeletion, createWorkspace }
+  return { spaces, loaded, current, membership, personalSpace, workspaces, loadMySpaces, enter, can, update, refreshCurrent, scheduleDeletion, cancelDeletion, createWorkspace }
 })

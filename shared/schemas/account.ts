@@ -1,3 +1,4 @@
+import type { CreateInviteInput, CreateInviteOutput, DecideJoinRequestInput, InviteCodeInput, InvitePreview, JoinSpaceOutput } from './invite'
 import type { CancelSpaceDeletionInput, CreateWorkspaceInput, CreateWorkspaceOutput, ScheduleSpaceDeletionInput } from './space'
 import { z } from 'zod'
 
@@ -29,4 +30,8 @@ export interface Callables {
   createWorkspace: { input: CreateWorkspaceInput, output: CreateWorkspaceOutput }
   scheduleSpaceDeletion: { input: ScheduleSpaceDeletionInput, output: { deleteScheduledAt: string } }
   cancelSpaceDeletion: { input: CancelSpaceDeletionInput, output: { ok: true } }
+  createInvite: { input: CreateInviteInput, output: CreateInviteOutput }
+  getInvite: { input: InviteCodeInput, output: InvitePreview }
+  joinSpace: { input: InviteCodeInput, output: JoinSpaceOutput }
+  decideJoinRequest: { input: DecideJoinRequestInput, output: { ok: true } }
 }

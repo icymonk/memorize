@@ -1,6 +1,6 @@
 # 보안 규칙
 
-> 상태: 확정 · v2.4 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
+> 상태: 확정 · v2.5 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기), `invites`(만든 사람·매니저 읽기·끄기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
 
 ## 1. 원칙
 - **화면의 권한 표시는 편의, 실제 강제는 규칙과 서버 기능.**
@@ -64,7 +64,7 @@ function onlyChanges(fields) { return request.resource.data.diff(resource.data).
 | `spaces/{sid}` | 멤버 | 서버 | manager: `name`·`icon`·`color`·`description`·`modules`·`settings`·`subjects`·`stamps` | 서버 |
 | `members/{uid}` | 멤버 | 서버 | 본인: `displayName`·`photoURL`·`hideProgress`·`wrongNoteShare`만 | 서버 |
 | `groups` | 멤버 | 멤버 (WS-30) | 멤버 (WS-31·33) | 서버(복원 기간 후) |
-| `invites` | 만든 사람, manager | `whoCanInvite` | 만든 사람, manager | 만든 사람, manager |
+| `invites` | 만든 사람, manager | 서버 (`createInvite`가 `whoCanInvite` 확인) | 만든 사람, manager: `disabled`만 | 만든 사람, manager |
 | `tags`, `templates` | 멤버 | `whoCanCreate` (개인 템플릿은 모든 멤버) | 만든 사람, manager | 만든 사람, manager |
 
 ### 공유 콘텐츠 (단어장·카드, 코스·레슨, 문제집, 문제 묶음)
@@ -216,6 +216,7 @@ match /b/{bucket}/o {
 - 없음
 
 ## 8. 변경 이력
+- v2.5: `invites` 규칙 적용, 생성은 서버(코드 유일성)
 - v2.4: `spaces` 수정 규칙 적용(바꿀 수 있는 필드·값 검사)
 - v2.3: 1차 일부 적용(users·spaces·members 읽기)
 - v2.2: 블록 쓰기 규칙 읽기 횟수 검증 결과 반영

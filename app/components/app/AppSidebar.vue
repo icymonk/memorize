@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { HouseIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon, TicketIcon } from '@lucide/vue'
+import { HouseIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon, TicketIcon, UsersIcon } from '@lucide/vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
+import JoinWithCodeDialog from '~/features/space/components/JoinWithCodeDialog.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
 import { ko } from '~/locales/ko'
 
@@ -8,6 +9,7 @@ const auth = useAuthStore()
 const space = useSpaceStore()
 const route = useRoute()
 const createOpen = ref(false)
+const joinOpen = ref(false)
 
 const personalSpacePath = computed(() => auth.account ? `/s/${auth.account.personalSpaceId}` : undefined)
 const activeSpaceId = computed(() => 'spaceId' in route.params ? route.params.spaceId : null)
@@ -63,6 +65,14 @@ watch(() => auth.account, (account) => {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
+            <SidebarMenuButton as-child :tooltip="ko.members.nav" :is-active="route.path === `/s/${currentWorkspace.id}/members`">
+              <NuxtLink :to="`/s/${currentWorkspace.id}/members`">
+                <UsersIcon />
+                <span>{{ ko.members.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
             <SidebarMenuButton as-child :tooltip="ko.space.settings.nav" :is-active="route.path === `/s/${currentWorkspace.id}/settings`">
               <NuxtLink :to="`/s/${currentWorkspace.id}/settings`">
                 <SettingsIcon />
@@ -95,7 +105,7 @@ watch(() => auth.account, (account) => {
               </SidebarMenuButton>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton :tooltip="ko.nav.joinWithCode" disabled aria-disabled="true">
+              <SidebarMenuButton :tooltip="ko.nav.joinWithCode" :disabled="!auth.account" @click="joinOpen = true">
                 <TicketIcon />
                 <span>{{ ko.nav.joinWithCode }}</span>
               </SidebarMenuButton>
@@ -111,4 +121,5 @@ watch(() => auth.account, (account) => {
     <SidebarRail />
   </Sidebar>
   <CreateWorkspaceDialog v-model:open="createOpen" />
+  <JoinWithCodeDialog v-model:open="joinOpen" />
 </template>
