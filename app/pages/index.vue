@@ -1,8 +1,26 @@
 <script setup lang="ts">
 import { HouseIcon, PlusIcon, TicketIcon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
+import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
+import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
 import { ko } from '~/locales/ko'
 
 const auth = useAuthStore()
+const space = useSpaceStore()
+const route = useRoute()
+const createOpen = ref(false)
+const loadError = ref(false)
+
+watch(() => auth.account, (account) => {
+  if (account) space.loadMySpaces().then(() => { loadError.value = false }).catch(() => { loadError.value = true })
+}, { immediate: true })
+
+onMounted(() => {
+  if (route.query.notice === 'noAccess') {
+    toast.error(ko.space.noAccess)
+    navigateTo({ path: '/', query: {} }, { replace: true })
+  }
+})
 
 definePageMeta({ layout: false })
 
@@ -20,28 +38,45 @@ const name = computed(() => auth.user?.displayName || auth.user?.email?.split('@
         {{ ko.home.accountError }}
       </p>
 
-      <Card>
-        <CardHeader>
-          <CardTitle class="flex items-center gap-2">
-            <HouseIcon class="size-4" />
-            {{ ko.nav.personalSpace }}
-          </CardTitle>
-          <CardDescription>{{ ko.home.personalSpaceDescription }}</CardDescription>
-        </CardHeader>
-        <CardFooter>
-          <span class="text-muted-foreground text-xs">{{ ko.nav.comingSoon }}</span>
-        </CardFooter>
-      </Card>
+      <NuxtLink v-if="auth.account" :to="`/s/${auth.account.personalSpaceId}`">
+        <Card class="hover:bg-muted/50 transition-colors">
+          <CardHeader>
+            <CardTitle class="flex items-center gap-2">
+              <HouseIcon class="size-4" />
+              {{ ko.nav.personalSpace }}
+            </CardTitle>
+            <CardDescription>{{ ko.home.personalSpaceDescription }}</CardDescription>
+          </CardHeader>
+        </Card>
+      </NuxtLink>
 
       <section class="flex flex-col gap-3">
         <h2 class="text-sm font-medium">
           {{ ko.nav.workspaces }}
         </h2>
-        <p class="text-muted-foreground text-sm">
+        <p v-if="loadError" class="text-destructive text-sm">
+          {{ ko.space.loadError }}
+        </p>
+        <p v-else-if="space.loaded && !space.workspaces.length" class="text-muted-foreground text-sm">
           {{ ko.nav.noWorkspaces }}
         </p>
+        <div v-if="space.workspaces.length" class="grid gap-3 sm:grid-cols-2">
+          <NuxtLink v-for="ws in space.workspaces" :key="ws.id" :to="`/s/${ws.id}`">
+            <Card class="hover:bg-muted/50 h-full transition-colors">
+              <CardHeader class="flex flex-row items-center gap-3">
+                <SpaceIcon :icon="ws.icon" :color="ws.color" class="size-10 text-xl" />
+                <div class="flex min-w-0 flex-col gap-1">
+                  <CardTitle class="truncate">
+                    {{ ws.name }}
+                  </CardTitle>
+                  <CardDescription>{{ ko.space.memberCount(ws.memberCount) }}</CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+          </NuxtLink>
+        </div>
         <div class="flex gap-2">
-          <Button disabled>
+          <Button :disabled="!auth.account" @click="createOpen = true">
             <PlusIcon />
             {{ ko.nav.createWorkspace }}
           </Button>
@@ -52,6 +87,7 @@ const name = computed(() => auth.user?.displayName || auth.user?.email?.split('@
         </div>
       </section>
     </div>
+    <CreateWorkspaceDialog v-model:open="createOpen" />
   </NuxtLayout>
 
   <div v-else class="flex min-h-svh flex-col items-center justify-center gap-6 p-6 text-center">

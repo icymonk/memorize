@@ -1,0 +1,53 @@
+import type { CreateWorkspaceOutput } from '../../../shared/schemas/space'
+import { FieldValue, getFirestore } from 'firebase-admin/firestore'
+import { HttpsError } from 'firebase-functions/v2/https'
+import { LIMITS } from '../../../shared/limits'
+import { createWorkspaceInput, DEFAULT_SPACE_SETTINGS } from '../../../shared/schemas/space'
+import { authedCallable } from '../lib/callable'
+
+/** WS-01: 워크스페이스 + 소유자 멤버를 만들고 내 공간 목록(users.spaceIds)에 넣는다 */
+export const createWorkspace = authedCallable(createWorkspaceInput, async ({ uid, data }): Promise<CreateWorkspaceOutput> => {
+  const db = getFirestore()
+  const userRef = db.doc(`users/${uid}`)
+  const spaceRef = db.collection('spaces').doc()
+
+  await db.runTransaction(async (tx) => {
+    const user = await tx.get(userRef)
+    if (!user.exists) throw new HttpsError('failed-precondition', 'account not ready')
+
+    const now = FieldValue.serverTimestamp()
+    tx.create(spaceRef, {
+      kind: 'workspace',
+      name: data.name,
+      icon: data.icon,
+      color: data.color,
+      description: data.description,
+      ownerId: uid,
+      modules: data.modules,
+      settings: { ...DEFAULT_SPACE_SETTINGS, ranking: { enabled: true } },
+      subjects: [],
+      stamps: [],
+      memberCount: 1,
+      maxMembers: LIMITS.workspaceMaxMembers,
+      deleteScheduledAt: null,
+      schemaVersion: 1,
+      createdAt: now,
+      updatedAt: now,
+    })
+    tx.create(spaceRef.collection('members').doc(uid), {
+      access: 'owner',
+      status: 'active',
+      displayName: user.get('displayName') ?? '',
+      photoURL: user.get('photoURL') ?? null,
+      groupIds: [],
+      hideProgress: false,
+      schemaVersion: 1,
+      joinedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    tx.update(userRef, { spaceIds: FieldValue.arrayUnion(spaceRef.id), updatedAt: now })
+  })
+
+  return { spaceId: spaceRef.id }
+})

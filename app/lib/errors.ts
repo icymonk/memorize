@@ -12,6 +12,7 @@ const messages: Record<string, string> = {
   'functions/unavailable': ko.errors.network,
   'functions/unauthenticated': ko.errors.signInAgain,
   'functions/invalid-argument': ko.errors.invalidInput,
+  'functions/failed-precondition': ko.errors.accountNotReady,
 }
 
 /** 사용자에게 보여줄 오류 문구. 무시해도 되는 오류(팝업 닫기)는 null */

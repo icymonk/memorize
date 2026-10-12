@@ -1,9 +1,20 @@
 <script setup lang="ts">
 import { HouseIcon, PlusIcon, TicketIcon } from '@lucide/vue'
+import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
+import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
 import { ko } from '~/locales/ko'
 
 const auth = useAuthStore()
+const space = useSpaceStore()
+const route = useRoute()
+const createOpen = ref(false)
+
 const personalSpacePath = computed(() => auth.account ? `/s/${auth.account.personalSpaceId}` : undefined)
+const activeSpaceId = computed(() => 'spaceId' in route.params ? route.params.spaceId : null)
+
+watch(() => auth.account, (account) => {
+  if (account) space.loadMySpaces().catch(() => {})
+}, { immediate: true })
 </script>
 
 <template>
@@ -25,7 +36,13 @@ const personalSpacePath = computed(() => auth.account ? `/s/${auth.account.perso
       <SidebarGroup>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton :tooltip="ko.nav.personalSpace" :disabled="!personalSpacePath" :aria-disabled="!personalSpacePath">
+            <SidebarMenuButton v-if="personalSpacePath" as-child :tooltip="ko.nav.personalSpace" :is-active="activeSpaceId === auth.account?.personalSpaceId">
+              <NuxtLink :to="personalSpacePath">
+                <HouseIcon />
+                <span>{{ ko.nav.personalSpace }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+            <SidebarMenuButton v-else :tooltip="ko.nav.personalSpace" disabled aria-disabled="true">
               <HouseIcon />
               <span>{{ ko.nav.personalSpace }}</span>
             </SidebarMenuButton>
@@ -36,12 +53,20 @@ const personalSpacePath = computed(() => auth.account ? `/s/${auth.account.perso
       <SidebarGroup>
         <SidebarGroupLabel>{{ ko.nav.workspaces }}</SidebarGroupLabel>
         <SidebarGroupContent>
-          <p class="text-muted-foreground px-2 py-1 text-xs group-data-[collapsible=icon]:hidden">
+          <p v-if="space.loaded && !space.workspaces.length" class="text-muted-foreground px-2 py-1 text-xs group-data-[collapsible=icon]:hidden">
             {{ ko.nav.noWorkspaces }}
           </p>
           <SidebarMenu>
+            <SidebarMenuItem v-for="ws in space.workspaces" :key="ws.id">
+              <SidebarMenuButton as-child :tooltip="ws.name" :is-active="activeSpaceId === ws.id">
+                <NuxtLink :to="`/s/${ws.id}`">
+                  <SpaceIcon :icon="ws.icon" :color="ws.color" class="size-5 rounded-md text-xs" />
+                  <span class="truncate">{{ ws.name }}</span>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem>
-              <SidebarMenuButton :tooltip="ko.nav.createWorkspace" disabled aria-disabled="true">
+              <SidebarMenuButton :tooltip="ko.nav.createWorkspace" :disabled="!auth.account" @click="createOpen = true">
                 <PlusIcon />
                 <span>{{ ko.nav.createWorkspace }}</span>
               </SidebarMenuButton>
@@ -62,4 +87,5 @@ const personalSpacePath = computed(() => auth.account ? `/s/${auth.account.perso
     </SidebarFooter>
     <SidebarRail />
   </Sidebar>
+  <CreateWorkspaceDialog v-model:open="createOpen" />
 </template>

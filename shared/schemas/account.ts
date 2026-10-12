@@ -1,3 +1,4 @@
+import type { CreateWorkspaceInput, CreateWorkspaceOutput } from './space'
 import { z } from 'zod'
 
 export const personalSpaceId = (uid: string) => `p_${uid}`
@@ -25,4 +26,5 @@ export type CompleteOnboardingInput = z.infer<typeof completeOnboardingInput>
 export interface Callables {
   ensureAccount: { input: EnsureAccountInput, output: EnsureAccountOutput }
   completeOnboarding: { input: CompleteOnboardingInput, output: { ok: true } }
+  createWorkspace: { input: CreateWorkspaceInput, output: CreateWorkspaceOutput }
 }
