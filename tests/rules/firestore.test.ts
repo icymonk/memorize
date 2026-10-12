@@ -330,3 +330,24 @@ describe('card states (VOC-40·44, WS-53)', () => {
     await assertFails(getDocs(query(collectionGroup(bob, 'cardStates'), where('uid', '==', 'alice'))))
   })
 })
+
+describe('deck progress (VOC-41·45)', () => {
+  const ref = (as: string, id: string) => doc(db(as), 'spaces', SID, 'deckProgress', id)
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'spaces', SID, 'deckProgress', 'bob_a'), { uid: 'bob', deckId: 'a', masteredCount: 1, learningCount: 2 })
+    })
+  })
+
+  it('my progress list query, others per document, nobody writes', async () => {
+    const bob = db('bob')
+    await assertSucceeds(getDocs(query(collection(bob, 'spaces', SID, 'deckProgress'), where('uid', '==', 'bob'))))
+    await assertSucceeds(getDoc(ref('alice', 'bob_a')))
+    await assertFails(getDoc(ref('lee', 'bob_a')))
+    await assertFails(setDoc(ref('bob', 'bob_b'), { uid: 'bob', deckId: 'b', masteredCount: 99, learningCount: 0 }))
+  })
+
+  it('star-only state for an unseen card is allowed', async () => {
+    await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'cardStates', 'bob_c9'), { uid: 'bob', deckId: 'a', cardId: 'c9', status: 'new', ease: 2.5, intervalDays: 0, due: new Date(Date.UTC(9999, 0, 1)), reps: 0, lapses: 0, correct: 0, wrong: 0, contentRev: 0, starred: true }))
+  })
+})

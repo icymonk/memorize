@@ -45,21 +45,27 @@ const previousBest = ref<number | null>(null)
 const members = ref<Member[]>([])
 const reviewItems = ref<ReviewItem[]>([])
 
-const resumeKey = computed(() => `${sid.value}.${deckId.value}.${mode.value}.${uid.value}`)
+const resumeKey = computed(() => `${sid.value}.${deckId.value}.${mode.value}${route.query.starred === '1' ? '.starred' : ''}.${uid.value}`)
 const accuracy = computed(() => result.value && result.value.cards ? Math.round(result.value.correct / result.value.cards * 100) : 0)
 const name = (u: string) => members.value.find(m => m.uid === u)?.displayName ?? '—'
 
 onMounted(async () => {
   try {
-    const [d, c] = await Promise.all([getDeck($firestore, sid.value, deckId.value), listCards($firestore, sid.value, deckId.value)])
+    const [d, all] = await Promise.all([getDeck($firestore, sid.value, deckId.value), listCards($firestore, sid.value, deckId.value)])
+    let c = all
     deck.value = d
+    // VOC-20 별표 카드만
+    if (route.query.starred === '1' && mode.value !== 'review') {
+      const starred = new Set((await listDeckStates($firestore, sid.value, uid.value, deckId.value)).filter(s => s.starred).map(s => s.cardId))
+      c = c.filter(card => starred.has(card.id))
+    }
     cards.value = c
     if (mode.value === 'review') {
       // VOC-26: 이 단어장에서 오늘 복습할 카드 + 아직 안 본 새 카드(하루 상한까지)
       const states = new Map((await listDeckStates($firestore, sid.value, uid.value, deckId.value)).map(s => [s.cardId, s]))
       const until = endOfToday(Date.now())
-      const due = c.filter(card => (states.get(card.id)?.due ?? Infinity) <= until).map(card => ({ sid: sid.value, deckId: deckId.value, card, state: states.get(card.id)! }))
-      const fresh = c.filter(card => !states.has(card.id)).slice(0, DAILY_LIMITS.newCards).map(card => ({ sid: sid.value, deckId: deckId.value, card, state: null }))
+      const due = c.filter(card => states.get(card.id) && states.get(card.id)!.status !== 'new' && states.get(card.id)!.due <= until).map(card => ({ sid: sid.value, deckId: deckId.value, card, state: states.get(card.id)! }))
+      const fresh = c.filter(card => (states.get(card.id)?.status ?? 'new') === 'new').slice(0, DAILY_LIMITS.newCards).map(card => ({ sid: sid.value, deckId: deckId.value, card, state: states.get(card.id) ?? null }))
       reviewItems.value = [...due.sort((a, b) => a.state.due - b.state.due), ...fresh]
     }
     if (mode.value === 'match') {

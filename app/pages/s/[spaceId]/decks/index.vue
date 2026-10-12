@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { Member } from '~/features/space/services/invites'
 import type { Deck, DeckFolder } from '~/features/vocab/services/decks'
+import type { DeckProgress } from '~/features/vocab/services/srs'
 import { FolderIcon, PlusIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
 import DeckFormDialog from '~/features/vocab/components/DeckFormDialog.vue'
 import { createFolder, listDecks, listFolders } from '~/features/vocab/services/decks'
+import { listMyProgress } from '~/features/vocab/services/srs'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
@@ -27,6 +29,7 @@ const canCreate = computed(() => space.can('create'))
 const decks = ref<Deck[]>([])
 const folders = ref<DeckFolder[]>([])
 const members = ref<Member[]>([])
+const progress = ref(new Map<string, DeckProgress>())
 const loading = ref(true)
 const loadError = ref(false)
 const folderFilter = ref<string>('all')
@@ -45,11 +48,13 @@ const countIn = (folderId: string | null) => decks.value.filter(d => (d.folderId
 async function load() {
   loading.value = true
   try {
-    const [d, f, m] = await Promise.all([
+    const [d, f, m, p] = await Promise.all([
       listDecks($firestore, sid.value, uid.value),
       listFolders($firestore, sid.value),
       listMembers($firestore, sid.value),
+      listMyProgress($firestore, sid.value, uid.value).catch(() => new Map<string, DeckProgress>()),
     ])
+    progress.value = p
     decks.value = d
     folders.value = f
     members.value = m
@@ -157,6 +162,12 @@ const folderButton = (active: boolean) => cn('flex w-full items-center justify-b
             </p>
             <div v-if="deck.tags.length" class="flex flex-wrap gap-1">
               <span v-for="tag in deck.tags" :key="tag" class="text-muted-foreground text-xs">#{{ tag }}</span>
+            </div>
+            <div v-if="progress.get(deck.id) && deck.cardCount" class="mt-auto flex flex-col gap-1">
+              <div class="bg-muted h-1.5 overflow-hidden rounded-full">
+                <div class="bg-primary h-full" :style="{ width: `${Math.min(100, progress.get(deck.id)!.masteredCount / deck.cardCount * 100)}%` }" />
+              </div>
+              <span class="text-muted-foreground text-xs">{{ t.progress.percent(progress.get(deck.id)!.masteredCount, deck.cardCount) }}</span>
             </div>
             <div class="text-muted-foreground mt-auto flex flex-wrap gap-x-3 gap-y-1 text-xs">
               <span>{{ t.langs[deck.langFrom] }} → {{ t.langs[deck.langTo] }}</span>

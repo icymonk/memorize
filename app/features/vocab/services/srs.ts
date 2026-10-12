@@ -1,8 +1,9 @@
 import type { SrsState } from '#shared/srs'
+import { NEVER_DUE, newState } from '#shared/srs'
 import type { ReviewItem } from '~/features/vocab/components/study/types'
 import type { Firestore, QueryDocumentSnapshot } from 'firebase/firestore'
 import { listCards } from '~/features/vocab/services/cards'
-import { collection, collectionGroup, doc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore'
+import { collection, collectionGroup, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, Timestamp, where } from 'firebase/firestore'
 
 /** VOC-40 카드별 내 상태 (`spaces/{sid}/cardStates/{uid}_{cardId}`) */
 export interface CardState extends SrsState {
@@ -11,6 +12,7 @@ export interface CardState extends SrsState {
   deckId: string
   cardId: string
   contentRev: number
+  starred?: boolean
 }
 
 function fromDoc(d: QueryDocumentSnapshot): CardState {
@@ -57,4 +59,29 @@ export async function attachCards(db: Firestore, states: CardState[]): Promise<R
     catch {}
   }))
   return items.sort((a, b) => a.state!.due - b.state!.due)
+}
+
+/** VOC-41 진도 (`spaces/{sid}/deckProgress/{uid}_{deckId}`, 서버 집계) */
+export interface DeckProgress { uid: string, deckId: string, masteredCount: number, learningCount: number }
+
+function toProgress(data: Record<string, unknown>): DeckProgress {
+  return { uid: data.uid as string, deckId: data.deckId as string, masteredCount: (data.masteredCount as number | undefined) ?? 0, learningCount: (data.learningCount as number | undefined) ?? 0 }
+}
+
+export async function listMyProgress(db: Firestore, sid: string, uid: string): Promise<Map<string, DeckProgress>> {
+  const snap = await getDocs(query(collection(db, 'spaces', sid, 'deckProgress'), where('uid', '==', uid)))
+  return new Map(snap.docs.map(d => [d.data().deckId as string, toProgress(d.data())]))
+}
+
+/** VOC-45 멤버 진도: 진도 공유 규칙에 막힌 멤버는 빠진다 */
+export async function listMemberProgress(db: Firestore, sid: string, deckId: string, uids: string[]): Promise<DeckProgress[]> {
+  const rows = await Promise.all(uids.map(u => getDoc(doc(db, 'spaces', sid, 'deckProgress', `${u}_${deckId}`)).catch(() => null)))
+  return rows.filter(r => r?.exists()).map(r => toProgress(r!.data()!))
+}
+
+/** VOC-42 별표: 아직 학습하지 않은 카드는 복습에 나오지 않는 '새 카드' 상태로 만든다 */
+export async function setStarred(db: Firestore, sid: string, uid: string, deckId: string, card: { id: string, contentRev: number }, existing: CardState | undefined, starred: boolean) {
+  const base = existing ?? { ...newState(NEVER_DUE), sid, uid, deckId, cardId: card.id, contentRev: card.contentRev }
+  const { sid: _sid, due, ...rest } = base
+  await setDoc(doc(db, 'spaces', sid, 'cardStates', `${uid}_${card.id}`), { ...rest, due: Timestamp.fromMillis(due), starred }, { merge: true })
 }

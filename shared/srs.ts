@@ -70,3 +70,13 @@ export function endOfToday(now: number): number {
   d.setHours(23, 59, 59, 999)
   return d.getTime()
 }
+
+/** VOC-41 진도 집계: 상태가 바뀔 때 외운 카드·학습 중 카드 수 변화 */
+export function progressDelta(before?: CardStatus, after?: CardStatus): { mastered: number, learning: number } {
+  const learning = (s?: CardStatus) => s === 'learning' || s === 'review' ? 1 : 0
+  const mastered = (s?: CardStatus) => s === 'mastered' ? 1 : 0
+  return { mastered: mastered(after) - mastered(before), learning: learning(after) - learning(before) }
+}
+
+/** 별표만 하고 아직 학습하지 않은 카드는 복습에 나오지 않게 아주 먼 날로 둔다 */
+export const NEVER_DUE = Date.UTC(9999, 0, 1)
