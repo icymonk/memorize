@@ -2,6 +2,7 @@
 import { HouseIcon, PlusIcon, TicketIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
+import JoinWithCodeDialog from '~/features/space/components/JoinWithCodeDialog.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
 import { ko } from '~/locales/ko'
 
@@ -9,6 +10,7 @@ const auth = useAuthStore()
 const space = useSpaceStore()
 const route = useRoute()
 const createOpen = ref(false)
+const joinOpen = ref(false)
 const loadError = ref(false)
 
 watch(() => auth.account, (account) => {
@@ -80,7 +82,7 @@ const name = computed(() => auth.user?.displayName || auth.user?.email?.split('@
             <PlusIcon />
             {{ ko.nav.createWorkspace }}
           </Button>
-          <Button variant="outline" disabled>
+          <Button variant="outline" :disabled="!auth.account" @click="joinOpen = true">
             <TicketIcon />
             {{ ko.nav.joinWithCode }}
           </Button>
@@ -88,6 +90,7 @@ const name = computed(() => auth.user?.displayName || auth.user?.email?.split('@
       </section>
     </div>
     <CreateWorkspaceDialog v-model:open="createOpen" />
+    <JoinWithCodeDialog v-model:open="joinOpen" />
   </NuxtLayout>
 
   <div v-else class="flex min-h-svh flex-col items-center justify-center gap-6 p-6 text-center">

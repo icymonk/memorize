@@ -46,6 +46,16 @@ service cloud.firestore {
       match /members/{memberId} {
         allow read: if isMember(sid);
       }
+
+      // WS-10·11: 생성은 서버(createInvite, 코드 유일성). 만든 사람·매니저가 보고 끄고 켠다
+      match /invites/{code} {
+        function mine() { return resource.data.createdBy == uid(); }
+        allow read: if isMember(sid) && (mine() || isManager(sid));
+        allow update: if isMember(sid) && (mine() || isManager(sid))
+          && onlyChanges(['disabled', 'updatedAt'])
+          && request.resource.data.disabled is bool
+          && request.resource.data.updatedAt == request.time;
+      }
     }
   }
 }
