@@ -13,7 +13,8 @@ import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import DeckFormDialog from '~/features/vocab/components/DeckFormDialog.vue'
 import PasteCardsDialog from '~/features/vocab/components/PasteCardsDialog.vue'
 import { useSpeech } from '~/features/vocab/composables/useSpeech'
-import { listCards, saveCards } from '~/features/vocab/services/cards'
+import { cardInput, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
+import { listCards, newCardId, saveCards } from '~/features/vocab/services/cards'
 import { deleteDeck, getDeck, listFolders } from '~/features/vocab/services/decks'
 import { listDeckStates, listMemberProgress, setStarred } from '~/features/vocab/services/srs'
 import { errorMessage } from '~/lib/errors'
@@ -41,7 +42,7 @@ const cardOpen = ref(false)
 const editingCard = ref<Card | null>(null)
 const pasteOpen = ref(false)
 const tableMode = ref(false)
-const draft = ref<{ id: string, front: string, back: string, removed: boolean }[]>([])
+const draft = ref<{ id: string, front: string, back: string, removed: boolean, isNew?: boolean }[]>([])
 const saving = ref(false)
 const speech = useSpeech()
 const states = ref(new Map<string, CardState>())
@@ -118,6 +119,12 @@ function startTable() {
   tableMode.value = true
 }
 
+/** 표에서 바로 새 단어를 넣는다 */
+function addRow() {
+  draft.value = [...draft.value, { id: newCardId($firestore, sid.value, deckId.value), front: '', back: '', removed: false, isNew: true }]
+  nextTick(() => document.querySelector<HTMLInputElement>(`#row-front-${draft.value.length - 1}`)?.focus())
+}
+
 function move(i: number, d: number) {
   const j = i + d
   if (j < 0 || j >= draft.value.length) return
@@ -130,20 +137,34 @@ function move(i: number, d: number) {
 async function saveTable() {
   const byId = new Map(cards.value.map(c => [c.id, c]))
   const changed: Card[] = []
-  for (const [i, row] of draft.value.filter(r => !r.removed).entries()) {
-    const card = byId.get(row.id)!
+  const rows = draft.value.filter(r => !r.removed && !(r.isNew && !r.front.trim() && !r.back.trim()))
+  if (cards.value.length + rows.filter(r => r.isNew).length > MAX_CARDS_PER_DECK) {
+    toast.error(t.cards.tooMany(MAX_CARDS_PER_DECK))
+    return
+  }
+  for (const [i, row] of rows.entries()) {
     const back = row.back.split(';').map(s => s.trim()).filter(Boolean)
     const front = row.front.trim()
     if (!front || !back.length) {
       toast.error(ko.errors.invalidInput)
       return
     }
+    if (row.isNew) {
+      const input = cardInput.safeParse({ front, back, ...(deck.value?.fields.includes('audio') ? { audio: { tts: true } } : {}) })
+      if (!input.success) {
+        toast.error(ko.errors.invalidInput)
+        return
+      }
+      changed.push({ ...input.data, id: row.id, order: i, contentRev: 0 })
+      continue
+    }
+    const card = byId.get(row.id)!
     if (front !== card.front || back.join('\n') !== card.back.join('\n') || i !== card.order)
       changed.push({ ...card, front, back, order: i })
   }
   saving.value = true
   try {
-    await saveCards($firestore, sid.value, deckId.value, changed, draft.value.filter(r => r.removed).map(r => r.id))
+    await saveCards($firestore, sid.value, deckId.value, changed, draft.value.filter(r => r.removed && !r.isNew).map(r => r.id))
     toast.success(t.cards.saved)
     tableMode.value = false
     await reloadCards()
@@ -292,7 +313,7 @@ async function remove() {
               </option>
             </select>
             <template v-if="canEdit && !tableMode">
-              <Button v-if="cards.length" variant="outline" size="sm" @click="startTable">
+              <Button variant="outline" size="sm" @click="startTable">
                 <TableIcon />{{ t.cards.tableEdit }}
               </Button>
               <Button variant="outline" size="sm" @click="pasteOpen = true">
@@ -313,7 +334,7 @@ async function remove() {
           </div>
         </div>
 
-        <p v-if="!cards.length" class="text-muted-foreground rounded-xl border border-dashed py-10 text-center text-sm">
+        <p v-if="!cards.length && !tableMode" class="text-muted-foreground rounded-xl border border-dashed py-10 text-center text-sm">
           {{ t.cards.empty }}
         </p>
 
@@ -341,10 +362,10 @@ async function remove() {
                     {{ i + 1 }}
                   </td>
                   <td class="px-1 py-1">
-                    <Input v-model="row.front" :disabled="row.removed" maxlength="200" class="h-8" />
+                    <Input :id="`row-front-${i}`" v-model="row.front" :disabled="row.removed" maxlength="200" class="h-8" />
                   </td>
                   <td class="px-1 py-1">
-                    <Input v-model="row.back" :disabled="row.removed" class="h-8" />
+                    <Input v-model="row.back" :disabled="row.removed" class="h-8" @keydown.enter.prevent="i === draft.length - 1 && addRow()" />
                   </td>
                   <td class="px-1 py-1">
                     <div class="flex justify-end">
@@ -364,6 +385,9 @@ async function remove() {
               </tbody>
             </table>
           </div>
+          <Button variant="outline" size="sm" class="self-start" @click="addRow">
+            <PlusIcon />{{ t.cards.addRow }}
+          </Button>
         </div>
 
         <ul v-else class="divide-y rounded-xl border">
