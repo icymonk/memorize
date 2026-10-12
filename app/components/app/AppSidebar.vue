@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { BookOpenIcon, CalendarCheckIcon, FileTextIcon, LayoutDashboardIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
 import JoinWithCodeDialog from '~/features/space/components/JoinWithCodeDialog.vue'
@@ -17,6 +18,7 @@ const currentSpace = computed(() => space.current && space.current.id === active
 const currentWorkspace = computed(() => currentSpace.value?.kind === 'workspace' ? currentSpace.value : null)
 const notes = useNotesStore()
 const activePageId = computed(() => 'pageId' in route.params ? route.params.pageId : null)
+const collectionOpen = ref(false)
 const notesOn = computed(() => !!currentSpace.value && currentSpace.value.modules?.notes !== false)
 
 watch(() => auth.account, (account) => {
@@ -104,6 +106,24 @@ watch(() => auth.account, (account) => {
         </SidebarGroup>
         <PageTree v-if="currentWorkspace" :sid="currentSpace.id" root="shared" :label="ko.notes.sharedPages" :can-create="space.can('create')" />
         <PageTree :sid="currentSpace.id" root="private" :label="currentWorkspace ? ko.notes.myPages : ko.notes.pages" :can-create="true" />
+        <SidebarGroup class="group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel>{{ ko.notes.collections.nav }}</SidebarGroupLabel>
+          <SidebarGroupAction :title="ko.notes.collections.create" @click="collectionOpen = true">
+            <PlusIcon />
+          </SidebarGroupAction>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="c in notes.collections" :key="c.id">
+              <SidebarMenuButton as-child size="sm" :is-active="route.path === `/s/${currentSpace.id}/collections/${c.id}`">
+                <NuxtLink :to="`/s/${currentSpace.id}/collections/${c.id}`">
+                  <span v-if="c.icon" class="w-4 text-center">{{ c.icon }}</span>
+                  <LayersIcon v-else />
+                  <span>{{ c.name }}</span>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+        <CollectionFormDialog v-model:open="collectionOpen" @saved="navigateTo(`/s/${currentSpace!.id}/collections/${$event}`)" />
         <SidebarGroup class="group-data-[collapsible=icon]:hidden">
           <SidebarMenu>
             <SidebarMenuItem>

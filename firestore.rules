@@ -167,7 +167,8 @@ service cloud.firestore {
         function pg() { return resource.data; }
         function np() { return request.resource.data; }
         function validPage(x) {
-          return x.type in ['page'] && isText(x.title, 0, 200) && isText(x.icon, 0, 16)
+          return x.type in ['page', 'item'] && (x.type == 'page' || isText(x.get('collectionId', ''), 1, 128))
+            && x.get('props', {}) is map && x.get('props', {}).size() <= 20 && isText(x.title, 0, 200) && isText(x.icon, 0, 16)
             && x.root in ['private', 'shared'] && (x.parentId == null || x.parentId is string) && isText(x.order, 1, 256)
             && x.visibility in ['private', 'people', 'space'] && x.editorIds is list && x.editorIds.size() <= 50
             && x.get('sharedWith', []) is list && x.get('sharedWith', []).size() <= 50
@@ -182,22 +183,47 @@ service cloud.firestore {
               && get(/databases/$(database)/documents/spaces/$(sid)/pages/$(x.parentId)).data.deletedAt == null
               && get(/databases/$(database)/documents/spaces/$(sid)/pages/$(x.parentId)).data.ancestorIds.concat([x.parentId]) == x.ancestorIds);
         }
+        // NOTE-46·49: 모음 페이지는 맨 위에만, 모음의 갈래(scope = root)를 따른다. 내 모음에는 만든 사람만 추가
+        function collectionOk(x) {
+          return x.type == 'page' || (x.parentId == null
+            && get(/databases/$(database)/documents/spaces/$(sid)/collections/$(x.collectionId)).data.scope == x.root
+            && (x.root == 'shared' || get(/databases/$(database)/documents/spaces/$(sid)/collections/$(x.collectionId)).data.ownerId == uid()));
+        }
         // 휴지통의 페이지는 작성자·버린 사람만 본다 (NOTE-22). 옮기기·휴지통은 서버(movePage·trashPage·restorePage)
         allow read: if isMember(sid) && (pg().ownerId == uid() || pg().get('deletedBy', '') == uid()
           || seesPage(pg()));
         allow create: if isMember(sid)
           && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid))
           && np().ownerId == uid() && validPage(np()) && np().blockCount == 0 && np().textLength == 0 && np().lock == null
-          && np().deletedAt == null && parentOk(np())
+          && np().deletedAt == null && parentOk(np()) && collectionOk(np())
           && np().createdAt == request.time && np().updatedAt == request.time;
         allow update: if isMember(sid) && (pg().ownerId == uid() || seesPage(pg())) && editsPage(pg()) && validPage(np())
           && (!np().diff(pg()).affectedKeys().hasAny(['lock']) || (lockFree(pg())
             && (np().lock == null || (np().lock.uid == uid() && np().lock.at == request.time))))
           && pg().deletedAt == null
-          && !np().diff(pg()).affectedKeys().hasAny(['ownerId', 'type', 'createdAt', 'copiedFrom', 'missionIds', 'commentCount', 'feedbackCount', 'reactionCounts',
+          && !np().diff(pg()).affectedKeys().hasAny(['ownerId', 'type', 'collectionId', 'createdAt', 'copiedFrom', 'missionIds', 'commentCount', 'feedbackCount', 'reactionCounts',
             'parentId', 'ancestorIds', 'deletedAt', 'deletedBy', 'trashRootId'])
           && (pg().ownerId == uid() || !np().diff(pg()).affectedKeys().hasAny(['visibility', 'root', 'groupIds', 'sharedWith', 'editorIds', 'reviewerIds', 'editPolicy']))
           && np().updatedAt == request.time;
+        allow delete: if false;
+      }
+
+      // NOTE-46~49 내 모음: 내 모음은 만든 사람만, 공유 모음은 모든 멤버가 본다. 설정은 만든 사람(공유 모음은 매니저도)
+      match /collections/{cid} {
+        function validCollection(x) {
+          return x.kind == 'custom' && isText(x.name, 1, 60) && isText(x.icon, 0, 16) && x.scope in ['private', 'shared']
+            && x.schema is list && x.schema.size() <= 20 && x.views is list && x.views.size() <= 20
+            && (sid.matches('p_.*') == false || x.scope == 'private');
+        }
+        allow read: if isMember(sid) && (resource.data.scope == 'shared' || resource.data.ownerId == uid());
+        allow create: if isMember(sid)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid))
+          && request.resource.data.ownerId == uid() && validCollection(request.resource.data)
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+        allow update: if isMember(sid) && (resource.data.ownerId == uid() || (resource.data.scope == 'shared' && isManager(sid)))
+          && validCollection(request.resource.data)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ownerId', 'kind', 'scope', 'createdAt'])
+          && request.resource.data.updatedAt == request.time;
         allow delete: if false;
       }
 

@@ -6,8 +6,11 @@ import { toast } from 'vue-sonner'
 import { useDebounceFn } from '@vueuse/core'
 import { LIMITS } from '#shared/limits'
 import BlockEditor from '~/features/notes/components/BlockEditor.vue'
+import type { PropDef, PropValue } from '#shared/schemas/collection'
+import { coerceProp } from '#shared/schemas/collection'
+import PropCell from '~/features/notes/components/PropCell.vue'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
-import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, updatePageTitle } from '~/features/notes/services/pages'
+import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, setPageProp, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
@@ -78,6 +81,12 @@ onBeforeUnmount(() => {
   clearInterval(lockTimer)
   if (canEdit.value && !lockedBy.value) setLock($firestore, sid.value, pageId.value, null).catch(() => {})
 })
+/** NOTE-46: 모음 페이지는 제목 아래에 항목 값을 보여 준다 */
+const collection = computed(() => (live.value?.collectionId ? notes.collections.find(c => c.id === live.value!.collectionId) ?? null : null))
+async function setProp(def: PropDef, v: PropValue) {
+  try { await setPageProp($firestore, sid.value, pageId.value, def.key, coerceProp(def, v)) }
+  catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
+}
 const status = computed<SaveStatus>(() => {
   if (blockStatus.value !== 'saved') return blockStatus.value
   if (titleFailed.value) return 'error'
@@ -130,6 +139,10 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
           <ArrowLeftIcon class="size-4" />
           {{ t.back }}
         </NuxtLink>
+        <template v-if="collection">
+          <ChevronRightIcon class="size-3.5 shrink-0" />
+          <NuxtLink :to="`/s/${sid}/collections/${collection.id}`" class="hover:text-foreground max-w-40 truncate">{{ collection.icon }} {{ collection.name }}</NuxtLink>
+        </template>
         <template v-for="c in crumbs" :key="c.id">
           <ChevronRightIcon class="size-3.5 shrink-0" />
           <NuxtLink :to="`/s/${sid}/notes/${c.id}`" class="hover:text-foreground max-w-40 truncate">{{ c.title || t.untitled }}</NuxtLink>
@@ -185,6 +198,14 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         @input="onTitle"
         @keydown.enter.prevent="editorRef?.focus()"
       >
+      <dl v-if="collection?.schema.length" class="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-1 text-sm">
+        <template v-for="d in collection.schema" :key="d.key">
+          <dt class="text-muted-foreground truncate">{{ d.name }}</dt>
+          <dd class="min-w-0">
+            <PropCell :def="d" :value="live?.props?.[d.key]" :readonly="!editable" @update="setProp(d, $event)" />
+          </dd>
+        </template>
+      </dl>
       <p v-if="blockCount > LIMITS.pageBlockWarn" class="text-muted-foreground text-xs">
         {{ t.tooManyBlocks(LIMITS.pageBlockWarn) }}
       </p>
