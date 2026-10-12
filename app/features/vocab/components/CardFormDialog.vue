@@ -1,0 +1,222 @@
+<script setup lang="ts">
+import type { CardInput } from '#shared/schemas/card'
+import type { CardField } from '#shared/schemas/deck'
+import type { Card } from '../services/cards'
+import type { Deck } from '../services/decks'
+import { cardInput, DIFFICULTY, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
+import { Volume2Icon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
+import { errorMessage } from '~/lib/errors'
+import { ko } from '~/locales/ko'
+import { useSpeech } from '../composables/useSpeech'
+import { addCards, saveCard } from '../services/cards'
+
+/** VOC-10: 카드 한 장 추가·수정 (단어장에서 고른 항목만 보여준다) */
+const props = defineProps<{ deck: Deck, card?: Card | null, nextOrder: number, count: number }>()
+const emit = defineEmits<{ saved: [] }>()
+const open = defineModel<boolean>('open', { default: false })
+
+const t = ko.vocab.cards
+const label = ko.vocab.cardFields
+const space = useSpaceStore()
+const { $firestore } = useNuxtApp()
+const speech = useSpeech()
+
+const empty = () => ({ front: '', back: '', pos: '', phonetic: '', examples: '', forms: '', synonyms: '', antonyms: '', collocations: '', tip: '', tags: '', difficulty: '' })
+const form = ref(empty())
+const pending = ref(false)
+const selectClass = 'border-input bg-background h-9 rounded-md border px-3 text-sm'
+const has = (field: CardField) => props.deck.fields.includes(field)
+
+const lines = (s: string) => s.split('\n').map(x => x.trim()).filter(Boolean)
+const list = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
+const opt = (s: string) => s.trim() || undefined
+
+watch(open, (value) => {
+  if (!value) return
+  const c = props.card
+  form.value = c
+    ? {
+        front: c.front,
+        back: c.back.join('\n'),
+        pos: c.pos ?? '',
+        phonetic: c.phonetic ?? '',
+        examples: c.examples.map(e => e.translation ? `${e.text} | ${e.translation}` : e.text).join('\n'),
+        forms: c.forms ?? '',
+        synonyms: c.synonyms.map(s => s.text).join(', '),
+        antonyms: c.antonyms.map(s => s.text).join(', '),
+        collocations: c.collocations.join(', '),
+        tip: c.tip ?? '',
+        tags: c.tags.join(', '),
+        difficulty: c.difficulty ?? '',
+      }
+    : empty()
+})
+
+function build(): CardInput | null {
+  const f = form.value
+  const parsed = cardInput.safeParse({
+    front: f.front,
+    back: lines(f.back),
+    pos: opt(f.pos),
+    phonetic: opt(f.phonetic),
+    audio: has('audio') ? { tts: true } : props.card?.audio,
+    examples: lines(f.examples).map((l) => {
+      const [text = '', ...rest] = l.split('|')
+      const translation = rest.join('|').trim()
+      return translation ? { text: text.trim(), translation } : { text: text.trim() }
+    }),
+    forms: opt(f.forms),
+    synonyms: list(f.synonyms).map(text => ({ text })),
+    antonyms: list(f.antonyms).map(text => ({ text })),
+    collocations: list(f.collocations),
+    imageFileId: props.card?.imageFileId,
+    tip: opt(f.tip),
+    tags: [...new Set(list(f.tags))],
+    difficulty: f.difficulty || undefined,
+  })
+  return parsed.success ? parsed.data : null
+}
+
+async function submit() {
+  const data = build()
+  if (!data) {
+    toast.error(ko.errors.invalidInput)
+    return
+  }
+  if (!props.card && props.count >= MAX_CARDS_PER_DECK) {
+    toast.error(t.tooMany(MAX_CARDS_PER_DECK))
+    return
+  }
+  pending.value = true
+  try {
+    const sid = space.current!.id
+    if (props.card) {
+      await saveCard($firestore, sid, props.deck.id, { ...data, id: props.card.id, order: props.card.order, contentRev: props.card.contentRev })
+      open.value = false
+    }
+    else {
+      await addCards($firestore, sid, props.deck.id, [data], props.nextOrder)
+      form.value = empty()
+      document.getElementById('card-front')?.focus()
+    }
+    toast.success(t.saved)
+    emit('saved')
+  }
+  catch (error) {
+    toast.error(errorMessage(error) ?? ko.errors.unknown)
+  }
+  finally {
+    pending.value = false
+  }
+}
+</script>
+
+<template>
+  <Dialog v-model:open="open">
+    <DialogContent class="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+      <DialogHeader>
+        <DialogTitle>{{ card ? t.edit : t.add }}</DialogTitle>
+        <DialogDescription>{{ deck.title }}</DialogDescription>
+      </DialogHeader>
+
+      <form id="card-form" class="flex flex-col gap-4" @submit.prevent="submit">
+        <div class="flex flex-col gap-2">
+          <Label for="card-front">{{ t.front }}</Label>
+          <div class="flex gap-2">
+            <Input id="card-front" v-model="form.front" required maxlength="200" autofocus />
+            <Button v-if="speech.supported" type="button" variant="outline" size="icon" :aria-label="t.speak" @click="speech.speak(form.front, deck.langFrom)">
+              <Volume2Icon />
+            </Button>
+          </div>
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label for="card-back">{{ t.back }}</Label>
+          <Textarea id="card-back" v-model="form.back" rows="2" required />
+          <p class="text-muted-foreground text-xs">
+            {{ t.backHint }}
+          </p>
+        </div>
+
+        <div v-if="has('pos') || has('phonetic')" class="grid grid-cols-2 gap-3">
+          <div v-if="has('pos')" class="flex flex-col gap-2">
+            <Label for="card-pos">{{ label.pos }}</Label>
+            <Input id="card-pos" v-model="form.pos" maxlength="30" />
+          </div>
+          <div v-if="has('phonetic')" class="flex flex-col gap-2">
+            <Label for="card-phonetic">{{ label.phonetic }}</Label>
+            <Input id="card-phonetic" v-model="form.phonetic" maxlength="100" />
+          </div>
+        </div>
+
+        <div v-if="has('examples')" class="flex flex-col gap-2">
+          <Label for="card-examples">{{ label.examples }}</Label>
+          <Textarea id="card-examples" v-model="form.examples" rows="3" />
+          <p class="text-muted-foreground text-xs">
+            {{ t.examplesHint }}
+          </p>
+        </div>
+
+        <div v-if="has('forms')" class="flex flex-col gap-2">
+          <Label for="card-forms">{{ label.forms }}</Label>
+          <Input id="card-forms" v-model="form.forms" maxlength="200" />
+        </div>
+
+        <div v-if="has('synonyms') || has('antonyms')" class="grid grid-cols-2 gap-3">
+          <div v-if="has('synonyms')" class="flex flex-col gap-2">
+            <Label for="card-synonyms">{{ label.synonyms }}</Label>
+            <Input id="card-synonyms" v-model="form.synonyms" />
+          </div>
+          <div v-if="has('antonyms')" class="flex flex-col gap-2">
+            <Label for="card-antonyms">{{ label.antonyms }}</Label>
+            <Input id="card-antonyms" v-model="form.antonyms" />
+          </div>
+        </div>
+
+        <div v-if="has('collocations')" class="flex flex-col gap-2">
+          <Label for="card-collocations">{{ label.collocations }}</Label>
+          <Input id="card-collocations" v-model="form.collocations" />
+          <p class="text-muted-foreground text-xs">
+            {{ t.listHint }}
+          </p>
+        </div>
+
+        <div v-if="has('tip')" class="flex flex-col gap-2">
+          <Label for="card-tip">{{ label.tip }}</Label>
+          <Textarea id="card-tip" v-model="form.tip" rows="2" maxlength="500" />
+        </div>
+
+        <div v-if="has('tags') || has('difficulty')" class="grid grid-cols-2 gap-3">
+          <div v-if="has('tags')" class="flex flex-col gap-2">
+            <Label for="card-tags">{{ label.tags }}</Label>
+            <Input id="card-tags" v-model="form.tags" />
+          </div>
+          <div v-if="has('difficulty')" class="flex flex-col gap-2">
+            <Label for="card-difficulty">{{ label.difficulty }}</Label>
+            <select id="card-difficulty" v-model="form.difficulty" :class="selectClass">
+              <option value="">
+                {{ t.noDifficulty }}
+              </option>
+              <option v-for="d in DIFFICULTY" :key="d" :value="d">
+                {{ t.difficulty[d] }}
+              </option>
+            </select>
+          </div>
+        </div>
+
+        <p v-if="has('image')" class="text-muted-foreground text-xs">
+          {{ label.image }}: {{ t.imageComingSoon }}
+        </p>
+      </form>
+
+      <DialogFooter>
+        <Button variant="outline" type="button" @click="open = false">
+          {{ ko.vocab.cancel }}
+        </Button>
+        <Button type="submit" form="card-form" :disabled="pending || !form.front.trim() || !form.back.trim()">
+          {{ card ? t.save : t.addAnother }}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+</template>

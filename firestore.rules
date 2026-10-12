@@ -83,6 +83,27 @@ service cloud.firestore {
       }
 
       // VOC-03: 폴더는 멤버 누구나 만들고, 만든 사람·매니저가 고치고 지운다
+      match /decks/{deckId}/cards/{cardId} {
+        function deck() { return get(/databases/$(database)/documents/spaces/$(sid)/decks/$(deckId)).data; }
+        function seeDeck(dk) {
+          return dk.visibility == 'space' || dk.createdBy == uid()
+            || (dk.visibility == 'group' && get(memberPath(sid)).data.get('groupIds', []).hasAny(dk.groupIds));
+        }
+        function editDeck(dk) {
+          return dk.createdBy == uid() || (dk.editPolicy == 'collaborators' && uid() in dk.collaboratorIds) || dk.editPolicy == 'everyone';
+        }
+        function validCard(c) {
+          return isText(c.front, 1, 200) && c.back is list && c.back.size() >= 1 && c.back.size() <= 10
+            && c.order is number && c.examples is list && c.examples.size() <= 10 && c.tags is list && c.tags.size() <= 10;
+        }
+        allow read: if isMember(sid) && seeDeck(deck());
+        allow create: if isMember(sid) && seeDeck(deck()) && editDeck(deck())
+          && validCard(request.resource.data) && request.resource.data.contentRev == 0;
+        allow update: if isMember(sid) && seeDeck(deck()) && editDeck(deck())
+          && validCard(request.resource.data) && request.resource.data.contentRev == resource.data.contentRev;
+        allow delete: if isMember(sid) && seeDeck(deck()) && editDeck(deck());
+      }
+
       match /deckFolders/{folderId} {
         allow read: if isMember(sid);
         allow create: if isMember(sid) && request.resource.data.ownerId == uid()
