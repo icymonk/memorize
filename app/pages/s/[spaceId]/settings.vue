@@ -72,6 +72,15 @@ const scheduleDeletion = () => run('delete', async () => {
   confirmName.value = ''
 }, t.deleteRequested)
 const cancelDeletion = () => run('delete', () => space.cancelDeletion(), t.deleteCancelled)
+
+async function leave() {
+  const s = space.current
+  if (!s || !window.confirm(ko.members.leave.confirm(s.name))) return
+  await run('leave', async () => {
+    await space.leave()
+    await navigateTo('/', { replace: true })
+  }, ko.members.leave.done)
+}
 </script>
 
 <template>
@@ -215,6 +224,22 @@ const cancelDeletion = () => run('delete', () => space.cancelDeletion(), t.delet
         <CardDescription>{{ t.deleteDescription(LIMITS.workspaceDeleteGraceDays) }}</CardDescription>
       </CardHeader>
       <CardContent class="flex flex-col gap-3">
+        <div class="flex flex-col gap-2 border-b pb-4">
+          <p class="text-sm font-medium">
+            {{ ko.members.leave.title }}
+          </p>
+          <p class="text-muted-foreground text-sm">
+            {{ canDelete ? ko.members.leave.ownerHint : ko.members.leave.description }}
+          </p>
+          <div v-if="!canDelete">
+            <Button variant="outline" :disabled="saving === 'leave'" @click="leave">
+              {{ ko.members.leave.button }}
+            </Button>
+          </div>
+        </div>
+        <p class="text-sm font-medium">
+          {{ t.deleteTitle }}
+        </p>
         <template v-if="scheduledAt">
           <p class="text-destructive text-sm font-medium">
             {{ t.deleteScheduled(scheduledAt.toLocaleDateString('ko-KR')) }}

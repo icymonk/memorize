@@ -74,3 +74,14 @@ export type CancelSpaceDeletionInput = z.infer<typeof cancelSpaceDeletionInput>
 
 export type SpaceAccess = 'owner' | 'manager' | 'member'
 export type MemberStatus = 'active' | 'pending' | 'left' | 'removed'
+
+/** WS-22~25 */
+const spaceIdField = z.string().min(1).max(128)
+export const setManagerInput = z.object({ spaceId: spaceIdField, uid: spaceIdField, manager: z.boolean() })
+export type SetManagerInput = z.infer<typeof setManagerInput>
+export const memberTargetInput = z.object({ spaceId: spaceIdField, uid: spaceIdField })
+export type MemberTargetInput = z.infer<typeof memberTargetInput>
+export const transferOwnershipInput = z.object({ spaceId: spaceIdField, uid: spaceIdField.nullable() })
+export type TransferOwnershipInput = z.infer<typeof transferOwnershipInput>
+export const respondOwnershipInput = z.object({ spaceId: spaceIdField, accept: z.boolean() })
+export type RespondOwnershipInput = z.infer<typeof respondOwnershipInput>
