@@ -25,6 +25,7 @@ export interface Membership {
   status: MemberStatus
   displayName: string
   photoURL: string | null
+  groupIds?: string[]
 }
 
 export async function getUserSpaceIds(db: Firestore, uid: string): Promise<string[]> {

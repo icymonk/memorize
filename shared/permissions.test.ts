@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { can } from './permissions'
+import { can, canDeleteContent, canEditContent, canSeeContent } from './permissions'
 
 const ws = (access: 'owner' | 'manager' | 'member', settings = {}, status: 'active' | 'left' = 'active') =>
   ({ kind: 'workspace' as const, settings, member: { access, status } })
@@ -35,5 +35,29 @@ describe('can', () => {
     expect(can(p, 'manage')).toBe(false)
     expect(can(p, 'delete')).toBe(false)
     expect(can(p, 'invite')).toBe(false)
+  })
+})
+
+describe('content (VOC-02, security.md 3절)', () => {
+  const d = (over = {}) => ({ createdBy: 'bob', visibility: 'space' as const, groupIds: [], editPolicy: 'author' as const, collaboratorIds: [], ...over })
+  it('canSeeContent', () => {
+    expect(canSeeContent(d(), 'alice')).toBe(true)
+    expect(canSeeContent(d({ visibility: 'private' }), 'alice')).toBe(false)
+    expect(canSeeContent(d({ visibility: 'private' }), 'bob')).toBe(true)
+    expect(canSeeContent(d({ visibility: 'group', groupIds: ['g1'] }), 'alice', ['g1'])).toBe(true)
+    expect(canSeeContent(d({ visibility: 'group', groupIds: ['g1'] }), 'alice', ['g2'])).toBe(false)
+  })
+  it('canEditContent', () => {
+    expect(canEditContent(d(), 'bob')).toBe(true)
+    expect(canEditContent(d(), 'alice')).toBe(false)
+    expect(canEditContent(d({ editPolicy: 'collaborators', collaboratorIds: ['alice'] }), 'alice')).toBe(true)
+    expect(canEditContent(d({ editPolicy: 'collaborators', collaboratorIds: ['mia'] }), 'alice')).toBe(false)
+    expect(canEditContent(d({ editPolicy: 'everyone' }), 'alice')).toBe(true)
+  })
+  it('canDeleteContent: author or manager', () => {
+    expect(canDeleteContent(ws('member'), d(), 'bob')).toBe(true)
+    expect(canDeleteContent(ws('member'), d(), 'alice')).toBe(false)
+    expect(canDeleteContent(ws('manager'), d(), 'mia')).toBe(true)
+    expect(canDeleteContent(ws('owner', {}, 'left'), d(), 'bob')).toBe(false)
   })
 })
