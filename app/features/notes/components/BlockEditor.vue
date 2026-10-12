@@ -8,7 +8,7 @@ import { BoldIcon, CodeIcon, GripVerticalIcon, HighlighterIcon, ItalicIcon, Link
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { Editor, EditorContent, VueRenderer } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
-import { onClickOutside, useEventListener, useOnline } from '@vueuse/core'
+import { onClickOutside, useDebounceFn, useEventListener, useOnline } from '@vueuse/core'
 import { toast } from 'vue-sonner'
 import { youtubeEmbed } from '../extensions/blocks'
 import { deleteBlock, duplicateBlock, findBlockPos, insertBlock, moveBlock } from '../extensions/commands'
@@ -24,7 +24,7 @@ import SlashMenu from './SlashMenu.vue'
 
 /** 블록 편집기: 불러오기 → 편집 → 0.8초 뒤 바뀐 블록만 저장 (docs/dev/editor.md 3·4절) */
 const props = defineProps<{ spaceId: string, pageId: string, editable: boolean }>()
-const emit = defineEmits<{ status: [SaveStatus], loaded: [blockCount: number], error: [unknown] }>()
+const emit = defineEmits<{ status: [SaveStatus], loaded: [blockCount: number], error: [unknown], headings: [{ id: string, level: number, text: string }[]] }>()
 const t = ko.notes
 
 const { $firestore } = useNuxtApp()
@@ -86,11 +86,22 @@ onMounted(async () => {
       onStatus: s => emit('status', s),
       online: () => online.value,
     })
+    // NOTE-23 목차: 제목 블록에서 만든다
+    const emitHeadings = () => {
+      const list: { id: string, level: number, text: string }[] = []
+      e.state.doc.descendants((n) => {
+        if (n.type.name === 'heading' && n.attrs.id) list.push({ id: n.attrs.id, level: n.attrs.level, text: n.textContent })
+      })
+      emit('headings', list)
+    }
+    const headingsLater = useDebounceFn(emitHeadings, 300)
     e.on('update', () => {
+      headingsLater()
       if (ensureUniqueIds(e)) return
       queue?.schedule()
     })
     editor.value = e
+    nextTick(emitHeadings)
   }
   catch (error) {
     emit('error', error)

@@ -25,7 +25,7 @@ const loading = ref(true)
 const loadError = ref(false)
 const creating = ref(false)
 
-const shown = computed(() => pages.value.toSorted((a, b) => (b.updatedAt?.toMillis() ?? 0) - (a.updatedAt?.toMillis() ?? 0)))
+const shown = computed(() => pages.value.filter(p => !p.deletedAt).toSorted((a, b) => (b.updatedAt?.toMillis() ?? 0) - (a.updatedAt?.toMillis() ?? 0)))
 
 async function load() {
   loading.value = true
@@ -46,7 +46,7 @@ watch(sid, load)
 async function create() {
   creating.value = true
   try {
-    const id = await createPage($firestore, sid.value, uid.value, personal.value)
+    const id = await createPage($firestore, sid.value, uid.value, { root: personal.value ? 'private' : 'shared', after: shown.value.filter(p => !p.parentId).map(p => p.order).sort().at(-1) ?? null })
     await navigateTo(`/s/${sid.value}/notes/${id}`)
   }
   catch (error) {

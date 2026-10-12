@@ -2,7 +2,7 @@ import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
-import { collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
+import { and, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 
 // docs/dev/security.md — firestore.rules (0-8). 실행: 루트에서 `pnpm test:rules`
@@ -356,7 +356,7 @@ describe('pages and blocks (NOTE-01·10)', () => {
   const page = (o: object = {}) => ({
     type: 'page', title: '', icon: '', cover: null, ownerId: 'bob', root: 'shared', parentId: null, order: 'V', ancestorIds: [], props: {},
     visibility: 'space', groupIds: [], sharedWith: [], editorIds: [], reviewerIds: [], excerpt: '', blockCount: 0, textLength: 0,
-    lock: null, ownerStatus: 'active', createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...o,
+    lock: null, ownerStatus: 'active', deletedAt: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...o,
   })
   const block = (uid: string, o: object = {}) => ({
     type: 'paragraph', parentBlockId: null, order: 'V', attrs: {}, content: [{ type: 'text', text: 'hi' }], rev: 1, updatedBy: uid, updatedAt: serverTimestamp(), ...o,
@@ -382,7 +382,7 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertFails(getDoc(pageRef('alice', 'priv')))
     await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'pages', 'priv', 'blocks')))
     const pages = collection(db('alice'), 'spaces', SID, 'pages')
-    await assertSucceeds(getDocs(query(pages, or(where('visibility', '==', 'space'), where('ownerId', '==', 'alice')))))
+    await assertSucceeds(getDocs(query(pages, and(where('deletedAt', '==', null), or(where('visibility', '==', 'space'), where('ownerId', '==', 'alice'))))))
     await assertFails(getDocs(pages))
   })
 
@@ -428,6 +428,36 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertSucceeds(updateDoc(pageRef('mia', 'a'), { editorIds: [], updatedAt: serverTimestamp() }))
     await assertFails(deleteDoc(pageRef('bob', 'a')))
     await seed('pages/c', page())
-    await assertSucceeds(deleteDoc(pageRef('alice', 'c')))
+    await assertFails(deleteDoc(pageRef('alice', 'c')))
+  })
+
+  it('subpages must match the parent root and ancestors; clients cannot move or trash', async () => {
+    await seed('pages/top', page({ ancestorIds: [] }))
+    await assertSucceeds(setDoc(pageRef('bob', 'sub'), page({ parentId: 'top', ancestorIds: ['top'] })))
+    await assertFails(setDoc(pageRef('bob', 'bad1'), page({ parentId: 'top', ancestorIds: [] })))
+    await assertFails(setDoc(pageRef('bob', 'bad2'), page({ parentId: 'top', ancestorIds: ['top'], root: 'private', visibility: 'private' })))
+    await assertFails(updateDoc(pageRef('bob', 'top'), { parentId: 'x', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(pageRef('bob', 'top'), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+  })
+
+  it('trashed pages: only the owner or the trasher reads them; nobody edits', async () => {
+    await seed('pages/gone', page({ deletedAt: new Date(), deletedBy: 'alice', trashRootId: 'gone' }))
+    await seed('pages/gone/blocks/b', block('bob'))
+    await assertSucceeds(getDoc(pageRef('bob', 'gone')))
+    await assertSucceeds(getDoc(pageRef('alice', 'gone')))
+    await assertFails(getDoc(pageRef('mia', 'gone')))
+    await assertFails(getDoc(doc(db('mia'), 'spaces', SID, 'pages', 'gone', 'blocks', 'b')))
+    await assertFails(updateDoc(pageRef('bob', 'gone'), { title: 'x', updatedAt: serverTimestamp() }))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'pages', 'gone', 'blocks', 'n'), block('bob')))
+    await assertSucceeds(getDocs(query(collection(db('alice'), 'spaces', SID, 'pages'), where('deletedBy', '==', 'alice'))))
+  })
+
+  it('favorites and recent pages are private per member', async () => {
+    const prefs = { favoritePageIds: ['a'], recentPageIds: ['a', 'b'] }
+    await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'userPrefs', 'bob'), prefs))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'userPrefs', 'bob')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'userPrefs', 'bob')))
+    await assertFails(setDoc(doc(db('alice'), 'spaces', SID, 'userPrefs', 'bob'), prefs))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'userPrefs', 'bob'), { ...prefs, extra: 1 }))
   })
 })
