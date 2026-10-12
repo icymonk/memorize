@@ -152,6 +152,43 @@ service cloud.firestore {
         allow delete: if isMember(sid) && (resource.data.ownerId == uid() || isManager(sid));
       }
 
+      // NOTE-01·10 노트 페이지와 블록 (docs/dev/editor.md). 공개 범위 세분화·공동 편집자 지정·잠금은 1-C4
+      match /pages/{pageId} {
+        function pg() { return resource.data; }
+        function np() { return request.resource.data; }
+        function validPage(x) {
+          return x.type in ['page'] && isText(x.title, 0, 200) && isText(x.icon, 0, 16)
+            && x.root in ['private', 'shared'] && (x.parentId == null || x.parentId is string) && isText(x.order, 1, 256)
+            && x.visibility in ['private', 'space'] && x.editorIds is list && x.editorIds.size() <= 50
+            && isText(x.excerpt, 0, 200) && x.blockCount is int && x.textLength is int
+            && (sid.matches('p_.*') == false || x.visibility == 'private');
+        }
+        allow read: if isMember(sid) && (pg().visibility == 'space' || pg().ownerId == uid());
+        allow create: if isMember(sid)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid))
+          && np().ownerId == uid() && validPage(np()) && np().blockCount == 0 && np().textLength == 0 && np().lock == null
+          && np().createdAt == request.time && np().updatedAt == request.time;
+        allow update: if isMember(sid) && (pg().visibility == 'space' || pg().ownerId == uid())
+          && (pg().ownerId == uid() || uid() in pg().editorIds) && validPage(np())
+          && !np().diff(pg()).affectedKeys().hasAny(['ownerId', 'type', 'createdAt', 'copiedFrom', 'missionIds', 'commentCount', 'feedbackCount', 'reactionCounts'])
+          && (pg().ownerId == uid() || !np().diff(pg()).affectedKeys().hasAny(['visibility', 'root', 'groupIds', 'sharedWith', 'editorIds', 'reviewerIds']))
+          && np().updatedAt == request.time;
+        allow delete: if isMember(sid) && (pg().ownerId == uid() || isManager(sid));
+      }
+
+      match /pages/{pageId}/blocks/{blockId} {
+        function page() { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(pageId)).data; }
+        function seePage(p) { return p.visibility == 'space' || p.ownerId == uid(); }
+        function editPage(p) { return p.ownerId == uid() || uid() in p.editorIds; }
+        function validBlock(b) {
+          return isText(b.type, 1, 40) && (b.parentBlockId == null || b.parentBlockId is string) && isText(b.order, 1, 256)
+            && b.attrs is map && b.content is list && b.rev is int && b.updatedBy == uid() && b.updatedAt == request.time;
+        }
+        allow read: if isMember(sid) && seePage(page());
+        allow create, update: if isMember(sid) && seePage(page()) && editPage(page()) && validBlock(request.resource.data);
+        allow delete: if isMember(sid) && seePage(page()) && editPage(page());
+      }
+
       // WS-10·11: 생성은 서버(createInvite, 코드 유일성). 만든 사람·매니저가 보고 끄고 켠다
       match /invites/{code} {
         function mine() { return resource.data.createdBy == uid(); }
