@@ -2,8 +2,115 @@
   "hosting": {
     "site": "memorize-hub",
     "public": ".output/public",
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }]
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/fn/cancelSpaceDeletion",
+        "function": {
+          "functionId": "cancelSpaceDeletion",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/completeOnboarding",
+        "function": {
+          "functionId": "completeOnboarding",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/createInvite",
+        "function": {
+          "functionId": "createInvite",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/createWorkspace",
+        "function": {
+          "functionId": "createWorkspace",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/decideJoinRequest",
+        "function": {
+          "functionId": "decideJoinRequest",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/ensureAccount",
+        "function": {
+          "functionId": "ensureAccount",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/getInvite",
+        "function": {
+          "functionId": "getInvite",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/joinSpace",
+        "function": {
+          "functionId": "joinSpace",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/leaveSpace",
+        "function": {
+          "functionId": "leaveSpace",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/removeMember",
+        "function": {
+          "functionId": "removeMember",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/respondOwnership",
+        "function": {
+          "functionId": "respondOwnership",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/scheduleSpaceDeletion",
+        "function": {
+          "functionId": "scheduleSpaceDeletion",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/setManager",
+        "function": {
+          "functionId": "setManager",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/transferOwnership",
+        "function": {
+          "functionId": "transferOwnership",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
   },
   "firestore": {
     "rules": "firestore.rules",
@@ -17,16 +124,35 @@
       "source": "functions",
       "codebase": "default",
       "runtime": "nodejs22",
-      "ignore": ["node_modules", "src", "build.mjs", "tsconfig.json", "*.log"],
-      "predeploy": ["pnpm --filter functions build"]
+      "ignore": [
+        "node_modules",
+        "src",
+        "build.mjs",
+        "tsconfig.json",
+        "*.log"
+      ],
+      "predeploy": [
+        "pnpm --filter functions build"
+      ]
     }
   ],
   "emulators": {
-    "auth": { "port": 9099 },
-    "functions": { "port": 5001 },
-    "firestore": { "port": 8080 },
-    "storage": { "port": 9199 },
-    "ui": { "enabled": true, "port": 4000 },
+    "auth": {
+      "port": 9099
+    },
+    "functions": {
+      "port": 5001
+    },
+    "firestore": {
+      "port": 8080
+    },
+    "storage": {
+      "port": 9199
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000
+    },
     "singleProjectMode": true
   }
 }

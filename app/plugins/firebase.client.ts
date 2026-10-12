@@ -21,7 +21,9 @@ export default defineNuxtPlugin(() => {
     : initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) })
   const auth = getAuth(app)
   const storage = getStorage(app)
-  const functions = getFunctions(app, REGION)
+  // 배포된 앱은 Hosting rewrite(/fn/{name})로 같은 주소에서 호출한다: cloudfunctions.net을 막는 네트워크 대응 (docs/dev/functions.md 1절)
+  const sameOrigin = !useEmulator && window.location.hostname !== 'localhost'
+  const functions = getFunctions(app, sameOrigin ? `${window.location.origin}/fn` : REGION)
 
   if (useEmulator && !existing) {
     connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true })
