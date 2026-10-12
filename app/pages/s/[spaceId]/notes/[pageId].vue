@@ -25,7 +25,10 @@ const auth = useAuthStore()
 const { $firestore } = useNuxtApp()
 
 const sid = computed(() => space.current!.id)
-const pageId = computed(() => route.params.pageId as string)
+/** 페이지마다 새로 마운트해서 편집기·잠금·자동 저장 상태가 이전 페이지와 섞이지 않게 한다 */
+const mountedPageId = route.params.pageId as string
+const pageId = computed(() => mountedPageId)
+definePageMeta({ key: r => r.fullPath })
 const page = ref<Page | null>(null)
 const loading = ref(true)
 const loadError = ref(false)
