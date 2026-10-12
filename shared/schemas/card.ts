@@ -11,6 +11,7 @@ export const cardInput = z.object({
   front: text(200).min(1),
   back: z.array(text(300).min(1)).min(1).max(10),
   pos: text(30).optional(),
+  reading: text(100).optional(),
   phonetic: text(100).optional(),
   audio: z.object({ fileId: z.string().max(128).optional(), tts: z.boolean() }).optional(),
   examples: z.array(z.object({ text: text(500).min(1), translation: text(500).optional() })).max(10).default([]),
