@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.1 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.3 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -63,6 +63,7 @@ spaces/{spaceId}
   stamps: [{ id, label, emoji }]            # CMN-26
   memberCount, maxMembers                   # WS-08 (R5)
   deleteScheduledAt?                        # WS-07 유예
+  ownershipTransfer?: { from, to, at }       # WS-25 수락 대기 (서버 관리)
   createdAt, updatedAt
 
 spaces/{spaceId}/members/{uid}
@@ -78,7 +79,7 @@ spaces/{spaceId}/members/{uid}
   joinedAt, leftAt?
 
 spaces/{spaceId}/groups/{groupId}    name, color, joinable, createdBy, memberCount, deletedAt?   # WS-30~33
-spaces/{spaceId}/invites/{code}      createdBy, expiresAt?, maxUses?, uses, disabled             # WS-10~11
+spaces/{spaceId}/invites/{code}      code, createdBy, expiresAt?, maxUses?, uses, disabled        # WS-10~11 (code: 컬렉션 그룹 조회용, 문서 ID와 같음)
 spaces/{spaceId}/emailInvites/{id}   email, createdBy, expiresAt                                  # WS-12
 spaces/{spaceId}/tags/{tagId}        name, color                                                  # CMN-51
 spaces/{spaceId}/templates/{id}      kind: 'journal'|'review'|'page'|'mission', name, ownerId?, scope: 'space'|'personal', blocks[], props
@@ -403,5 +404,7 @@ users/{uid}/avatar/{fileName}
 - 없음
 
 ## 16. 변경 이력
+- v2.3: `spaces.ownershipTransfer`(WS-25)
+- v2.2: `invites`에 `code` 필드(컬렉션 그룹 조회용)
 - v2.1: 확정 — 내 공간에 개인 독서·독후감 추가, 최대 인원 기본 100명 확정
 - v2.0: 확정 기능명세 기준으로 새로 작성

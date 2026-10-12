@@ -1,3 +1,5 @@
+import type { CreateInviteInput, CreateInviteOutput, DecideJoinRequestInput, InviteCodeInput, InvitePreview, JoinSpaceOutput } from './invite'
+import type { CancelSpaceDeletionInput, CreateWorkspaceInput, CreateWorkspaceOutput, MemberTargetInput, RespondOwnershipInput, ScheduleSpaceDeletionInput, SetManagerInput, TransferOwnershipInput } from './space'
 import { z } from 'zod'
 
 export const personalSpaceId = (uid: string) => `p_${uid}`
@@ -25,4 +27,16 @@ export type CompleteOnboardingInput = z.infer<typeof completeOnboardingInput>
 export interface Callables {
   ensureAccount: { input: EnsureAccountInput, output: EnsureAccountOutput }
   completeOnboarding: { input: CompleteOnboardingInput, output: { ok: true } }
+  createWorkspace: { input: CreateWorkspaceInput, output: CreateWorkspaceOutput }
+  scheduleSpaceDeletion: { input: ScheduleSpaceDeletionInput, output: { deleteScheduledAt: string } }
+  cancelSpaceDeletion: { input: CancelSpaceDeletionInput, output: { ok: true } }
+  createInvite: { input: CreateInviteInput, output: CreateInviteOutput }
+  getInvite: { input: InviteCodeInput, output: InvitePreview }
+  joinSpace: { input: InviteCodeInput, output: JoinSpaceOutput }
+  decideJoinRequest: { input: DecideJoinRequestInput, output: { ok: true } }
+  setManager: { input: SetManagerInput, output: { ok: true } }
+  removeMember: { input: MemberTargetInput, output: { ok: true } }
+  leaveSpace: { input: CancelSpaceDeletionInput, output: { ok: true } }
+  transferOwnership: { input: TransferOwnershipInput, output: { ok: true } }
+  respondOwnership: { input: RespondOwnershipInput, output: { ok: true } }
 }

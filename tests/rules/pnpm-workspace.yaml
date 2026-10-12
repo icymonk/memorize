@@ -1,0 +1,2 @@
+# Standalone workspace: rules test deps never touch the app lockfile (docs/dev/conventions.md).
+packages: []

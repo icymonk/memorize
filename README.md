@@ -49,4 +49,4 @@ docs/       기획·기능명세·개발 문서
 
 ## CI
 
-GitHub Actions(`.github/workflows/ci.yml`)가 PR과 `main` push마다 `test`, `typecheck`, `functions:build`, `generate`를 실행합니다.
+GitHub Actions(`.github/workflows/ci.yml`)가 PR과 `main`·`develop` push마다 `test`, `typecheck`, `functions:build`, `generate`를 실행합니다.
