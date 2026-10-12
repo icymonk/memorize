@@ -18,6 +18,9 @@ const space = useSpaceStore()
         </p>
       </div>
     </div>
+    <p v-if="space.current.deleteScheduledAt" class="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">
+      {{ ko.space.settings.deleteScheduled(space.current.deleteScheduledAt.toDate().toLocaleDateString('ko-KR')) }}
+    </p>
     <p v-if="space.current.description" class="text-muted-foreground">
       {{ space.current.description }}
     </p>

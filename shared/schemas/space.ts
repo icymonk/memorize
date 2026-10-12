@@ -33,14 +33,44 @@ export const createWorkspaceInput = z.object({
 export type CreateWorkspaceInput = z.input<typeof createWorkspaceInput>
 export type CreateWorkspaceOutput = { spaceId: string }
 
-/** WS-03·04 기본 운영 방식 (기본 모두 "모든 멤버") */
-export const DEFAULT_SPACE_SETTINGS = {
+export const WHO_OPTIONS = ['everyone', 'managers'] as const
+
+/** WS-03·04 운영 방식 */
+export const spaceSettingsSchema = z.object({
+  joinPolicy: z.enum(['link', 'approval']),
+  whoCanInvite: z.enum(WHO_OPTIONS),
+  whoCanCreate: z.enum(WHO_OPTIONS),
+  whoCanHost: z.enum(WHO_OPTIONS),
+  progressSharing: z.enum(['everyone', 'self']),
+})
+export type SpaceSettings = z.infer<typeof spaceSettingsSchema>
+
+/** 기본은 모두 "모든 멤버" */
+export const DEFAULT_SPACE_SETTINGS: SpaceSettings = {
   joinPolicy: 'link',
   whoCanInvite: 'everyone',
   whoCanCreate: 'everyone',
   whoCanHost: 'everyone',
   progressSharing: 'everyone',
-} as const
+}
+
+/** WS-01 설정 화면의 일반 항목 (규칙에서도 같은 한도를 검사한다) */
+export const spaceGeneralSchema = z.object({
+  name: z.string().trim().min(1).max(40),
+  icon: z.string().trim().min(1).max(16),
+  color: z.enum(SPACE_COLORS),
+  description: z.string().trim().max(200),
+})
+export type SpaceGeneral = z.infer<typeof spaceGeneralSchema>
+
+/** WS-07 */
+export const scheduleSpaceDeletionInput = z.object({
+  spaceId: z.string().min(1).max(128),
+  confirmName: z.string(),
+})
+export type ScheduleSpaceDeletionInput = z.infer<typeof scheduleSpaceDeletionInput>
+export const cancelSpaceDeletionInput = z.object({ spaceId: z.string().min(1).max(128) })
+export type CancelSpaceDeletionInput = z.infer<typeof cancelSpaceDeletionInput>
 
 export type SpaceAccess = 'owner' | 'manager' | 'member'
 export type MemberStatus = 'active' | 'pending' | 'left' | 'removed'

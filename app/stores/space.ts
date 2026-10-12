@@ -1,7 +1,9 @@
+import type { SpaceAction } from '#shared/permissions'
 import type { CreateWorkspaceInput } from '#shared/schemas/space'
-import type { Membership, Space } from '~/features/space/services/spaces'
+import type { Membership, Space, SpacePatch } from '~/features/space/services/spaces'
+import { can as canDo } from '#shared/permissions'
 import { defineStore } from 'pinia'
-import { getMembership, getSpace, getUserSpaceIds } from '~/features/space/services/spaces'
+import { getMembership, getSpace, getUserSpaceIds, updateSpace } from '~/features/space/services/spaces'
 import { callFn } from '~/lib/functions'
 
 /** 내가 속한 공간 목록과 현재 공간·내 멤버십 (docs/dev/architecture.md 6절) */
@@ -62,11 +64,51 @@ export const useSpaceStore = defineStore('space', () => {
     }
   }
 
+  /** 현재 공간에서의 운영 권한 (useCan 역할) */
+  function can(action: SpaceAction) {
+    const s = current.value
+    return !!s && canDo({ kind: s.kind, settings: s.settings, member: membership.value }, action)
+  }
+
+  function patchLocal(spaceId: string, patch: Partial<Space>) {
+    if (current.value?.id === spaceId) current.value = { ...current.value, ...patch }
+    spaces.value = spaces.value.map(s => s.id === spaceId ? { ...s, ...patch } : s)
+  }
+
+  async function update(patch: SpacePatch) {
+    const s = current.value
+    if (!s) return
+    await updateSpace($firestore, s.id, patch)
+    patchLocal(s.id, patch)
+  }
+
+  /** 서버에서 바뀐 값(삭제 예약 등)을 다시 읽는다 */
+  async function refreshCurrent() {
+    const s = current.value
+    if (!s) return
+    const fresh = await getSpace($firestore, s.id)
+    if (fresh) patchLocal(s.id, fresh)
+  }
+
+  async function scheduleDeletion(confirmName: string) {
+    const s = current.value
+    if (!s) return
+    await callFn($functions, 'scheduleSpaceDeletion', { spaceId: s.id, confirmName })
+    await refreshCurrent()
+  }
+
+  async function cancelDeletion() {
+    const s = current.value
+    if (!s) return
+    await callFn($functions, 'cancelSpaceDeletion', { spaceId: s.id })
+    await refreshCurrent()
+  }
+
   async function createWorkspace(input: CreateWorkspaceInput) {
     const { spaceId } = await callFn($functions, 'createWorkspace', input)
     await loadMySpaces(true)
     return spaceId
   }
 
-  return { spaces, loaded, current, membership, personalSpace, workspaces, loadMySpaces, enter, createWorkspace }
+  return { spaces, loaded, current, membership, personalSpace, workspaces, loadMySpaces, enter, can, update, scheduleDeletion, cancelDeletion, createWorkspace }
 })

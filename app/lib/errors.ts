@@ -13,6 +13,8 @@ const messages: Record<string, string> = {
   'functions/unauthenticated': ko.errors.signInAgain,
   'functions/invalid-argument': ko.errors.invalidInput,
   'functions/failed-precondition': ko.errors.accountNotReady,
+  'functions/permission-denied': ko.errors.permissionDenied,
+  'permission-denied': ko.errors.permissionDenied,
 }
 
 /** 사용자에게 보여줄 오류 문구. 무시해도 되는 오류(팝업 닫기)는 null */
