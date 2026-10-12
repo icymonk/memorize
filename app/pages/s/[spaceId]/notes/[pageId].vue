@@ -1,16 +1,17 @@
 <script setup lang="ts">
 import type { Page } from '~/features/notes/services/pages'
 import type { SaveStatus } from '~/features/notes/sync/writer'
-import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, StarIcon, Trash2Icon } from '@lucide/vue'
+import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { useDebounceFn } from '@vueuse/core'
 import { LIMITS } from '#shared/limits'
 import BlockEditor from '~/features/notes/components/BlockEditor.vue'
 import type { PropDef, PropValue } from '#shared/schemas/collection'
 import { coerceProp } from '#shared/schemas/collection'
+import IconPicker from '~/features/notes/components/IconPicker.vue'
 import PropCell from '~/features/notes/components/PropCell.vue'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
-import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, setPageProp, updatePageTitle } from '~/features/notes/services/pages'
+import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
@@ -81,6 +82,15 @@ onBeforeUnmount(() => {
   clearInterval(lockTimer)
   if (canEdit.value && !lockedBy.value) setLock($firestore, sid.value, pageId.value, null).catch(() => {})
 })
+async function setIcon(icon: string) {
+  try {
+    await updatePageIcon($firestore, sid.value, pageId.value, icon)
+    if (page.value) page.value = { ...page.value, icon }
+  }
+  catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
+}
+const icon = computed(() => live.value?.icon ?? page.value?.icon ?? '')
+
 /** NOTE-46: 모음 페이지는 제목 아래에 항목 값을 보여 준다 */
 const collection = computed(() => (live.value?.collectionId ? notes.collections.find(c => c.id === live.value!.collectionId) ?? null : null))
 async function setProp(def: PropDef, v: PropValue) {
@@ -145,7 +155,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         </template>
         <template v-for="c in crumbs" :key="c.id">
           <ChevronRightIcon class="size-3.5 shrink-0" />
-          <NuxtLink :to="`/s/${sid}/notes/${c.id}`" class="hover:text-foreground max-w-40 truncate">{{ c.title || t.untitled }}</NuxtLink>
+          <NuxtLink :to="`/s/${sid}/notes/${c.id}`" class="hover:text-foreground max-w-40 truncate">{{ c.icon }} {{ c.title || t.untitled }}</NuxtLink>
         </template>
       </nav>
       <span class="flex shrink-0 items-center gap-1">
@@ -189,6 +199,18 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
       {{ t.notFound }}
     </p>
     <template v-else>
+      <div class="group/icon -mb-2 flex min-h-8 items-end">
+        <IconPicker v-if="editable" @pick="setIcon">
+          <button v-if="icon" type="button" class="hover:bg-muted rounded-md px-1 text-5xl leading-tight" :aria-label="t.icon.change">
+            {{ icon }}
+          </button>
+          <Button v-else variant="ghost" size="sm" class="text-muted-foreground opacity-0 group-hover/icon:opacity-100 focus-visible:opacity-100">
+            <SmileIcon />
+            {{ t.icon.add }}
+          </Button>
+        </IconPicker>
+        <span v-else-if="icon" class="px-1 text-5xl leading-tight">{{ icon }}</span>
+      </div>
       <input
         v-model="title"
         :readonly="!editable"

@@ -414,6 +414,13 @@ export const ko = {
       editPolicy: '공유 페이지 편집',
       policies: { everyone: '모든 멤버가 편집', editors: '나와 공동 편집자만 편집' } as Record<string, string>,
     },
+    icon: {
+      add: '아이콘 추가',
+      change: '아이콘 바꾸기',
+      custom: '다른 이모지 붙여넣기',
+      use: '쓰기',
+      remove: '아이콘 빼기',
+    },
     collections: {
       nav: '모음',
       create: '새 모음',
