@@ -1,5 +1,7 @@
+import type { Collection } from '~/features/notes/services/collections'
 import type { Page, UserPrefs } from '~/features/notes/services/pages'
 import { defineStore } from 'pinia'
+import { watchCollections } from '~/features/notes/services/collections'
 import { createPage, getPrefs, movePage, restorePage, savePrefs, trashPage, watchPages } from '~/features/notes/services/pages'
 import { compareOrder, keyBetween } from '~/features/notes/sync/order'
 
@@ -15,7 +17,9 @@ export const useNotesStore = defineStore('notes', () => {
   const loaded = ref(false)
   const prefs = ref<UserPrefs>({ favoritePageIds: [], recentPageIds: [] })
   const expanded = ref(new Set<string>())
+  const collections = ref<Collection[]>([])
   let unsub: (() => void) | null = null
+  let unsubCols: (() => void) | null = null
   let sid: string | null = null
 
   const uid = () => auth.user!.uid
@@ -25,13 +29,17 @@ export const useNotesStore = defineStore('notes', () => {
   function watchSpace(next: string | null) {
     if (next === sid) return
     unsub?.()
+    unsubCols?.()
     unsub = null
+    unsubCols = null
     sid = next
     pages.value = []
+    collections.value = []
     loaded.value = false
     prefs.value = { favoritePageIds: [], recentPageIds: [] }
     if (!next || !auth.user) return
     unsub = watchPages($firestore, next, uid(), (list) => { pages.value = list; loaded.value = true }, () => { loaded.value = true })
+    unsubCols = watchCollections($firestore, next, uid(), (list) => { collections.value = list.toSorted((a, b) => a.name.localeCompare(b.name, 'ko')) }, () => {})
     getPrefs($firestore, next, uid()).then((p) => { if (sid === next) prefs.value = p }).catch(() => {})
   }
   watch(() => (space.current?.modules?.notes === false ? null : space.current?.id ?? null), watchSpace, { immediate: true })
@@ -41,7 +49,7 @@ export const useNotesStore = defineStore('notes', () => {
   function childrenOf(parentId: string | null, root?: Root): Page[] {
     return sortPages(pages.value.filter((p) => {
       const parent = p.parentId && byId.value.has(p.parentId) ? p.parentId : null
-      return parent === parentId && (!root || p.root === root)
+      return p.type !== 'item' && parent === parentId && (!root || p.root === root)
     }))
   }
   const ancestors = (p: Page) => (p.ancestorIds ?? []).map(id => byId.value.get(id)).filter((x): x is Page => !!x)
@@ -93,5 +101,12 @@ export const useNotesStore = defineStore('notes', () => {
     expanded.value = s
   }
 
-  return { pages, loaded, prefs, expanded, byId, childrenOf, ancestors, favorites, recent, create, move, trash, restore, isFavorite, toggleFavorite, visit, toggleExpanded }
+  /** NOTE-47: 모음 안의 페이지 (최신순) */
+  const itemsOf = (collectionId: string) => pages.value.filter(p => p.type === 'item' && p.collectionId === collectionId)
+    .sort((a, b) => (b.createdAt?.toMillis() ?? Date.now()) - (a.createdAt?.toMillis() ?? Date.now()))
+  async function createItem(col: Collection) {
+    return createPage($firestore, sid!, uid(), { root: col.scope, collection: { id: col.id, scope: col.scope }, after: null })
+  }
+
+  return { pages, loaded, collections, itemsOf, createItem, prefs, expanded, byId, childrenOf, ancestors, favorites, recent, create, move, trash, restore, isFavorite, toggleFavorite, visit, toggleExpanded }
 })

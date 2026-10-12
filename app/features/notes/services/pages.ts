@@ -1,6 +1,7 @@
 import type { Firestore, Timestamp } from 'firebase/firestore'
 import type { StoredBlock } from '../sync/serialize'
 import type { Functions } from 'firebase/functions'
+import type { PropValue } from '#shared/schemas/collection'
 import { addDoc, and, collection, doc, getDoc, getDocs, onSnapshot, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { callFn } from '~/lib/functions'
 import { keyBetween } from '../sync/order'
@@ -22,6 +23,8 @@ export interface Page {
   sharedWith?: string[]
   editPolicy?: 'everyone' | 'editors'
   lock?: { uid: string, name: string, at: Timestamp } | null
+  collectionId?: string
+  props?: Record<string, PropValue>
   excerpt: string
   blockCount: number
   textLength: number
@@ -81,12 +84,14 @@ export async function getPage(db: Firestore, sid: string, pageId: string): Promi
 }
 
 /** NOTE-20: 공유 페이지(공간 전체) 또는 내 페이지(나만). 하위 페이지는 부모의 갈래·공개 범위를 따른다 */
-export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null }): Promise<string> {
+export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' } }): Promise<string> {
   const now = serverTimestamp()
-  const parent = opts.parent ?? null
-  const root = parent?.root ?? opts.root
+  const col = opts.collection
+  const parent = col ? null : opts.parent ?? null
+  const root = col?.scope ?? parent?.root ?? opts.root
   const ref = await addDoc(pagesOf(db, sid), {
-    type: 'page',
+    type: col ? 'item' : 'page',
+    ...(col ? { collectionId: col.id } : {}),
     title: '',
     icon: '',
     cover: null,
@@ -135,4 +140,9 @@ export const LOCK_REFRESH_MS = 30_000
 export async function setLock(db: Firestore, sid: string, pageId: string, lock: { uid: string, name: string } | null) {
   const now = serverTimestamp()
   await updateDoc(doc(pagesOf(db, sid), pageId), { lock: lock ? { ...lock, at: now } : null, updatedAt: now })
+}
+
+/** NOTE-46: 모음 페이지의 항목 값 */
+export async function setPageProp(db: Firestore, sid: string, pageId: string, key: string, value: PropValue) {
+  await updateDoc(doc(pagesOf(db, sid), pageId), { [`props.${key}`]: value, updatedAt: serverTimestamp() })
 }
