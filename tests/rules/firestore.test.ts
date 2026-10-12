@@ -368,7 +368,7 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertSucceeds(setDoc(pageRef('bob', 'p1'), page()))
     await assertFails(setDoc(pageRef('bob', 'p2'), page({ ownerId: 'alice' })))
     await assertFails(setDoc(pageRef('bob', 'p3'), page({ blockCount: 3 })))
-    await assertFails(setDoc(pageRef('bob', 'p4'), page({ visibility: 'people' })))
+    await assertFails(setDoc(pageRef('bob', 'p4'), page({ visibility: 'group' })))
     await assertFails(setDoc(pageRef('pat', 'p5'), page({ ownerId: 'pat' })))
     await assertSucceeds(setDoc(pageRef('alice', 'mine', 'p_alice'), page({ ownerId: 'alice', root: 'private', visibility: 'private' })))
     await assertFails(setDoc(pageRef('alice', 'open', 'p_alice'), page({ ownerId: 'alice' })))
@@ -387,7 +387,7 @@ describe('pages and blocks (NOTE-01·10)', () => {
   })
 
   it('owner and editors write blocks with page meta in one batch; others read only', async () => {
-    await seed('pages/a', page({ editorIds: ['mia'] }))
+    await seed('pages/a', page({ editorIds: ['mia'], editPolicy: 'editors' }))
     for (const uid of ['bob', 'mia']) {
       const d = db(uid)
       const batch = writeBatch(d)
@@ -459,5 +459,27 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'userPrefs', 'bob')))
     await assertFails(setDoc(doc(db('alice'), 'spaces', SID, 'userPrefs', 'bob'), prefs))
     await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'userPrefs', 'bob'), { ...prefs, extra: 1 }))
+  })
+
+  it('people visibility, editors and shared edit policy (NOTE-50·54)', async () => {
+    await seed('pages/ppl', page({ visibility: 'people', root: 'private', sharedWith: ['mia'] }))
+    await assertSucceeds(getDoc(pageRef('mia', 'ppl')))
+    await assertFails(getDoc(pageRef('alice', 'ppl')))
+    await assertFails(updateDoc(pageRef('mia', 'ppl'), { title: 'x', updatedAt: serverTimestamp() }))
+    await seed('pages/sh', page({ editPolicy: 'editors' }))
+    await assertFails(updateDoc(pageRef('alice', 'sh'), { title: 'x', updatedAt: serverTimestamp() }))
+    await seed('pages/open', page())
+    await assertSucceeds(updateDoc(pageRef('alice', 'open'), { title: 'x', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(pageRef('alice', 'open'), { editPolicy: 'editors', updatedAt: serverTimestamp() }))
+  })
+
+  it('edit lock blocks other editors until it expires (NOTE-60)', async () => {
+    await seed('pages/lk', page())
+    await assertSucceeds(updateDoc(pageRef('bob', 'lk'), { lock: { uid: 'bob', name: 'Bob', at: serverTimestamp() }, updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(pageRef('alice', 'lk'), { lock: { uid: 'alice', name: 'A', at: serverTimestamp() }, updatedAt: serverTimestamp() }))
+    await assertFails(setDoc(doc(db('alice'), 'spaces', SID, 'pages', 'lk', 'blocks', 'x'), block('alice')))
+    await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lk', 'blocks', 'x'), block('bob')))
+    await seed('pages/old', page({ lock: { uid: 'bob', name: 'Bob', at: new Date(Date.now() - 120_000) } }))
+    await assertSucceeds(setDoc(doc(db('alice'), 'spaces', SID, 'pages', 'old', 'blocks', 'x'), block('alice')))
   })
 })
