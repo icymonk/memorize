@@ -46,10 +46,10 @@ export const useSpaceStore = defineStore('space', () => {
   }
 
   /** 활성 멤버면 현재 공간으로 정하고 true. 아니면 false (middleware/space) */
-  async function enter(spaceId: string) {
+  async function enter(spaceId: string, force = false) {
     const uid = auth.user?.uid
     if (!uid) return false
-    if (current.value?.id === spaceId && membership.value) return true
+    if (!force && current.value?.id === spaceId && membership.value) return true
     try {
       const member = await getMembership($firestore, spaceId, uid)
       if (member?.status !== 'active') return false
@@ -104,11 +104,21 @@ export const useSpaceStore = defineStore('space', () => {
     await refreshCurrent()
   }
 
+  /** WS-24: 나간 뒤 목록을 다시 읽고 현재 공간을 비운다 */
+  async function leave() {
+    const s = current.value
+    if (!s) return
+    await callFn($functions, 'leaveSpace', { spaceId: s.id })
+    current.value = null
+    membership.value = null
+    await loadMySpaces(true)
+  }
+
   async function createWorkspace(input: CreateWorkspaceInput) {
     const { spaceId } = await callFn($functions, 'createWorkspace', input)
     await loadMySpaces(true)
     return spaceId
   }
 
-  return { spaces, loaded, current, membership, personalSpace, workspaces, loadMySpaces, enter, can, update, refreshCurrent, scheduleDeletion, cancelDeletion, createWorkspace }
+  return { spaces, loaded, current, membership, personalSpace, workspaces, loadMySpaces, enter, can, update, refreshCurrent, scheduleDeletion, cancelDeletion, leave, createWorkspace }
 })

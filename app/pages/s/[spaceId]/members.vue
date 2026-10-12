@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { Invite, Member } from '~/features/space/services/invites'
 import { INVITE_EXPIRY_DAYS } from '#shared/schemas/invite'
+import { EllipsisIcon } from '@lucide/vue'
 import { useClipboard } from '@vueuse/core'
+import OwnershipTransferBanner from '~/features/space/components/OwnershipTransferBanner.vue'
 import { toast } from 'vue-sonner'
 import { inviteLink, inviteUsable, listInvites, listMembers, setInviteDisabled } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
@@ -78,6 +80,45 @@ const decide = (member: Member, approve: boolean) => run(member.uid, async () =>
   await space.refreshCurrent()
 }, approve ? t.approved : t.rejected)
 
+const isOwner = computed(() => space.membership?.access === 'owner')
+const transfer = computed(() => space.current?.ownershipTransfer ?? null)
+const nameOf = (id: string) => members.value.find(m => m.uid === id)?.displayName ?? ''
+
+function canActOn(m: Member) {
+  if (!canManage.value || m.uid === uid.value || m.access === 'owner') return false
+  return m.access === 'member' || isOwner.value
+}
+
+async function afterChange() {
+  await space.refreshCurrent()
+  await space.enter(spaceId.value, true)
+}
+
+const toggleManager = (m: Member) => run(m.uid, async () => {
+  await callFn($functions, 'setManager', { spaceId: spaceId.value, uid: m.uid, manager: m.access !== 'manager' })
+}, t.actions.done)
+
+function removeMember(m: Member) {
+  if (!window.confirm(t.actions.removeConfirm(m.displayName))) return
+  return run(m.uid, async () => {
+    await callFn($functions, 'removeMember', { spaceId: spaceId.value, uid: m.uid })
+    await afterChange()
+  }, t.actions.done)
+}
+
+function requestTransfer(m: Member) {
+  if (!window.confirm(t.actions.transferConfirm(m.displayName))) return
+  return run(m.uid, async () => {
+    await callFn($functions, 'transferOwnership', { spaceId: spaceId.value, uid: m.uid })
+    await afterChange()
+  }, t.actions.transferRequested)
+}
+
+const cancelTransfer = () => run('transfer', async () => {
+  await callFn($functions, 'transferOwnership', { spaceId: spaceId.value, uid: null })
+  await afterChange()
+}, t.actions.transferCancelled)
+
 async function copyText(text: string) {
   await copy(text)
   toast.success(t.invites.copied)
@@ -97,6 +138,13 @@ const initial = (name: string) => name.slice(0, 1).toUpperCase()
     <h1 class="text-2xl font-semibold">
       {{ t.title }}
     </h1>
+    <OwnershipTransferBanner v-if="transfer && transfer.to === uid" :from-name="nameOf(transfer.from)" @done="load" />
+    <div v-else-if="transfer && isOwner" class="bg-muted flex flex-wrap items-center gap-3 rounded-lg px-4 py-3 text-sm">
+      <span class="flex-1">{{ t.actions.transferPending(nameOf(transfer.to)) }}</span>
+      <Button size="sm" variant="outline" :disabled="busy === 'transfer'" @click="cancelTransfer">
+        {{ t.actions.transferCancel }}
+      </Button>
+    </div>
     <p v-if="loadError" class="text-destructive text-sm">
       {{ t.loadError }}
     </p>
@@ -127,6 +175,25 @@ const initial = (name: string) => name.slice(0, 1).toUpperCase()
           <Badge v-if="m.access !== 'member'" variant="secondary">
             {{ t.access[m.access] }}
           </Badge>
+          <DropdownMenu v-if="canActOn(m)">
+            <DropdownMenuTrigger as-child>
+              <Button size="icon-sm" variant="ghost" :aria-label="t.actions.menu" :disabled="busy === m.uid">
+                <EllipsisIcon />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem @select="toggleManager(m)">
+                {{ m.access === 'manager' ? t.actions.unmakeManager : t.actions.makeManager }}
+              </DropdownMenuItem>
+              <DropdownMenuItem v-if="isOwner" @select="requestTransfer(m)">
+                {{ t.actions.transfer }}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem class="text-destructive" @select="removeMember(m)">
+                {{ t.actions.remove }}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </TabsContent>
 

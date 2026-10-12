@@ -15,6 +15,7 @@ export interface Space {
   memberCount: number
   maxMembers?: number
   deleteScheduledAt?: Timestamp | null
+  ownershipTransfer?: { from: string, to: string } | null
 }
 
 export type SpacePatch = Partial<SpaceGeneral> & { modules?: Modules, settings?: Space['settings'] }
