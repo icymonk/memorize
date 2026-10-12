@@ -19,6 +19,9 @@ export interface Page {
   order: string
   visibility: PageVisibility
   editorIds: string[]
+  sharedWith?: string[]
+  editPolicy?: 'everyone' | 'editors'
+  lock?: { uid: string, name: string, at: Timestamp } | null
   excerpt: string
   blockCount: number
   textLength: number
@@ -31,11 +34,13 @@ export interface Page {
 
 const pagesOf = (db: Firestore, sid: string) => collection(db, 'spaces', sid, 'pages')
 
-export const canEditPage = (p: Pick<Page, 'ownerId' | 'editorIds'>, uid: string) => p.ownerId === uid || (p.editorIds ?? []).includes(uid)
+/** NOTE-54: 작성자·공동 편집자, 공유 페이지는 편집 정책이 '모두'면 모든 멤버 */
+export const canEditPage = (p: Pick<Page, 'ownerId' | 'editorIds' | 'root' | 'editPolicy'>, uid: string) =>
+  p.ownerId === uid || (p.editorIds ?? []).includes(uid) || (p.root === 'shared' && (p.editPolicy ?? 'everyone') === 'everyone')
 
 /** 규칙이 허용하는 것만 조회: 휴지통이 아닌 공간 전체 공개 + 내 페이지 (공개 범위 세분화는 1-C4) */
 const visiblePages = (db: Firestore, sid: string, uid: string) =>
-  query(pagesOf(db, sid), and(where('deletedAt', '==', null), or(where('visibility', '==', 'space'), where('ownerId', '==', uid))))
+  query(pagesOf(db, sid), and(where('deletedAt', '==', null), or(where('visibility', '==', 'space'), where('ownerId', '==', uid), where('sharedWith', 'array-contains', uid), where('editorIds', 'array-contains', uid))))
 
 export async function listPages(db: Firestore, sid: string, uid: string): Promise<Page[]> {
   const snap = await getDocs(visiblePages(db, sid, uid))
@@ -118,4 +123,16 @@ export async function loadBlocks(db: Firestore, sid: string, pageId: string): Pr
     const { type, parentBlockId, order, attrs, content } = d.data()
     return { id: d.id, type, parentBlockId: parentBlockId ?? null, order, attrs: attrs ?? {}, content: content ?? [] }
   })
+}
+
+/** NOTE-50·54: 공개 범위·공유 대상·공동 편집자·편집 정책 (작성자만) */
+export async function updateSharing(db: Firestore, sid: string, pageId: string, patch: Pick<Page, 'visibility' | 'editorIds'> & { sharedWith: string[], editPolicy: 'everyone' | 'editors' }) {
+  await updateDoc(doc(pagesOf(db, sid), pageId), { ...patch, updatedAt: serverTimestamp() })
+}
+
+/** NOTE-60: 편집 잠금. 30초마다 갱신, 90초 넘게 갱신이 없으면 다른 사람이 가져갈 수 있다 */
+export const LOCK_REFRESH_MS = 30_000
+export async function setLock(db: Firestore, sid: string, pageId: string, lock: { uid: string, name: string } | null) {
+  const now = serverTimestamp()
+  await updateDoc(doc(pagesOf(db, sid), pageId), { lock: lock ? { ...lock, at: now } : null, updatedAt: now })
 }

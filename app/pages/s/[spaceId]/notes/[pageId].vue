@@ -6,7 +6,8 @@ import { toast } from 'vue-sonner'
 import { useDebounceFn } from '@vueuse/core'
 import { LIMITS } from '#shared/limits'
 import BlockEditor from '~/features/notes/components/BlockEditor.vue'
-import { canEditPage, getPage, updatePageTitle } from '~/features/notes/services/pages'
+import ShareDialog from '~/features/notes/components/ShareDialog.vue'
+import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
@@ -51,7 +52,32 @@ async function toTrash() {
   catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
 }
 
-const editable = computed(() => !!page.value && !page.value.deletedAt && canEditPage(page.value, auth.user!.uid))
+const shareOpen = ref(false)
+const live = computed(() => notes.byId.get(pageId.value) ?? page.value)
+/** NOTE-60: 다른 사람이 90초 안에 갱신한 잠금이 있으면 읽기만 */
+const lockedBy = computed(() => {
+  const l = live.value?.lock
+  if (!l || l.uid === auth.user!.uid || !l.at) return null
+  return Date.now() - l.at.toMillis() < 90_000 ? l.name : null
+})
+const canEdit = computed(() => !!page.value && !page.value.deletedAt && canEditPage(live.value ?? page.value, auth.user!.uid))
+const editable = computed(() => canEdit.value && !lockedBy.value)
+let lockTimer: ReturnType<typeof setInterval> | undefined
+const myName = () => auth.user?.displayName || auth.user?.email?.split('@')[0] || ''
+function holdLock() {
+  if (!canEdit.value || lockedBy.value) return
+  setLock($firestore, sid.value, pageId.value, { uid: auth.user!.uid, name: myName() }).catch(() => {})
+}
+watch(canEdit, (v) => {
+  clearInterval(lockTimer)
+  if (!v) return
+  holdLock()
+  lockTimer = setInterval(holdLock, LOCK_REFRESH_MS)
+})
+onBeforeUnmount(() => {
+  clearInterval(lockTimer)
+  if (canEdit.value && !lockedBy.value) setLock($firestore, sid.value, pageId.value, null).catch(() => {})
+})
 const status = computed<SaveStatus>(() => {
   if (blockStatus.value !== 'saved') return blockStatus.value
   if (titleFailed.value) return 'error'
@@ -123,6 +149,9 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="notes.isFavorite(page.id) ? t.removeFavorite : t.addFavorite" @click="notes.toggleFavorite(page.id)">
           <StarIcon :class="notes.isFavorite(page.id) && 'fill-amber-400 text-amber-500'" />
         </Button>
+        <Button v-if="page && page.ownerId === auth.user?.uid && !page.deletedAt" variant="ghost" size="sm" @click="shareOpen = true">
+          {{ t.share.button }}
+        </Button>
         <Button v-if="canTrash" variant="ghost" size="icon" class="size-8" :aria-label="t.moveToTrash" @click="toTrash">
           <Trash2Icon />
         </Button>
@@ -131,6 +160,10 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
     <p v-if="page?.deletedAt" class="bg-destructive/10 text-destructive rounded-md px-3 py-2 text-sm">
       {{ t.inTrash }}
     </p>
+    <p v-else-if="lockedBy" class="bg-muted rounded-md px-3 py-2 text-sm">
+      {{ t.editingBy(lockedBy) }}
+    </p>
+    <ShareDialog v-if="page" v-model:open="shareOpen" :page="live ?? page" @saved="page = { ...page!, ...$event }" />
 
     <p v-if="loadError" class="text-destructive text-sm">
       {{ t.loadFailed }}
