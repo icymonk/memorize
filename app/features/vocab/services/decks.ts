@@ -7,7 +7,7 @@ export interface Deck extends DeckInput {
   createdBy: string
   cardCount: number
   learnerCount: number
-  copiedFrom?: { spaceId: string, deckId: string } | null
+  copiedFrom?: { spaceId: string, deckId: string, spaceName?: string } | null
   createdAt?: Timestamp
   updatedAt?: Timestamp
 }
