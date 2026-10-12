@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.3 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.4 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -8,7 +8,7 @@
 | 런타임 | Cloud Functions 2nd gen, Node 22, TypeScript |
 | 리전 | `asia-northeast3` (서울, R6) |
 | 위치 | `functions/` 별도 패키지. `shared/`(스키마·권한·채점·포인트)를 번들에 포함 |
-| 호출 | callable(`onCall`)은 로그인 필수(아이 로그인 제외), App Check 필수 |
+| 호출 | callable(`onCall`)은 로그인 필수(아이 로그인 제외), App Check 필수. 앱은 Hosting rewrite `/fn/{이름}`으로 같은 주소에서 호출한다(`cloudfunctions.net`을 막는 네트워크 대응). **callable을 추가하면 `firebase.json`에 rewrite도 추가** — `functions/src/rewrites.test.ts`가 검사. Hosting 경유 요청은 60초 제한 |
 | 입력 검증 | 모든 callable 입력·출력을 `shared/schemas`의 zod 스키마로 검증 |
 | 권한 | 서버도 `shared/permissions.ts`로 같은 판정을 한다 (규칙을 우회하므로 반드시 직접 검사) |
 | 멱등성 | 트리거는 재시도될 수 있다 → 이벤트 ID로 처리 기록(`_processed/{eventId}`)을 남겨 중복 방지. 포인트 적립은 원장(`pointLedger`) 기준 |
@@ -137,6 +137,7 @@
 - 없음
 
 ## 6. 변경 이력
+- v2.4: callable을 Hosting rewrite(`/fn/{이름}`)로 호출
 - v2.3: `acceptOwnership` → `respondOwnership`(수락·거절)
 - v2.2: `createInvite`·`getInvite` 추가(코드 유일성·비멤버 미리보기), `decideJoinRequest`를 0단계로
 - v2.1: 확정 — 초대 메일은 Firebase Auth 이메일 링크 우선, 필요 시 Trigger Email + 무료 SMTP (2-1)
