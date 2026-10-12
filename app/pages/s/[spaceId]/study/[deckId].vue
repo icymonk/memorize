@@ -29,7 +29,7 @@ const sid = computed(() => space.current!.id)
 const uid = computed(() => auth.user!.uid)
 const deckId = computed(() => route.params.deckId as string)
 const mode = computed<StudyMode>(() => (STUDY_MODES as readonly string[]).includes(route.query.mode as string) ? route.query.mode as StudyMode : 'flashcards')
-const minCards = computed(() => ({ flashcards: 1, learn: 2, write: 1, match: MATCH_PAIRS.min })[mode.value])
+const minCards = computed(() => ({ flashcards: 1, learn: 4, write: 1, match: MATCH_PAIRS.min })[mode.value])
 
 const deck = ref<Deck | null>(null)
 const cards = ref<Card[]>([])
