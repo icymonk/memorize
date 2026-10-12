@@ -1,0 +1,61 @@
+rules_version = '2';
+// Spike-only subset of docs/dev/security.md (helpers + pages/blocks + cardStates).
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function uid() { return request.auth.uid; }
+    function wards() { return request.auth.token.get('wards', []); }
+    function isGuardianOf(ownerUid) { return signedIn() && ownerUid in wards(); }
+    function memberPath(sid) { return /databases/$(database)/documents/spaces/$(sid)/members/$(uid()); }
+    function me(sid) { return get(memberPath(sid)).data; }
+    function isMember(sid) { return signedIn() && exists(memberPath(sid)) && me(sid).status == 'active'; }
+    function unchanged(fields) { return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields); }
+
+    match /spaces/{sid}/pages/{pageId} {
+      function canRead(d) {
+        return d.ownerId == uid()
+          || isGuardianOf(d.ownerId)
+          || (isMember(sid) && d.deletedAt == null && d.ownerStatus == 'active' && (
+               d.visibility == 'space'
+               || (d.visibility == 'group' && me(sid).groupIds.hasAny(d.groupIds))
+               || uid() in d.sharedWith
+               || uid() in d.editorIds));
+      }
+      function canEdit(d) {
+        return isMember(sid) && (d.ownerId == uid() || uid() in d.editorIds
+          || (d.root == 'shared' && d.get('editPolicy', 'everyone') == 'everyone'));
+      }
+      allow read: if canRead(resource.data);
+      allow update: if canEdit(resource.data)
+        && unchanged(['ownerId', 'ownerStatus', 'missionIds', 'commentCount', 'feedbackCount', 'reactionCounts', 'copiedFrom'])
+        && (resource.data.ownerId == uid()
+            || unchanged(['visibility', 'groupIds', 'sharedWith', 'editorIds', 'reviewerIds']));
+
+      match /blocks/{blockId} {
+        function page() { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(pageId)).data; }
+        allow read: if canRead(page());
+        allow write: if canEdit(page())
+          && (page().lock == null || page().lock.uid == uid());
+      }
+    }
+
+    // Negative control: 11 distinct document reads in a single request must exceed the limit.
+    match /probe/{id} {
+      allow write: if exists(/databases/$(database)/documents/probeRefs/r1)
+        && exists(/databases/$(database)/documents/probeRefs/r2)
+        && exists(/databases/$(database)/documents/probeRefs/r3)
+        && exists(/databases/$(database)/documents/probeRefs/r4)
+        && exists(/databases/$(database)/documents/probeRefs/r5)
+        && exists(/databases/$(database)/documents/probeRefs/r6)
+        && exists(/databases/$(database)/documents/probeRefs/r7)
+        && exists(/databases/$(database)/documents/probeRefs/r8)
+        && exists(/databases/$(database)/documents/probeRefs/r9)
+        && exists(/databases/$(database)/documents/probeRefs/r10)
+        && (request.resource.data.n < 11 || exists(/databases/$(database)/documents/probeRefs/r11));
+    }
+
+    match /{path=**}/cardStates/{id} {
+      allow read: if signedIn() && resource.data.uid == uid();
+    }
+  }
+}
