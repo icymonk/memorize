@@ -6,3 +6,4 @@ export { createInvite, decideJoinRequest, getInvite, joinSpace } from './callabl
 export { leaveSpace, removeMember, respondOwnership, setManager, transferOwnership } from './callable/member'
 export { onCardWritten } from './trigger/card'
 export { onStudySessionCreated } from './trigger/studySession'
+export { onCardStateWritten } from './trigger/cardState'

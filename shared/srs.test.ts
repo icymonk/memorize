@@ -39,3 +39,14 @@ describe('srs (R3)', () => {
     expect(s.intervalDays).toBeGreaterThanOrEqual(21)
   })
 })
+
+describe('progressDelta (VOC-41)', () => {
+  it('counts transitions', async () => {
+    const { progressDelta } = await import('./srs')
+    expect(progressDelta(undefined, 'learning')).toEqual({ mastered: 0, learning: 1 })
+    expect(progressDelta('review', 'mastered')).toEqual({ mastered: 1, learning: -1 })
+    expect(progressDelta('mastered', undefined)).toEqual({ mastered: -1, learning: 0 })
+    expect(progressDelta('learning', 'review')).toEqual({ mastered: 0, learning: 0 })
+    expect(progressDelta(undefined, 'new')).toEqual({ mastered: 0, learning: 0 })
+  })
+})

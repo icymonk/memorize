@@ -2,9 +2,10 @@
 import type { Member } from '~/features/space/services/invites'
 import type { Card } from '~/features/vocab/services/cards'
 import type { Deck, DeckFolder } from '~/features/vocab/services/decks'
+import type { CardState, DeckProgress } from '~/features/vocab/services/srs'
 import { canDeleteContent, canEditContent } from '#shared/permissions'
 import { STUDY_MODES } from '#shared/study'
-import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardPasteIcon, PencilIcon, PlusIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
+import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardPasteIcon, PencilIcon, PlusIcon, StarIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
 import CardFormDialog from '~/features/vocab/components/CardFormDialog.vue'
@@ -13,6 +14,7 @@ import PasteCardsDialog from '~/features/vocab/components/PasteCardsDialog.vue'
 import { useSpeech } from '~/features/vocab/composables/useSpeech'
 import { listCards, saveCards } from '~/features/vocab/services/cards'
 import { deleteDeck, getDeck, listFolders } from '~/features/vocab/services/decks'
+import { listDeckStates, listMemberProgress, setStarred } from '~/features/vocab/services/srs'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 
@@ -40,6 +42,12 @@ const tableMode = ref(false)
 const draft = ref<{ id: string, front: string, back: string, removed: boolean }[]>([])
 const saving = ref(false)
 const speech = useSpeech()
+const states = ref(new Map<string, CardState>())
+const memberProgress = ref<DeckProgress[]>([])
+const mastered = computed(() => cards.value.filter(c => states.value.get(c.id)?.status === 'mastered').length)
+const learning = computed(() => cards.value.filter(c => ['learning', 'review'].includes(states.value.get(c.id)?.status ?? '')).length)
+const hasStarred = computed(() => cards.value.some(c => states.value.get(c.id)?.starred))
+const showMembers = computed(() => space.current?.kind === 'workspace' && space.current.settings?.progressSharing === 'everyone')
 const nextOrder = computed(() => cards.value.reduce((max, c) => Math.max(max, c.order + 1), 0))
 const voiceSel = computed({
   get: () => (deck.value && speech.chosen.value[deck.value.langFrom]) ?? '',
@@ -51,6 +59,28 @@ const canDelete = computed(() => !!deck.value && space.current && canDeleteConte
 const author = computed(() => members.value.find(m => m.uid === deck.value?.createdBy)?.displayName)
 const folderName = computed(() => folders.value.find(f => f.id === deck.value?.folderId)?.name)
 
+/** VOC-40·41·45 내 카드별 상태, 멤버 진도 */
+async function loadProgress() {
+  const [mine, others] = await Promise.all([
+    listDeckStates($firestore, sid.value, uid.value, deckId.value).catch(() => [] as CardState[]),
+    showMembers.value ? listMemberProgress($firestore, sid.value, deckId.value, members.value.map(m => m.uid)) : Promise.resolve([]),
+  ])
+  states.value = new Map(mine.map(s => [s.cardId, s]))
+  memberProgress.value = others.filter(p => p.masteredCount + p.learningCount > 0).sort((a, b) => b.masteredCount - a.masteredCount)
+}
+
+async function toggleStar(card: Card) {
+  const existing = states.value.get(card.id)
+  const starred = !existing?.starred
+  try {
+    await setStarred($firestore, sid.value, uid.value, deckId.value, card, existing, starred)
+    await loadProgress()
+  }
+  catch {
+    toast.error(t.progress.starFailed)
+  }
+}
+
 async function load() {
   loading.value = true
   try {
@@ -60,6 +90,7 @@ async function load() {
     folders.value = f
     members.value = m
     missing.value = !d
+    if (d) await loadProgress()
   }
   catch {
     missing.value = true
@@ -197,10 +228,40 @@ async function remove() {
         </Badge>
       </div>
 
+      <section v-if="cards.length && (states.size || memberProgress.length)" class="grid gap-3 sm:grid-cols-2">
+        <div class="flex flex-col gap-2 rounded-xl border p-4">
+          <span class="text-sm font-medium">{{ t.progress.mine }}</span>
+          <div class="bg-muted h-2 overflow-hidden rounded-full">
+            <div class="bg-primary h-full" :style="{ width: `${mastered / cards.length * 100}%` }" />
+          </div>
+          <span class="text-muted-foreground text-xs">{{ t.progress.percent(mastered, cards.length) }} · {{ t.progress.learning(learning) }}</span>
+        </div>
+        <div v-if="showMembers" class="flex flex-col gap-2 rounded-xl border p-4">
+          <span class="text-sm font-medium">{{ t.progress.members }}</span>
+          <p v-if="!memberProgress.length" class="text-muted-foreground text-xs">
+            {{ t.progress.membersEmpty }}
+          </p>
+          <ul v-else class="flex flex-col gap-1.5">
+            <li v-for="p in memberProgress.slice(0, 10)" :key="p.uid" class="flex items-center gap-2 text-xs">
+              <span class="w-24 truncate">{{ members.find(m => m.uid === p.uid)?.displayName ?? '—' }}</span>
+              <div class="bg-muted h-1.5 flex-1 overflow-hidden rounded-full">
+                <div class="bg-primary h-full" :style="{ width: `${Math.min(100, p.masteredCount / cards.length * 100)}%` }" />
+              </div>
+              <span class="text-muted-foreground w-10 text-right tabular-nums">{{ Math.round(Math.min(100, p.masteredCount / cards.length * 100)) }}%</span>
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <nav v-if="cards.length" class="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Button v-for="m in STUDY_MODES" :key="m" variant="outline" class="h-12" as-child>
           <NuxtLink :to="`/s/${sid}/study/${deckId}?mode=${m}`">
             {{ t.study.modes[m] }}
+          </NuxtLink>
+        </Button>
+        <Button v-if="hasStarred" variant="outline" class="h-12" as-child>
+          <NuxtLink :to="`/s/${sid}/study/${deckId}?mode=flashcards&starred=1`">
+            <StarIcon class="fill-amber-400 text-amber-400" />{{ t.progress.starredOnly }}
           </NuxtLink>
         </Button>
       </nav>
@@ -309,8 +370,16 @@ async function remove() {
               </div>
               <span class="text-sm">{{ card.back.join(', ') }}</span>
               <span v-if="card.examples[0]" class="text-muted-foreground truncate text-xs">{{ card.examples[0].text }}</span>
+              <span v-if="states.get(card.id) && states.get(card.id)!.reps + states.get(card.id)!.wrong > 0" class="text-muted-foreground flex flex-wrap gap-x-2 text-xs">
+                <Badge variant="secondary" class="px-1.5 py-0 text-[10px]">{{ t.progress.status[states.get(card.id)!.status] }}</Badge>
+                <span>{{ t.progress.counts(states.get(card.id)!.correct, states.get(card.id)!.wrong) }}</span>
+                <span>{{ t.progress.nextReview(new Date(states.get(card.id)!.due).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })) }}</span>
+              </span>
             </div>
             <div class="flex shrink-0">
+              <Button variant="ghost" size="icon" class="size-8" :aria-label="states.get(card.id)?.starred ? t.progress.unstar : t.progress.star" :aria-pressed="!!states.get(card.id)?.starred" @click="toggleStar(card)">
+                <StarIcon :class="states.get(card.id)?.starred ? 'fill-amber-400 text-amber-400' : ''" />
+              </Button>
               <Button v-if="speech.supported" variant="ghost" size="icon" class="size-8" :aria-label="t.cards.speak" @click="speech.speak(card.front, deck.langFrom)">
                 <Volume2Icon />
               </Button>
