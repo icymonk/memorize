@@ -2,7 +2,7 @@ import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
-import { collection, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 
 // docs/dev/security.md — firestore.rules (0-8). 실행: 루트에서 `pnpm test:rules`
@@ -225,5 +225,56 @@ describe('decks (VOC-01·02·03·05)', () => {
     await assertFails(updateDoc(folder('bob', 'f3'), { name: 'B' }))
     await assertFails(deleteDoc(folder('bob', 'f3')))
     await assertSucceeds(getDocs(collection(db('bob'), 'spaces', SID, 'deckFolders')))
+  })
+})
+
+describe('cards (VOC-10·11·13)', () => {
+  const deck = (over: object = {}) => ({ title: '토익', visibility: 'space', groupIds: [], editPolicy: 'author', collaboratorIds: [], createdBy: 'bob', cardCount: 0, learnerCount: 0, ...over })
+  const card = (over: object = {}) => ({ front: 'apple', back: ['사과'], examples: [], tags: [], synonyms: [], antonyms: [], collocations: [], order: 0, contentRev: 0, ...over })
+  const cardRef = (uid: string, deckId: string, id: string) => doc(db(uid), 'spaces', SID, 'decks', deckId, 'cards', id)
+  const seed = (path: string, data: object) => env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, path), data))
+
+  it('deck editors write cards, other members only read', async () => {
+    await seed('decks/a', deck())
+    await assertSucceeds(setDoc(cardRef('bob', 'a', 'c1'), card()))
+    await assertFails(setDoc(cardRef('alice', 'a', 'c2'), card()))
+    await assertSucceeds(getDoc(cardRef('alice', 'a', 'c1')))
+    await assertSucceeds(getDocs(collection(db('alice'), 'spaces', SID, 'decks', 'a', 'cards')))
+    await assertFails(getDoc(cardRef('lee', 'a', 'c1')))
+    await assertFails(deleteDoc(cardRef('alice', 'a', 'c1')))
+    await assertSucceeds(deleteDoc(cardRef('bob', 'a', 'c1')))
+  })
+
+  it('private deck cards are hidden from others', async () => {
+    await seed('decks/p', deck({ visibility: 'private' }))
+    await seed('decks/p/cards/c1', card())
+    await assertSucceeds(getDoc(cardRef('bob', 'p', 'c1')))
+    await assertFails(getDoc(cardRef('alice', 'p', 'c1')))
+  })
+
+  it('collaborators and everyone policies', async () => {
+    await seed('decks/c', deck({ editPolicy: 'collaborators', collaboratorIds: ['mia'] }))
+    await seed('decks/e', deck({ editPolicy: 'everyone' }))
+    await assertSucceeds(setDoc(cardRef('mia', 'c', 'c1'), card()))
+    await assertFails(setDoc(cardRef('alice', 'c', 'c1'), card()))
+    await assertSucceeds(setDoc(cardRef('alice', 'e', 'c1'), card()))
+  })
+
+  it('validates cards; contentRev is server-only', async () => {
+    await seed('decks/a', deck())
+    await assertFails(setDoc(cardRef('bob', 'a', 'x1'), card({ contentRev: 1 })))
+    await assertFails(setDoc(cardRef('bob', 'a', 'x2'), card({ back: [] })))
+    await assertFails(setDoc(cardRef('bob', 'a', 'x3'), card({ front: '' })))
+    await seed('decks/a/cards/c1', card({ contentRev: 2 }))
+    await assertSucceeds(updateDoc(cardRef('bob', 'a', 'c1'), { front: 'apples', order: 3 }))
+    await assertFails(updateDoc(cardRef('bob', 'a', 'c1'), { contentRev: 0 }))
+  })
+
+  it('a 400-card paste batch passes the rules read limit', async () => {
+    await seed('decks/a', deck())
+    const bob = db('bob')
+    const batch = writeBatch(bob)
+    for (let i = 0; i < 400; i++) batch.set(doc(bob, 'spaces', SID, 'decks', 'a', 'cards', `b${i}`), card({ order: i }))
+    await assertSucceeds(batch.commit())
   })
 })
