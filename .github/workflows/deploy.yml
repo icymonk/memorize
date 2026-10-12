@@ -58,6 +58,11 @@ jobs:
         uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      # 서버 기능 파라미터: 비대화형 배포는 값을 물어볼 수 없으므로 dotenv로 넘긴다
+      - if: github.event_name != 'pull_request'
+        run: echo "ENFORCE_APP_CHECK=$ENFORCE_APP_CHECK" > functions/.env
+        env:
+          ENFORCE_APP_CHECK: ${{ vars.ENFORCE_APP_CHECK || 'false' }}
       - if: github.event_name != 'pull_request'
         run: pnpm exec firebase deploy --project default --non-interactive --force --only "$ONLY"
         env:
