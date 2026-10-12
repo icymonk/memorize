@@ -18,7 +18,16 @@ export const useSpaceStore = defineStore('space', () => {
   let loadPromise: Promise<void> | null = null
 
   const personalSpace = computed(() => spaces.value.find(s => s.kind === 'personal') ?? null)
-  const workspaces = computed(() => spaces.value.filter(s => s.kind === 'workspace'))
+  const workspaces = computed(() => spaces.value.filter(s => s.kind === 'workspace' && !s.deleteScheduledAt))
+  /** 삭제 유예 중인 워크스페이스는 복구할 수 있는 소유자에게만 따로 보인다 (WS-07) */
+  const scheduledWorkspaces = computed(() => spaces.value.filter(s => s.kind === 'workspace' && s.deleteScheduledAt && s.ownerId === auth.user?.uid))
+
+  const lastSpaceKey = () => `memorize:lastSpace:${auth.user?.uid}`
+  /** WS-40: 마지막으로 쓴 공간 (이 기기 기준) */
+  function lastSpaceId(): string | null {
+    try { return localStorage.getItem(lastSpaceKey()) }
+    catch { return null }
+  }
 
   function reset() {
     spaces.value = []
@@ -57,6 +66,8 @@ export const useSpaceStore = defineStore('space', () => {
       if (!space) return false
       current.value = space
       membership.value = member
+      try { localStorage.setItem(lastSpaceKey(), spaceId) }
+      catch {}
       return true
     }
     catch {
@@ -120,5 +131,5 @@ export const useSpaceStore = defineStore('space', () => {
     return spaceId
   }
 
-  return { spaces, loaded, current, membership, personalSpace, workspaces, loadMySpaces, enter, can, update, refreshCurrent, scheduleDeletion, cancelDeletion, leave, createWorkspace }
+  return { spaces, loaded, current, membership, personalSpace, workspaces, scheduledWorkspaces, lastSpaceId, loadMySpaces, enter, can, update, refreshCurrent, scheduleDeletion, cancelDeletion, leave, createWorkspace }
 })

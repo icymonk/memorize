@@ -38,6 +38,9 @@ export const ko = {
     settings: '설정',
     signOut: '로그아웃',
     comingSoon: '곧 열려요',
+    switchSpace: '공간 전환',
+    deleteScheduled: '삭제 예정',
+    daysLeft: (n: number) => `D-${n}`,
   },
   home: {
     greeting: (name: string) => `${name}님, 반가워요`,
