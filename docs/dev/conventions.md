@@ -1,6 +1,6 @@
 # 개발 환경 · 코드 규칙 · 테스트 · 배포 · 모니터링
 
-> 상태: 확정 · v2.1
+> 상태: 확정 · v2.2
 
 ## 1. 개발 환경
 | 항목 | 명령 / 내용 |
@@ -63,6 +63,11 @@ E2E 핵심 흐름:
 | 미리보기 | `firebase hosting:channel:deploy <이름>` (작업 브랜치별) |
 | 운영 | `pnpm generate` → `firebase deploy --only hosting,firestore:rules,firestore:indexes,storage,functions` |
 
+- **GitHub Actions** (`.github/workflows/deploy.yml`): PR마다 미리보기 채널(7일, 주소는 PR 댓글), `main`에 머지되면 운영 배포. 수동 실행(`workflow_dispatch`)도 된다.
+  - 시크릿 `FIREBASE_SERVICE_ACCOUNT`: 배포용 서비스 계정 키(JSON).
+  - 변수 `NUXT_PUBLIC_FIREBASE_*`: 앱 설정(`.env.example`과 같은 이름). 빌드 때 앱에 들어가는 공개 값.
+  - 변수 `FIREBASE_DEPLOY_ONLY`: 운영 배포 대상. 기본 `hosting,firestore`. Blaze 전환과 Storage 버킷 생성 후 `hosting,firestore,storage,functions`로 바꾼다.
+
 - Firebase 프로젝트: 현재 `memorize-c6c1b` 하나(dev 겸용, `.firebaserc`의 `default`·`dev`). 운영 출시 전에 prod 프로젝트를 따로 만들어 `prod` 별칭 추가. 모두 Blaze 요금제(D1) + **예산 알림** 설정.
 - 순서: 규칙·인덱스 → 서버 기능 → 앱.
 - 리전: Firestore·Storage·Functions 모두 `asia-northeast3` (R6). Firestore 위치는 만든 뒤 바꿀 수 없으므로 프로젝트 생성 시 주의.
@@ -81,5 +86,6 @@ E2E 핵심 흐름:
 - 없음
 
 ## 8. 변경 이력
+- v2.2: GitHub Actions 배포(미리보기·운영)와 필요한 시크릿·변수
 - v2.1: 확정 — pnpm 통일, Git 초기화, Firebase 프로젝트 `memorize-c6c1b`
 - v2.0: 확정 기능명세 기준으로 새로 작성
