@@ -233,7 +233,7 @@ export const ko = {
     visibility: { private: '나만 보기', group: '그룹', space: '모든 멤버' },
     groupComingSoon: '그룹 기능이 열리면 고를 수 있어요.',
     editPolicy: { author: '나만', collaborators: '나와 함께 만드는 사람', everyone: '모든 멤버' },
-    cardFields: { pos: '품사', phonetic: '발음기호', audio: '발음 듣기', examples: '예문', forms: '변화형', synonyms: '유의어', antonyms: '반의어', collocations: '연어', image: '이미지', tip: '암기 팁', tags: '태그', difficulty: '난이도' },
+    cardFields: { reading: '읽는 법', readingHint: '한자 단어의 히라가나 읽기예요. 단어 위에 작게 보여요.', pos: '품사', phonetic: '발음기호', audio: '발음 듣기', examples: '예문', forms: '변화형', synonyms: '유의어', antonyms: '반의어', collocations: '연어', image: '이미지', tip: '암기 팁', tags: '태그', difficulty: '난이도' },
     langs: { en: '영어', ko: '한국어', ja: '일본어', zh: '중국어', es: '스페인어', fr: '프랑스어', de: '독일어', vi: '베트남어', other: '기타' },
     folders: {
       all: '전체',

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CardWord from '../CardWord.vue'
 import type { ModeResult } from './types'
 import type { Grade, LearnItem } from '#shared/study'
 import type { Card } from '~/features/vocab/services/cards'
@@ -138,7 +139,7 @@ const doneCount = computed(() => state.value.items.filter(i => i.stage === 'done
         {{ t.chooseMeaning }}
       </p>
       <div class="bg-card rounded-2xl border p-6 text-center text-3xl font-semibold">
-        {{ card.front }}
+        <CardWord :front="card.front" :reading="card.reading" />
       </div>
       <div class="grid gap-2 sm:grid-cols-2">
         <Button

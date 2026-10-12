@@ -22,7 +22,7 @@ const space = useSpaceStore()
 const { $firestore } = useNuxtApp()
 const speech = useSpeech()
 
-const empty = () => ({ front: '', back: '', pos: '', phonetic: '', examples: '', forms: '', synonyms: '', antonyms: '', collocations: '', tip: '', tags: '', difficulty: '' })
+const empty = () => ({ front: '', back: '', reading: '', pos: '', phonetic: '', examples: '', forms: '', synonyms: '', antonyms: '', collocations: '', tip: '', tags: '', difficulty: '' })
 const form = ref(empty())
 const pending = ref(false)
 const selectClass = 'border-input bg-background h-9 rounded-md border px-3 text-sm'
@@ -31,6 +31,8 @@ const has = (field: CardField) => props.deck.fields.includes(field)
 const EXTRA: CardField[] = ['pos', 'examples', 'forms', 'synonyms', 'antonyms', 'collocations', 'tip', 'tags', 'difficulty', 'image']
 const hasExtras = computed(() => EXTRA.some(has))
 const showMore = ref(false)
+/** 일본어 단어장은 읽는 법(히라가나)을 기본으로 보여 준다 */
+const showReading = computed(() => props.deck.langFrom === 'ja' || !!props.card?.reading)
 
 const lines = (s: string) => s.split('\n').map(x => x.trim()).filter(Boolean)
 const list = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
@@ -44,6 +46,7 @@ watch(open, (value) => {
     ? {
         front: c.front,
         back: c.back.join('\n'),
+        reading: c.reading ?? '',
         pos: c.pos ?? '',
         phonetic: c.phonetic ?? '',
         examples: c.examples.map(e => e.translation ? `${e.text} | ${e.translation}` : e.text).join('\n'),
@@ -63,6 +66,7 @@ function build(): CardInput | null {
   const parsed = cardInput.safeParse({
     front: f.front,
     back: lines(f.back),
+    reading: opt(f.reading),
     pos: opt(f.pos),
     phonetic: opt(f.phonetic),
     audio: has('audio') ? { tts: true } : props.card?.audio,
@@ -140,6 +144,14 @@ async function submit() {
           <Textarea id="card-back" v-model="form.back" rows="2" required />
           <p class="text-muted-foreground text-xs">
             {{ t.backHint }}
+          </p>
+        </div>
+
+        <div v-if="showReading" class="flex flex-col gap-2">
+          <Label for="card-reading">{{ label.reading }}</Label>
+          <Input id="card-reading" v-model="form.reading" maxlength="100" lang="ja" />
+          <p class="text-muted-foreground text-xs">
+            {{ label.readingHint }}
           </p>
         </div>
 

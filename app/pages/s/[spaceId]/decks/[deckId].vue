@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CardWord from '~/features/vocab/components/CardWord.vue'
 import type { Member } from '~/features/space/services/invites'
 import type { Card } from '~/features/vocab/services/cards'
 import type { Deck, DeckFolder } from '~/features/vocab/services/decks'
@@ -394,7 +395,7 @@ async function remove() {
           <li v-for="card in cards" :key="card.id" class="flex items-start gap-3 px-4 py-3">
             <div class="flex min-w-0 flex-1 flex-col gap-0.5">
               <div class="flex flex-wrap items-baseline gap-x-2">
-                <span class="font-medium">{{ card.front }}</span>
+                <span class="font-medium"><CardWord :front="card.front" :reading="card.reading" /></span>
                 <span v-if="card.phonetic" class="text-muted-foreground text-sm">{{ card.phonetic }}</span>
                 <span v-if="card.pos" class="text-muted-foreground text-xs">{{ card.pos }}</span>
               </div>
