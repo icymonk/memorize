@@ -6,6 +6,25 @@ service cloud.firestore {
     function uid() { return request.auth.uid; }
     function memberPath(sid) { return /databases/$(database)/documents/spaces/$(sid)/members/$(uid()); }
     function isMember(sid) { return signedIn() && exists(memberPath(sid)) && get(memberPath(sid)).data.status == 'active'; }
+    function isManager(sid) { return isMember(sid) && get(memberPath(sid)).data.access in ['owner', 'manager']; }
+    function onlyChanges(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
+    function isText(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
+
+    // shared/schemas/space.ts 와 같은 값
+    function validModules(m) {
+      return m.keys().hasOnly(['vocab', 'notes', 'reading', 'reviews', 'missions', 'tests', 'math', 'courses', 'wrongNotes'])
+        && m.vocab is bool && m.notes is bool && m.reading is bool && m.reviews is bool && m.missions is bool
+        && m.tests is bool && m.math is bool && m.courses is bool && m.wrongNotes is bool;
+    }
+    function validSettings(s) {
+      return s.keys().hasOnly(['joinPolicy', 'whoCanInvite', 'whoCanCreate', 'whoCanHost', 'progressSharing', 'ranking'])
+        && s.joinPolicy in ['link', 'approval']
+        && s.whoCanInvite in ['everyone', 'managers']
+        && s.whoCanCreate in ['everyone', 'managers']
+        && s.whoCanHost in ['everyone', 'managers']
+        && s.progressSharing in ['everyone', 'self']
+        && s.ranking == resource.data.settings.ranking;
+    }
 
     match /users/{userId} {
       allow read: if signedIn() && userId == uid();
@@ -13,6 +32,16 @@ service cloud.firestore {
 
     match /spaces/{sid} {
       allow read: if isMember(sid);
+      // WS-01·02·04: 소유자·매니저가 일반·기능·운영 방식만 바꾼다. 나머지(인원, 소유자, 삭제 예약)는 서버
+      allow update: if resource.data.kind == 'workspace' && isManager(sid)
+        && onlyChanges(['name', 'icon', 'color', 'description', 'modules', 'settings', 'updatedAt'])
+        && isText(request.resource.data.name, 1, 40)
+        && isText(request.resource.data.icon, 1, 16)
+        && request.resource.data.color in ['slate', 'red', 'orange', 'amber', 'green', 'teal', 'blue', 'violet', 'pink']
+        && isText(request.resource.data.description, 0, 200)
+        && validModules(request.resource.data.modules)
+        && validSettings(request.resource.data.settings)
+        && request.resource.data.updatedAt == request.time;
 
       match /members/{memberId} {
         allow read: if isMember(sid);

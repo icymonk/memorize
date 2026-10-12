@@ -1,4 +1,4 @@
-import type { CreateWorkspaceInput, CreateWorkspaceOutput } from './space'
+import type { CancelSpaceDeletionInput, CreateWorkspaceInput, CreateWorkspaceOutput, ScheduleSpaceDeletionInput } from './space'
 import { z } from 'zod'
 
 export const personalSpaceId = (uid: string) => `p_${uid}`
@@ -27,4 +27,6 @@ export interface Callables {
   ensureAccount: { input: EnsureAccountInput, output: EnsureAccountOutput }
   completeOnboarding: { input: CompleteOnboardingInput, output: { ok: true } }
   createWorkspace: { input: CreateWorkspaceInput, output: CreateWorkspaceOutput }
+  scheduleSpaceDeletion: { input: ScheduleSpaceDeletionInput, output: { deleteScheduledAt: string } }
+  cancelSpaceDeletion: { input: CancelSpaceDeletionInput, output: { ok: true } }
 }

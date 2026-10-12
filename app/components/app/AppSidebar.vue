@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { HouseIcon, PlusIcon, TicketIcon } from '@lucide/vue'
+import { HouseIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon, TicketIcon } from '@lucide/vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
 import { ko } from '~/locales/ko'
@@ -11,6 +11,7 @@ const createOpen = ref(false)
 
 const personalSpacePath = computed(() => auth.account ? `/s/${auth.account.personalSpaceId}` : undefined)
 const activeSpaceId = computed(() => 'spaceId' in route.params ? route.params.spaceId : null)
+const currentWorkspace = computed(() => space.current?.kind === 'workspace' && space.current.id === activeSpaceId.value ? space.current : null)
 
 watch(() => auth.account, (account) => {
   if (account) space.loadMySpaces().catch(() => {})
@@ -45,6 +46,28 @@ watch(() => auth.account, (account) => {
             <SidebarMenuButton v-else :tooltip="ko.nav.personalSpace" disabled aria-disabled="true">
               <HouseIcon />
               <span>{{ ko.nav.personalSpace }}</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarGroup>
+
+      <SidebarGroup v-if="currentWorkspace">
+        <SidebarGroupLabel>{{ currentWorkspace.name }}</SidebarGroupLabel>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton as-child :tooltip="ko.space.settings.home" :is-active="route.path === `/s/${currentWorkspace.id}`">
+              <NuxtLink :to="`/s/${currentWorkspace.id}`">
+                <LayoutDashboardIcon />
+                <span>{{ ko.space.settings.home }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton as-child :tooltip="ko.space.settings.nav" :is-active="route.path === `/s/${currentWorkspace.id}/settings`">
+              <NuxtLink :to="`/s/${currentWorkspace.id}/settings`">
+                <SettingsIcon />
+                <span>{{ ko.space.settings.nav }}</span>
+              </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
