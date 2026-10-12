@@ -8,6 +8,7 @@ service cloud.firestore {
     function isMember(sid) { return signedIn() && exists(memberPath(sid)) && get(memberPath(sid)).data.status == 'active'; }
     function isManager(sid) { return isMember(sid) && get(memberPath(sid)).data.access in ['owner', 'manager']; }
     function onlyChanges(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
+    function space(sid) { return get(/databases/$(database)/documents/spaces/$(sid)).data; }
     function isText(v, min, max) { return v is string && v.size() >= min && v.size() <= max; }
 
     // shared/schemas/space.ts 와 같은 값
@@ -45,6 +46,50 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isMember(sid);
+      }
+
+      // VOC-01·02·03·05 — docs/dev/security.md 3절 공유 콘텐츠
+      match /decks/{deckId} {
+        function d() { return resource.data; }
+        function nd() { return request.resource.data; }
+        function canSee() {
+          return d().visibility == 'space' || d().createdBy == uid()
+            || (d().visibility == 'group' && get(memberPath(sid)).data.get('groupIds', []).hasAny(d().groupIds));
+        }
+        function canEdit() {
+          return d().createdBy == uid()
+            || (d().editPolicy == 'collaborators' && uid() in d().collaboratorIds)
+            || d().editPolicy == 'everyone';
+        }
+        function validDeck(x) {
+          return isText(x.title, 1, 80) && isText(x.description, 0, 500)
+            && x.langFrom is string && x.langTo is string && (x.folderId == null || x.folderId is string)
+            && x.visibility in ['private', 'group', 'space'] && x.groupIds is list && x.groupIds.size() <= 20
+            && x.editPolicy in ['author', 'collaborators', 'everyone'] && x.collaboratorIds is list && x.collaboratorIds.size() <= 50
+            && x.tags is list && x.tags.size() <= 10 && x.fields is list
+            && (sid.matches('p_.*') == false || x.visibility == 'private' || x.visibility == 'space');
+        }
+        allow read: if isMember(sid) && canSee();
+        allow create: if isMember(sid)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid))
+          && nd().createdBy == uid() && validDeck(nd())
+          && nd().cardCount == 0 && nd().learnerCount == 0
+          && nd().createdAt == request.time && nd().updatedAt == request.time;
+        allow update: if isMember(sid) && canSee() && canEdit() && validDeck(nd())
+          && !nd().diff(d()).affectedKeys().hasAny(['createdBy', 'copiedFrom', 'cardCount', 'learnerCount', 'createdAt'])
+          && (d().createdBy == uid() || !nd().diff(d()).affectedKeys().hasAny(['visibility', 'groupIds', 'editPolicy', 'collaboratorIds']))
+          && nd().updatedAt == request.time;
+        allow delete: if isMember(sid) && (d().createdBy == uid() || isManager(sid));
+      }
+
+      // VOC-03: 폴더는 멤버 누구나 만들고, 만든 사람·매니저가 고치고 지운다
+      match /deckFolders/{folderId} {
+        allow read: if isMember(sid);
+        allow create: if isMember(sid) && request.resource.data.ownerId == uid()
+          && isText(request.resource.data.name, 1, 40) && request.resource.data.order is number;
+        allow update: if isMember(sid) && (resource.data.ownerId == uid() || isManager(sid))
+          && onlyChanges(['name', 'order']) && isText(request.resource.data.name, 1, 40);
+        allow delete: if isMember(sid) && (resource.data.ownerId == uid() || isManager(sid));
       }
 
       // WS-10·11: 생성은 서버(createInvite, 코드 유일성). 만든 사람·매니저가 보고 끄고 켠다

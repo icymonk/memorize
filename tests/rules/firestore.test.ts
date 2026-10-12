@@ -2,7 +2,7 @@ import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
-import { collection, doc, getDoc, getDocs, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { collection, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 
 // docs/dev/security.md — firestore.rules (0-8). 실행: 루트에서 `pnpm test:rules`
@@ -141,5 +141,89 @@ describe('invites (WS-10·11)', () => {
   })
   it('clients cannot create invites (server only)', async () => {
     await assertFails(setDoc(doc(invites('alice'), 'NEWINV'), { code: 'NEWINV', createdBy: 'alice', uses: 0, disabled: false }))
+  })
+})
+
+describe('decks (VOC-01·02·03·05)', () => {
+  const deck = (over: object = {}) => ({
+    title: '토익', description: '', langFrom: 'en', langTo: 'ko', tags: [], folderId: null, fields: ['pos'],
+    visibility: 'space', groupIds: [], editPolicy: 'author', collaboratorIds: [], createdBy: 'bob',
+    cardCount: 0, learnerCount: 0, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over,
+  })
+  const deckRef = (uid: string, id: string, sid = SID) => doc(db(uid), 'spaces', sid, 'decks', id)
+  const seed = (id: string, data: object) => env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'decks', id), data))
+
+  it('members create decks as themselves with zero counters', async () => {
+    await assertSucceeds(setDoc(deckRef('bob', 'd1'), deck()))
+    await assertFails(setDoc(deckRef('bob', 'd2'), deck({ createdBy: 'alice' })))
+    await assertFails(setDoc(deckRef('bob', 'd3'), deck({ cardCount: 5 })))
+    await assertFails(setDoc(deckRef('pat', 'd4'), deck({ createdBy: 'pat' })))
+    await assertFails(setDoc(deckRef('bob', 'd5'), deck({ visibility: 'public' })))
+  })
+
+  it('whoCanCreate=managers allows only owner/manager', async () => {
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID), { 'settings.whoCanCreate': 'managers' }))
+    await assertFails(setDoc(deckRef('bob', 'd1'), deck()))
+    await assertSucceeds(setDoc(deckRef('mia', 'd2'), deck({ createdBy: 'mia' })))
+  })
+
+  it('visibility: space for members, private for author, group for group members', async () => {
+    await seed('s', deck())
+    await seed('p', deck({ visibility: 'private' }))
+    await seed('g', deck({ visibility: 'group', groupIds: ['g1'] }))
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'members', 'mia'), { groupIds: ['g1'] }))
+    await assertSucceeds(getDoc(deckRef('alice', 's')))
+    await assertFails(getDoc(deckRef('lee', 's')))
+    await assertSucceeds(getDoc(deckRef('bob', 'p')))
+    await assertFails(getDoc(deckRef('alice', 'p')))
+    await assertSucceeds(getDoc(deckRef('mia', 'g')))
+    await assertFails(getDoc(deckRef('alice', 'g')))
+  })
+
+  it('list query must be limited to space-visible or own decks', async () => {
+    await seed('p', deck({ visibility: 'private' }))
+    const decks = collection(db('alice'), 'spaces', SID, 'decks')
+    await assertSucceeds(getDocs(query(decks, or(where('visibility', '==', 'space'), where('createdBy', '==', 'alice')))))
+    await assertFails(getDocs(decks))
+  })
+
+  it('edit policy: author / collaborators / everyone; roles only by author', async () => {
+    await seed('a', deck())
+    await seed('c', deck({ editPolicy: 'collaborators', collaboratorIds: ['mia'] }))
+    await seed('e', deck({ editPolicy: 'everyone' }))
+    const edit = (uid: string, id: string, patch: object) => updateDoc(deckRef(uid, id), { ...patch, updatedAt: serverTimestamp() })
+    await assertSucceeds(edit('bob', 'a', { title: '토익 2', visibility: 'private' }))
+    await assertFails(edit('alice', 'a', { title: 'x' }))
+    await assertSucceeds(edit('mia', 'c', { title: '토익 3' }))
+    await assertFails(edit('mia', 'c', { visibility: 'private' }))
+    await assertFails(edit('alice', 'c', { title: 'x' }))
+    await assertSucceeds(edit('alice', 'e', { title: '모두' }))
+    await assertFails(edit('alice', 'e', { cardCount: 3 }))
+    await assertFails(edit('alice', 'e', { createdBy: 'alice' }))
+  })
+
+  it('delete: author or manager', async () => {
+    await seed('a', deck({ createdBy: 'alice' }))
+    await seed('b', deck())
+    await assertFails(deleteDoc(deckRef('bob', 'a')))
+    await assertSucceeds(deleteDoc(deckRef('mia', 'a')))
+    await assertSucceeds(deleteDoc(deckRef('bob', 'b')))
+  })
+
+  it('personal space: only the owner, no group visibility', async () => {
+    await assertSucceeds(setDoc(deckRef('alice', 'd1', 'p_alice'), deck({ createdBy: 'alice', visibility: 'private' })))
+    await assertFails(setDoc(deckRef('alice', 'd2', 'p_alice'), deck({ createdBy: 'alice', visibility: 'group', groupIds: ['g1'] })))
+    await assertFails(setDoc(deckRef('bob', 'd3', 'p_alice'), deck()))
+  })
+
+  it('folders: members create own, owner/manager edit', async () => {
+    const folder = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'deckFolders', id)
+    await assertSucceeds(setDoc(folder('bob', 'f1'), { name: '토익', order: 0, ownerId: 'bob' }))
+    await assertFails(setDoc(folder('bob', 'f2'), { name: '토익', order: 0, ownerId: 'alice' }))
+    await assertSucceeds(updateDoc(folder('mia', 'f1'), { name: '토익 RC' }))
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'deckFolders', 'f3'), { name: 'A', order: 1, ownerId: 'alice' }))
+    await assertFails(updateDoc(folder('bob', 'f3'), { name: 'B' }))
+    await assertFails(deleteDoc(folder('bob', 'f3')))
+    await assertSucceeds(getDocs(collection(db('bob'), 'spaces', SID, 'deckFolders')))
   })
 })

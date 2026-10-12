@@ -1,6 +1,6 @@
 # 0~1단계 작업 분해
 
-> 상태: 확정 · v2.6 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
+> 상태: 확정 · v2.7 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
 
 ## 진행 상황
 | 작업 | 상태 | 비고 |
@@ -11,6 +11,7 @@
 | 0-5 레이아웃 | 일부 | default(사이드바)·auth·focus 레이아웃, 첫 화면. 공간 전환은 0-6 이후 |
 | 0-6 워크스페이스 | 일부 | `createWorkspace`, 공간 목록(사이드바·첫 화면), 만들기 창, `/s/:spaceId` 셸·`space` 미들웨어·`space` 스토어, `/s/:id/settings`(일반·기능·운영 방식·최대 인원 표시), `scheduleSpaceDeletion`·`cancelSpaceDeletion`, `shared/permissions.ts`. 남은 것: `cronSpaceDeletion`(Cloud Scheduler API 필요) |
 | 0-7 초대·멤버 | 일부 | `createInvite`·`getInvite`·`joinSpace`·`decideJoinRequest`, `/invite/:code`, 코드로 참여, `/s/:id/members`(멤버·초대·가입 대기), `setManager`·`removeMember`·`leaveSpace`·`transferOwnership`·`respondOwnership`. 남은 것: `onMemberWritten`(나간 멤버 노트 처리, 노트 기능과 함께) |
+| 1-B1 단어장 목록·만들기 | 일부 | `decks`·`deckFolders` 규칙(공개 대상·편집 범위·`whoCanCreate`), `shared/schemas/deck.ts`, `canSeeContent`·`canEditContent`·`canDeleteContent`, `/s/:id/decks`(폴더·태그 거르기)·`/s/:id/decks/:deckId`, 만들기·설정 창. 남은 것: 그룹 공개(그룹 기능과 함께), 진도 표시(1-B5) |
 | 0-2 Firebase 설정 | 대기 | Firebase CLI 로그인 필요. 2nd gen 실행 서비스 계정에 "서비스 계정 토큰 생성자" 역할 부여(S4) |
 | 기술 검증 S1~S5 | 완료 | 모두 통과, 설계 변경 없음 → [spikes.md](./spikes.md) |
 
@@ -87,6 +88,7 @@
 - 없음
 
 ## 변경 이력
+- v2.7: 1-B1 단어장 목록·만들기 진행 상황
 - v2.6: 0-7 멤버 관리 진행 상황
 - v2.5: 0-7 초대·참여 진행 상황
 - v2.4: 0-6 설정·삭제 유예 진행 상황
