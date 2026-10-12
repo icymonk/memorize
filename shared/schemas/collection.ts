@@ -5,7 +5,7 @@ export const PROP_TYPES = ['text', 'number', 'select', 'multiSelect', 'date', 'c
 export type PropType = (typeof PROP_TYPES)[number]
 export const COLLECTION_SCOPES = ['private', 'shared'] as const
 export type CollectionScope = (typeof COLLECTION_SCOPES)[number]
-export const VIEW_TYPES = ['list', 'table'] as const
+export const VIEW_TYPES = ['list', 'table', 'calendar'] as const
 export type ViewType = (typeof VIEW_TYPES)[number]
 
 export const MAX_PROPS = 20
@@ -62,3 +62,29 @@ export function newPropKey(existing: string[]): string {
     if (!existing.includes(k)) return k
   }
 }
+
+/** NOTE-44: 저장한 보기 — 보기 종류, 필터 하나, 정렬, 묶기, 캘린더 날짜 항목 */
+export const viewDef = z.object({
+  id: z.string().regex(/^[a-z0-9]{1,16}$/),
+  name: z.string().trim().min(1).max(30),
+  type: z.enum(VIEW_TYPES),
+  filter: z.object({ key, value: z.union([z.string().max(100), z.boolean()]) }).nullable().default(null),
+  sort: z.object({ key: z.string().max(16), dir: z.union([z.literal(1), z.literal(-1)]) }).nullable().default(null),
+  groupBy: key.nullable().default(null),
+  dateKey: key.nullable().default(null),
+})
+export type ViewDef = z.infer<typeof viewDef>
+export const MAX_VIEWS = 20
+
+/** 필터 하나: 선택·태그는 그 값 포함, 체크는 참/거짓, 나머지는 글자 포함 */
+export function matchesFilter(def: Pick<PropDef, 'type'> | undefined, v: PropValue | undefined, want: string | boolean): boolean {
+  if (!def) return true
+  if (def.type === 'checkbox') return (v === true) === (want === true)
+  if (def.type === 'multiSelect') return Array.isArray(v) && v.includes(String(want))
+  if (def.type === 'select') return v === want
+  return v !== null && v !== undefined && String(v).toLowerCase().includes(String(want).toLowerCase())
+}
+
+/** 콜러블 입력: 모음 삭제 (안의 페이지는 휴지통으로) */
+export const collectionRefInput = z.object({ spaceId: z.string().min(1).max(128), collectionId: z.string().min(1).max(128) })
+export type CollectionRefInput = z.infer<typeof collectionRefInput>

@@ -2,7 +2,7 @@ import type { Firestore, Timestamp } from 'firebase/firestore'
 import type { StoredBlock } from '../sync/serialize'
 import type { Functions } from 'firebase/functions'
 import type { PropValue } from '#shared/schemas/collection'
-import { addDoc, and, collection, doc, getDoc, getDocs, onSnapshot, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import { addDoc, and, collection, doc, getDoc, getDocs, onSnapshot, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { callFn } from '~/lib/functions'
 import { keyBetween } from '../sync/order'
 
@@ -84,7 +84,7 @@ export async function getPage(db: Firestore, sid: string, pageId: string): Promi
 }
 
 /** NOTE-20: 공유 페이지(공간 전체) 또는 내 페이지(나만). 하위 페이지는 부모의 갈래·공개 범위를 따른다 */
-export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' } }): Promise<string> {
+export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue> }): Promise<string> {
   const now = serverTimestamp()
   const col = opts.collection
   const parent = col ? null : opts.parent ?? null
@@ -100,7 +100,7 @@ export async function createPage(db: Firestore, sid: string, uid: string, opts: 
     parentId: parent?.id ?? null,
     order: keyBetween(opts.after ?? null, null),
     ancestorIds: parent ? [...(parent.ancestorIds ?? []), parent.id] : [],
-    props: {},
+    props: opts.props ?? {},
     visibility: parent?.visibility ?? (root === 'private' ? 'private' : 'space'),
     groupIds: [],
     sharedWith: [],
@@ -128,6 +128,19 @@ export async function loadBlocks(db: Firestore, sid: string, pageId: string): Pr
     const { type, parentBlockId, order, attrs, content } = d.data()
     return { id: d.id, type, parentBlockId: parentBlockId ?? null, order, attrs: attrs ?? {}, content: content ?? [] }
   })
+}
+
+/** NOTE-48: 템플릿 페이지의 블록과 요약을 새 페이지로 복사 */
+export async function copyBlocks(db: Firestore, sid: string, uid: string, from: Page, toId: string) {
+  const blocks = await loadBlocks(db, sid, from.id)
+  if (!blocks.length) return
+  const now = serverTimestamp()
+  const batch = writeBatch(db)
+  for (const { id, ...b } of blocks.slice(0, 450)) {
+    batch.set(doc(db, 'spaces', sid, 'pages', toId, 'blocks', id), { ...b, rev: 1, updatedBy: uid, updatedAt: now })
+  }
+  batch.update(doc(pagesOf(db, sid), toId), { excerpt: from.excerpt ?? '', blockCount: Math.min(blocks.length, 450), textLength: from.textLength ?? 0, updatedAt: now })
+  await batch.commit()
 }
 
 /** NOTE-50·54: 공개 범위·공유 대상·공동 편집자·편집 정책 (작성자만) */
