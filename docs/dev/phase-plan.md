@@ -1,6 +1,6 @@
 # 0~1단계 작업 분해
 
-> 상태: 확정 · v2.8 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
+> 상태: 확정 · v2.9 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
 
 ## 진행 상황
 | 작업 | 상태 | 비고 |
@@ -13,6 +13,7 @@
 | 0-7 초대·멤버 | 일부 | `createInvite`·`getInvite`·`joinSpace`·`decideJoinRequest`, `/invite/:code`, 코드로 참여, `/s/:id/members`(멤버·초대·가입 대기), `setManager`·`removeMember`·`leaveSpace`·`transferOwnership`·`respondOwnership`. 남은 것: `onMemberWritten`(나간 멤버 노트 처리, 노트 기능과 함께) |
 | 1-B1 단어장 목록·만들기 | 일부 | `decks`·`deckFolders` 규칙(공개 대상·편집 범위·`whoCanCreate`), `shared/schemas/deck.ts`, `canSeeContent`·`canEditContent`·`canDeleteContent`, `/s/:id/decks`(폴더·태그 거르기)·`/s/:id/decks/:deckId`, 만들기·설정 창. 남은 것: 그룹 공개(그룹 기능과 함께), 진도 표시(1-B5) |
 | 1-B2 카드 입력 | 일부 | `cards` 규칙(단어장 편집 범위·`contentRev` 서버 전용), `onCardWritten`(카드 수·`contentRev`), 카드 한 장 추가·수정(단어장 항목별), 붙여넣기 입력(`shared/paste.ts`, 미리보기), 표 편집·순서 바꾸기, 기기 음성 발음·목소리 선택. 남은 것: 이미지·녹음 올리기(파일 기능과 함께), 유의어·반의어 카드 연결 |
+| 1-B3 학습 모드 | 일부 | `/s/:id/study/:deckId?mode=` (낱말카드·학습하기·쓰기·매칭), `shared/study.ts`(오타 허용·보기·라운드·순위), `studySessions`·`deckProgress`·`matchTop` 규칙, `onStudySessionCreated`(매칭 순위·내 최고 기록), 키보드 조작, 기기에 이어하기, 결과 화면. 남은 것: 별표 카드만(1-B5), 매칭 쌍 수 고르기, 활동 피드 반영(1-A4) |
 | 0-2 Firebase 설정 | 대기 | Firebase CLI 로그인 필요. 2nd gen 실행 서비스 계정에 "서비스 계정 토큰 생성자" 역할 부여(S4) |
 | 기술 검증 S1~S5 | 완료 | 모두 통과, 설계 변경 없음 → [spikes.md](./spikes.md) |
 
@@ -89,6 +90,7 @@
 - 없음
 
 ## 변경 이력
+- v2.9: 1-B3 학습 모드 진행 상황
 - v2.8: 1-B2 카드 입력 진행 상황
 - v2.7: 1-B1 단어장 목록·만들기 진행 상황
 - v2.6: 0-7 멤버 관리 진행 상황
