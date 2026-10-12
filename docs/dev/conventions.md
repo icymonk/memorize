@@ -67,6 +67,7 @@ E2E 핵심 흐름:
   - 시크릿 `FIREBASE_SERVICE_ACCOUNT`: 배포용 서비스 계정 키(JSON).
   - 변수 `NUXT_PUBLIC_FIREBASE_*`: 앱 설정(`.env.example`과 같은 이름). 빌드 때 앱에 들어가는 공개 값.
   - 변수 `FIREBASE_DEPLOY_ONLY`: 운영 배포 대상. 기본 `hosting,firestore`. Blaze 전환과 Storage 버킷 생성 후 `hosting,firestore,storage,functions`로 바꾼다.
+  - 변수 `ENFORCE_APP_CHECK`: 서버 기능 App Check 강제 여부(기본 `false`). 비대화형 배포는 파라미터 값을 물을 수 없어 배포 직전에 `functions/.env`로 넘긴다. App Check를 켠 뒤 `true`.
 
 - Firebase 프로젝트: 현재 `memorize-c6c1b` 하나(dev 겸용, `.firebaserc`의 `default`·`dev`). 운영 출시 전에 prod 프로젝트를 따로 만들어 `prod` 별칭 추가. 모두 Blaze 요금제(D1) + **예산 알림** 설정.
 - 순서: 규칙·인덱스 → 서버 기능 → 앱.
@@ -86,6 +87,6 @@ E2E 핵심 흐름:
 - 없음
 
 ## 8. 변경 이력
-- v2.2: GitHub Actions 배포(미리보기·운영)와 필요한 시크릿·변수
+- v2.2: GitHub Actions 배포(미리보기·운영)와 필요한 시크릿·변수(`ENFORCE_APP_CHECK` 포함)
 - v2.1: 확정 — pnpm 통일, Git 초기화, Firebase 프로젝트 `memorize-c6c1b`
 - v2.0: 확정 기능명세 기준으로 새로 작성
