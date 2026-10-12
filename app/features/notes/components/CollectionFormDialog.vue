@@ -1,22 +1,24 @@
 <script setup lang="ts">
 import type { CollectionScope, PropType } from '#shared/schemas/collection'
 import type { Collection } from '../services/collections'
+import type { Page } from '../services/pages'
 import { collectionInput, MAX_PROPS, newPropKey, PROP_TYPES } from '#shared/schemas/collection'
 import { PlusIcon, XIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
-import { createCollection, updateCollection } from '../services/collections'
+import { createCollection, deleteCollection, saveCollectionMeta, updateCollection } from '../services/collections'
 
 /** NOTE-46·49: 모음 만들기·설정 (이름, 아이콘, 항목, 내 모음/공유 모음) */
-const props = defineProps<{ collection?: Collection | null }>()
-const emit = defineEmits<{ saved: [id: string] }>()
+const props = defineProps<{ collection?: Collection | null, items?: Page[] }>()
+const emit = defineEmits<{ saved: [id: string], deleted: [] }>()
 const open = defineModel<boolean>('open', { default: false })
 
 const t = ko.notes.collections
 const space = useSpaceStore()
 const auth = useAuthStore()
-const { $firestore } = useNuxtApp()
+const { $firestore, $functions } = useNuxtApp()
+const templateId = ref('')
 
 interface Row { key: string, name: string, type: PropType, options: string }
 const name = ref('')
@@ -34,11 +36,30 @@ watch(open, (v) => {
   name.value = c?.name ?? ''
   icon.value = c?.icon ?? ''
   scope.value = c?.scope ?? (personal.value ? 'private' : 'shared')
+  templateId.value = c?.templateIds?.[0] ?? ''
   rows.value = (c?.schema ?? []).map(p => ({ key: p.key, name: p.name, type: p.type, options: (p.options ?? []).join(', ') }))
 })
 
 function addRow() {
   rows.value.push({ key: newPropKey(rows.value.map(r => r.key)), name: '', type: 'text', options: '' })
+}
+
+async function remove() {
+  const c = props.collection
+  if (!c || !window.confirm(t.deleteConfirm(c.name))) return
+  pending.value = true
+  try {
+    await deleteCollection($functions, space.current!.id, c.id)
+    toast.success(t.deleted)
+    open.value = false
+    emit('deleted')
+  }
+  catch (error) {
+    toast.error(errorMessage(error) ?? ko.errors.unknown)
+  }
+  finally {
+    pending.value = false
+  }
 }
 
 async function submit() {
@@ -60,6 +81,8 @@ async function submit() {
     if (props.collection) {
       const { name, icon, schema } = parsed.data
       await updateCollection($firestore, sid, props.collection.id, { name, icon, schema })
+      if (templateId.value !== (props.collection.templateIds?.[0] ?? ''))
+        await saveCollectionMeta($firestore, sid, props.collection.id, { templateIds: templateId.value ? [templateId.value] : [] })
       id = props.collection.id
       toast.success(t.saved)
     }
@@ -143,9 +166,26 @@ async function submit() {
             {{ t.addProp }}
           </Button>
         </div>
+        <div v-if="collection" class="flex flex-col gap-2">
+          <Label for="col-template">{{ t.template }}</Label>
+          <select id="col-template" v-model="templateId" :class="selectClass">
+            <option value="">
+              {{ t.templateNone }}
+            </option>
+            <option v-for="p in items ?? []" :key="p.id" :value="p.id">
+              {{ p.icon }} {{ p.title || ko.notes.untitled }}
+            </option>
+          </select>
+          <p class="text-muted-foreground text-xs">
+            {{ t.templateHint }}
+          </p>
+        </div>
       </form>
 
-      <DialogFooter>
+      <DialogFooter class="gap-2 sm:justify-between">
+        <Button v-if="collection" type="button" variant="ghost" class="text-destructive" :disabled="pending" @click="remove">
+          {{ t.delete }}
+        </Button>
         <Button type="submit" form="collection-form" :disabled="pending || !name.trim()">
           {{ collection ? t.save : t.create }}
         </Button>

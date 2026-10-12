@@ -1,6 +1,8 @@
 import type { Firestore, Timestamp } from 'firebase/firestore'
-import type { CollectionInput, CollectionScope, PropDef } from '#shared/schemas/collection'
+import type { Functions } from 'firebase/functions'
+import type { CollectionInput, CollectionScope, PropDef, ViewDef } from '#shared/schemas/collection'
 import { addDoc, collection, doc, onSnapshot, or, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import { callFn } from '~/lib/functions'
 
 /** NOTE-46~49 내 모음 — docs/dev/data-model.md 4절 */
 export interface Collection {
@@ -11,7 +13,7 @@ export interface Collection {
   ownerId: string
   scope: CollectionScope
   schema: PropDef[]
-  views: unknown[]
+  views: ViewDef[]
   templateIds: string[]
   createdAt?: Timestamp
   updatedAt?: Timestamp
@@ -37,3 +39,10 @@ export async function updateCollection(db: Firestore, sid: string, id: string, p
 
 /** 만든 사람, 공유 모음은 매니저도 설정을 바꾼다 */
 export const canManageCollection = (c: Collection, uid: string, isManager: boolean) => c.ownerId === uid || (c.scope === 'shared' && isManager)
+
+/** NOTE-44·48: 저장한 보기, 새 페이지 템플릿 */
+export async function saveCollectionMeta(db: Firestore, sid: string, id: string, patch: Partial<Pick<Collection, 'views' | 'templateIds'>>) {
+  await updateDoc(doc(colsOf(db, sid), id), { ...patch, updatedAt: serverTimestamp() })
+}
+
+export const deleteCollection = (fns: Functions, spaceId: string, collectionId: string) => callFn(fns, 'deleteCollection', { spaceId, collectionId })

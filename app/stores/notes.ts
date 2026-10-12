@@ -1,8 +1,9 @@
+import type { PropValue } from '#shared/schemas/collection'
 import type { Collection } from '~/features/notes/services/collections'
 import type { Page, UserPrefs } from '~/features/notes/services/pages'
 import { defineStore } from 'pinia'
 import { watchCollections } from '~/features/notes/services/collections'
-import { createPage, getPrefs, movePage, restorePage, savePrefs, trashPage, watchPages } from '~/features/notes/services/pages'
+import { copyBlocks, createPage, getPrefs, movePage, restorePage, savePrefs, trashPage, watchPages } from '~/features/notes/services/pages'
 import { compareOrder, keyBetween } from '~/features/notes/sync/order'
 
 type Root = Page['root']
@@ -104,8 +105,11 @@ export const useNotesStore = defineStore('notes', () => {
   /** NOTE-47: 모음 안의 페이지 (최신순) */
   const itemsOf = (collectionId: string) => pages.value.filter(p => p.type === 'item' && p.collectionId === collectionId)
     .sort((a, b) => (b.createdAt?.toMillis() ?? Date.now()) - (a.createdAt?.toMillis() ?? Date.now()))
-  async function createItem(col: Collection) {
-    return createPage($firestore, sid!, uid(), { root: col.scope, collection: { id: col.id, scope: col.scope }, after: null })
+  async function createItem(col: Collection, props?: Record<string, PropValue>) {
+    const id = await createPage($firestore, sid!, uid(), { root: col.scope, collection: { id: col.id, scope: col.scope }, after: null, props })
+    const template = col.templateIds?.[0] ? byId.value.get(col.templateIds[0]) : null
+    if (template && !template.deletedAt) await copyBlocks($firestore, sid!, uid(), template, id)
+    return id
   }
 
   return { pages, loaded, collections, itemsOf, createItem, prefs, expanded, byId, childrenOf, ancestors, favorites, recent, create, move, trash, restore, isFavorite, toggleFavorite, visit, toggleExpanded }

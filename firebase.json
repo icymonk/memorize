@@ -128,6 +128,13 @@
         }
       },
       {
+        "source": "/fn/deleteCollection",
+        "function": {
+          "functionId": "deleteCollection",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/restorePage",
         "function": {
           "functionId": "restorePage",

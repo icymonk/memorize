@@ -86,7 +86,11 @@ export const restorePage = authedCallable(pageRefInput, async ({ uid, data }): P
   if (!owner && !manager && page.get('deletedBy') !== uid) throw new HttpsError('permission-denied', 'cannot restore')
   if (!page.get('deletedAt')) return { count: 0 }
   const together = await space.collection('pages').where('trashRootId', '==', page.id).get()
-  const clear = { deletedAt: null, deletedBy: FieldValue.delete(), trashRootId: FieldValue.delete() }
+  const clear: Record<string, unknown> = { deletedAt: null, deletedBy: FieldValue.delete(), trashRootId: FieldValue.delete() }
+  // 모음이 지워진 모음 페이지는 일반 페이지로 돌아온다
+  const colId = page.get('collectionId') as string | undefined
+  if (colId && !(await space.collection('collections').doc(colId).get()).exists)
+    Object.assign(clear, { type: 'page', collectionId: FieldValue.delete() })
   await commitAll(db, together.docs.filter(d => d.id !== page.id).map(d => [d.ref, clear]))
   const parentId = page.get('parentId') as string | null
   const parent = parentId ? await space.collection('pages').doc(parentId).get() : null
