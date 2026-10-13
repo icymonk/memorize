@@ -414,7 +414,14 @@ export const ko = {
       editPolicy: '공유 페이지 편집',
       policies: { everyone: '모든 멤버가 편집', editors: '나와 공동 편집자만 편집' } as Record<string, string>,
     },
-    journal: { nav: '학습일지' },
+    journal: {
+      nav: '학습일지',
+      streak: (n: number) => `일지 연속 ${n}일째`,
+      summary: '이 날의 학습',
+      noActivity: '이 날 기록된 학습이 없어요.',
+      totals: (min: number, cards: number, acc: number | null) => `${min}분 · 카드 ${cards}장${acc === null ? '' : ` · 정답률 ${acc}%`}`,
+      fillMinutes: (min: number) => `학습 시간을 ${min}분으로 채우기`,
+    },
     copy: {
       button: '다른 공간으로 복사',
       pageTitle: '페이지 복사',

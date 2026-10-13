@@ -9,6 +9,7 @@ import BlockEditor from '~/features/notes/components/BlockEditor.vue'
 import type { PropDef, PropValue } from '#shared/schemas/collection'
 import { coerceProp } from '#shared/schemas/collection'
 import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
+import JournalSummary from '~/features/notes/components/JournalSummary.vue'
 import IconPicker from '~/features/notes/components/IconPicker.vue'
 import PropCell from '~/features/notes/components/PropCell.vue'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
@@ -240,6 +241,15 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
           </dd>
         </template>
       </dl>
+      <JournalSummary
+        v-if="live?.type === 'journal' && typeof live.props?.date === 'string'"
+        :sid="sid"
+        :owner-id="live.ownerId"
+        :date="live.props.date"
+        :minutes="live.props.minutes"
+        :editable="editable"
+        @fill-minutes="(m) => collection && setProp(collection.schema.find(d => d.key === 'minutes') ?? { key: 'minutes', name: '', type: 'number', options: [] }, m)"
+      />
       <p v-if="blockCount > LIMITS.pageBlockWarn" class="text-muted-foreground text-xs">
         {{ t.tooManyBlocks(LIMITS.pageBlockWarn) }}
       </p>
