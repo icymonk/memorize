@@ -1,14 +1,19 @@
 <script setup lang="ts">
+import type { CopyKind } from '#shared/schemas/copy'
 import { toast } from 'vue-sonner'
 import { callFn } from '~/lib/functions'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
 
-/** VOC-04, WS-60~64 */
-const props = defineProps<{ fromSpaceId: string, deckId: string }>()
+/** VOC-04, NOTE-27, WS-60~64: 단어장·페이지·모음을 다른 공간으로 복사 */
+const props = withDefaults(defineProps<{ fromSpaceId: string, contentId: string, kind?: CopyKind }>(), { kind: 'deck' })
 const open = defineModel<boolean>('open', { default: false })
 const t = ko.vocab.copy
+const n = ko.notes.copy
+const title = computed(() => ({ deck: t.title, page: n.pageTitle, collection: n.collectionTitle })[props.kind])
+const description = computed(() => ({ deck: t.description, page: n.pageDescription, collection: n.collectionDescription })[props.kind])
+const PATH = { deck: 'decks', page: 'notes', collection: 'collections' } as const
 const space = useSpaceStore()
 const { $functions } = useNuxtApp()
 const targets = computed(() => space.spaces.filter(s => s.id !== props.fromSpaceId && !s.deleteScheduledAt))
@@ -23,10 +28,10 @@ async function submit() {
   if (!target.value) return
   busy.value = true
   try {
-    const { id } = await callFn($functions, 'copyContent', { kind: 'deck', fromSpaceId: props.fromSpaceId, id: props.deckId, toSpaceId: target.value })
+    const { id } = await callFn($functions, 'copyContent', { kind: props.kind, fromSpaceId: props.fromSpaceId, id: props.contentId, toSpaceId: target.value })
     toast.success(t.done)
     open.value = false
-    await navigateTo(`/s/${target.value}/decks/${id}`)
+    await navigateTo(`/s/${target.value}/${PATH[props.kind]}/${id}`)
   }
   catch (error) {
     toast.error(errorMessage(error) ?? ko.errors.unknown)
@@ -41,8 +46,8 @@ async function submit() {
   <Dialog v-model:open="open">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>{{ t.title }}</DialogTitle>
-        <DialogDescription>{{ t.description }}</DialogDescription>
+        <DialogTitle>{{ title }}</DialogTitle>
+        <DialogDescription>{{ description }}</DialogDescription>
       </DialogHeader>
       <p v-if="!targets.length" class="text-muted-foreground text-sm">
         {{ t.noTarget }}

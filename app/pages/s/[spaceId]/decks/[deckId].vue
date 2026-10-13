@@ -427,7 +427,7 @@ async function remove() {
         </ul>
       </section>
 
-      <CopyDeckDialog v-model:open="copyOpen" :from-space-id="sid" :deck-id="deckId" />
+      <CopyDeckDialog v-model:open="copyOpen" :from-space-id="sid" :content-id="deckId" />
       <CardFormDialog v-model:open="cardOpen" :deck="deck" :card="editingCard" :next-order="nextOrder" :count="cards.length" @saved="reloadCards" />
       <PasteCardsDialog v-model:open="pasteOpen" :deck="deck" :next-order="nextOrder" :count="cards.length" @saved="reloadCards" />
 

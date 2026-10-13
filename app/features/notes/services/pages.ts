@@ -24,6 +24,7 @@ export interface Page {
   editPolicy?: 'everyone' | 'editors'
   lock?: { uid: string, name: string, at: Timestamp } | null
   collectionId?: string
+  copiedFrom?: { spaceId: string, pageId: string, spaceName?: string }
   props?: Record<string, PropValue>
   excerpt: string
   blockCount: number

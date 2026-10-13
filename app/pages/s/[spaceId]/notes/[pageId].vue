@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { Page } from '~/features/notes/services/pages'
 import type { SaveStatus } from '~/features/notes/sync/writer'
-import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon } from '@lucide/vue'
+import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon, CopyIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { useDebounceFn } from '@vueuse/core'
 import { LIMITS } from '#shared/limits'
 import BlockEditor from '~/features/notes/components/BlockEditor.vue'
 import type { PropDef, PropValue } from '#shared/schemas/collection'
 import { coerceProp } from '#shared/schemas/collection'
+import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import IconPicker from '~/features/notes/components/IconPicker.vue'
 import PropCell from '~/features/notes/components/PropCell.vue'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
@@ -93,6 +94,7 @@ async function setIcon(icon: string) {
   catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
 }
 const icon = computed(() => live.value?.icon ?? page.value?.icon ?? '')
+const copyOpen = ref(false)
 
 /** NOTE-46: 모음 페이지는 제목 아래에 항목 값을 보여 준다 */
 const collection = computed(() => (live.value?.collectionId ? notes.collections.find(c => c.id === live.value!.collectionId) ?? null : null))
@@ -175,6 +177,9 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="notes.isFavorite(page.id) ? t.removeFavorite : t.addFavorite" @click="notes.toggleFavorite(page.id)">
           <StarIcon :class="notes.isFavorite(page.id) && 'fill-amber-400 text-amber-500'" />
         </Button>
+        <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="t.copy.button" :title="t.copy.button" @click="copyOpen = true">
+          <CopyIcon />
+        </Button>
         <Button v-if="page && page.ownerId === auth.user?.uid && !page.deletedAt" variant="ghost" size="sm" @click="shareOpen = true">
           {{ t.share.button }}
         </Button>
@@ -189,6 +194,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
     <p v-else-if="lockedBy" class="bg-muted rounded-md px-3 py-2 text-sm">
       {{ t.editingBy(lockedBy) }}
     </p>
+    <CopyDeckDialog v-if="page" v-model:open="copyOpen" kind="page" :from-space-id="sid" :content-id="page.id" />
     <ShareDialog v-if="page" v-model:open="shareOpen" :page="live ?? page" @saved="page = { ...page!, ...$event }" />
 
     <p v-if="loadError" class="text-destructive text-sm">
@@ -223,6 +229,9 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         @input="onTitle"
         @keydown.enter.prevent="editorRef?.focus()"
       >
+      <p v-if="live?.copiedFrom" class="text-muted-foreground -mt-2 text-xs">
+        {{ t.copy.from(live.copiedFrom.spaceName ?? '') }}
+      </p>
       <dl v-if="collection?.schema.length" class="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-1 text-sm">
         <template v-for="d in collection.schema" :key="d.key">
           <dt class="text-muted-foreground truncate">{{ d.name }}</dt>
