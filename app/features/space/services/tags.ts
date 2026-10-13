@@ -1,3 +1,4 @@
+import type { PropDef } from '#shared/schemas/collection'
 import type { Firestore } from 'firebase/firestore'
 import { collection, deleteDoc, doc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore'
 
@@ -47,6 +48,21 @@ export async function ensureTags(db: Firestore, sid: string, uid: string, names:
   }
   await Promise.allSettled([...fresh].map(([key, name]) =>
     setDoc(doc(db, 'spaces', sid, 'tags', key), { name, color: colorOf(key), createdBy: uid, createdAt: serverTimestamp() })))
+}
+
+/** 모음의 '태그' 항목은 공통 태그를 함께 쓴다 */
+export function isTagProp(def: Pick<PropDef, 'type' | 'key' | 'name'>) {
+  return def.type === 'multiSelect' && (def.key === 'tags' || def.name === '태그')
+}
+
+/** 태그 항목의 고를 수 있는 값에 공통 태그를 더한다 */
+export function withTags(def: PropDef, tags: Tag[]): PropDef {
+  return isTagProp(def) ? { ...def, options: [...new Set([...def.options, ...tags.map(t => t.name)])] } : def
+}
+
+/** 태그 항목은 목록에 없는 새 태그도 받는다 */
+export function tagAwareDef(def: PropDef, v: unknown): PropDef {
+  return isTagProp(def) && Array.isArray(v) ? { ...def, options: v.filter((x): x is string => typeof x === 'string').map(x => x.trim().slice(0, TAG_MAX)) } : def
 }
 
 export function deleteTag(db: Firestore, sid: string, id: string) {

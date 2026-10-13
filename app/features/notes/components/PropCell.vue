@@ -2,6 +2,7 @@
 import type { PropDef, PropValue } from '#shared/schemas/collection'
 import { coerceProp } from '#shared/schemas/collection'
 import { ChevronDownIcon } from '@lucide/vue'
+import { isTagProp, tagAwareDef, TAG_MAX } from '~/features/space/services/tags'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
 
@@ -13,12 +14,20 @@ const t = ko.notes.collections
 const box = 'h-8 w-full rounded-md bg-transparent px-2 text-sm outline-none hover:bg-muted focus:bg-muted disabled:hover:bg-transparent'
 const list = computed(() => (Array.isArray(props.value) ? props.value : []))
 
+const isTag = computed(() => isTagProp(props.def))
+const draft = ref('')
+
 function commit(raw: unknown) {
-  const v = coerceProp(props.def, raw)
+  const v = coerceProp(tagAwareDef(props.def, raw), raw)
   if (JSON.stringify(v) !== JSON.stringify(props.value ?? null)) emit('update', v)
 }
 function toggleOption(o: string) {
   commit(list.value.includes(o) ? list.value.filter(x => x !== o) : [...list.value, o])
+}
+function addDraft() {
+  const v = draft.value.trim()
+  draft.value = ''
+  if (v && !list.value.includes(v)) commit([...list.value, v])
 }
 </script>
 
@@ -58,6 +67,19 @@ function toggleOption(o: string) {
       <DropdownMenuCheckboxItem v-for="o in def.options" :key="o" :model-value="list.includes(o)" @select.prevent="toggleOption(o)">
         {{ o }}
       </DropdownMenuCheckboxItem>
+      <DropdownMenuCheckboxItem v-for="o in list.filter(x => !def.options.includes(x))" :key="`x-${o}`" :model-value="true" @select.prevent="toggleOption(o)">
+        {{ o }}
+      </DropdownMenuCheckboxItem>
+      <input
+        v-if="isTag"
+        v-model="draft"
+        :maxlength="TAG_MAX"
+        :placeholder="t.newTag"
+        :aria-label="t.newTag"
+        class="bg-muted/60 mt-1 h-8 w-full rounded px-2 text-sm outline-none"
+        @keydown.stop
+        @keydown.enter.prevent="addDraft"
+      >
     </DropdownMenuContent>
   </DropdownMenu>
   <input

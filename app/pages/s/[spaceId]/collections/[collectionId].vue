@@ -10,6 +10,8 @@ import { toast } from 'vue-sonner'
 import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PropCell from '~/features/notes/components/PropCell.vue'
+import { useTags } from '~/features/space/composables/useTags'
+import { ensureTags, isTagProp, tagAwareDef, withTags } from '~/features/space/services/tags'
 import { canManageCollection, saveCollectionMeta } from '~/features/notes/services/collections'
 import { canEditPage, setPageProp } from '~/features/notes/services/pages'
 import { errorMessage } from '~/lib/errors'
@@ -58,7 +60,8 @@ function selectView(id: string) {
 const isManager = computed(() => ['owner', 'manager'].includes(space.membership?.access ?? ''))
 const canManage = computed(() => !!col.value && canManageCollection(col.value, uid.value, isManager.value))
 const canAdd = computed(() => !!col.value && (col.value.scope === 'private' ? col.value.ownerId === uid.value : space.can('create')))
-const schema = computed(() => col.value?.schema ?? [])
+const spaceTags = useTags()
+const schema = computed(() => (col.value?.schema ?? []).map(d => withTags(d, spaceTags.value)))
 const defOf = (key: string | null | undefined) => schema.value.find(d => d.key === key)
 const filterDef = computed(() => defOf(filter.value?.key))
 const groupable = computed(() => schema.value.filter(d => ['select', 'multiSelect', 'checkbox'].includes(d.type)))
@@ -186,7 +189,9 @@ function addOnDay(day: string) {
 }
 
 async function setProp(p: Page, def: PropDef, v: PropValue) {
-  try { await setPageProp($firestore, sid.value, p.id, def.key, coerceProp(def, v)) }
+  const value = coerceProp(tagAwareDef(def, v), v)
+  if (isTagProp(def) && Array.isArray(value)) void ensureTags($firestore, sid.value, auth.user!.uid, value, spaceTags.value)
+  try { await setPageProp($firestore, sid.value, p.id, def.key, value) }
   catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
 }
 
