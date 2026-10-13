@@ -47,3 +47,26 @@ describe('attempt timing (TST-21~23)', () => {
     expect(canStart({ status: 'closed', settings: { ...s, closeAt: null } }, 0, 150)).toBe('closed')
   })
 })
+
+describe('grading (TST-14·31)', () => {
+  it('applyGrades clamps, keeps auto scores, recomputes status', async () => {
+    const { applyGrades } = await import('./test')
+    const items = { a: { score: 5, points: 5 }, b: { score: null, points: 10 }, c: { score: 0, points: 5 } }
+    expect(applyGrades(items, {})).toMatchObject({ score: 5, gradingStatus: 'pending' })
+    const r = applyGrades(items, { b: 12, c: 2 })
+    expect(r).toMatchObject({ score: 17, gradingStatus: 'done' })
+    expect(r.items.b).toEqual({ score: 10, points: 10 })
+  })
+  it('finalScores picks best or last per taker, skipping practice', async () => {
+    const { finalScores } = await import('./test')
+    const rs = [
+      { uid: 'a', isPractice: false, score: 8, submittedAtMs: 1 },
+      { uid: 'a', isPractice: false, score: 5, submittedAtMs: 2 },
+      { uid: 'a', isPractice: true, score: 10, submittedAtMs: 3 },
+      { uid: 'b', isPractice: false, score: 3, submittedAtMs: 1 },
+    ]
+    expect(finalScores(rs, 'best').get('a')!.score).toBe(8)
+    expect(finalScores(rs, 'last').get('a')!.score).toBe(5)
+    expect(finalScores(rs, 'best').size).toBe(2)
+  })
+})

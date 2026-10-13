@@ -71,7 +71,7 @@ watch(() => space.current?.ownershipTransfer, async (transfer) => {
       </CardFooter>
     </Card>
     <PersonalHome v-if="space.current.kind === 'personal'" :sid="space.current.id" />
-    <LeadingCard v-else :sid="space.current.id" :missions="space.current.modules?.missions !== false" />
+    <LeadingCard v-else :sid="space.current.id" :missions="space.current.modules?.missions !== false" :tests="!!space.current.modules?.tests" />
     <HomeWidgets :sid="space.current.id" :personal="space.current.kind === 'personal'" :notes="space.current.modules?.notes !== false" />
   </div>
 </template>

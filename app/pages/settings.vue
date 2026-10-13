@@ -36,9 +36,9 @@ async function removeFile(f: Upload) {
   }
   catch (e) { toast.error(errorMessage(e) ?? ko.errors.unknown) }
 }
-const types = ['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group'] as const
+const types = ['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group', 'test'] as const
 type Kind = typeof types[number]
-const enabled = ref<Record<Kind, boolean>>({ mention: true, comment: true, feedbackRequest: true, feedback: true, mission: true, missionReview: true, group: true })
+const enabled = ref<Record<Kind, boolean>>({ mention: true, comment: true, feedbackRequest: true, feedback: true, mission: true, missionReview: true, group: true, test: true })
 const loaded = ref(false)
 
 watch(() => auth.user?.uid, async (uid) => {
