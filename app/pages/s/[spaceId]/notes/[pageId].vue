@@ -297,6 +297,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         :space-id="sid"
         :page-id="pageId"
         :editable="editable"
+        :book-key="live?.type === 'bookReview' ? live.book?.bookKey : undefined"
         @status="blockStatus = $event"
         @loaded="blockCount = $event"
         @error="loadError = true"
