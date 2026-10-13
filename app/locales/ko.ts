@@ -63,6 +63,28 @@ export const ko = {
     greeting: (name: string) => `${name}님, 반가워요`,
     personalSpaceDescription: '혼자 공부하는 단어장·노트·독서 기록을 두는 나만의 공간',
     accountError: '계정 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.',
+    journal: {
+      title: '오늘의 학습일지',
+      done: '오늘 일지를 썼어요.',
+      notYet: '아직 오늘 일지를 쓰지 않았어요.',
+      write: '작성하기',
+      open: '일지 보기',
+    },
+    record: {
+      title: '나의 기록',
+      summary: (streak: number, minutes: number) => `연속 학습 ${streak}일 · 이번 주 ${minutes}분`,
+      grass: (weeks: number) => `최근 ${weeks}주 학습 잔디`,
+      minutes: '분',
+    },
+    feed: {
+      title: '활동',
+      more: '더보기',
+      empty: '아직 활동이 없어요.',
+      someone: '알 수 없음',
+      deckCreated: (name: string, title: string) => `${name}님이 새 단어장 '${title}'을 만들었어요`,
+      journal: (name: string) => `${name}님이 학습일지를 썼어요`,
+      session: (name: string, title: string, cards: number, mode: string) => `${name} · ${title ? `${title} ` : ''}단어 ${cards}개 ${mode}`,
+    },
   },
   space: {
     create: {

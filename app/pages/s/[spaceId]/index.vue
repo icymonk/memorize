@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import HomeWidgets from '~/features/home/components/HomeWidgets.vue'
 import OwnershipTransferBanner from '~/features/space/components/OwnershipTransferBanner.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
 import { DAILY_LIMITS, endOfToday } from '#shared/srs'
@@ -65,10 +66,6 @@ watch(() => space.current?.ownershipTransfer, async (transfer) => {
         </Button>
       </CardFooter>
     </Card>
-    <Card>
-      <CardHeader>
-        <CardDescription>{{ ko.nav.comingSoon }}</CardDescription>
-      </CardHeader>
-    </Card>
+    <HomeWidgets :sid="space.current.id" :personal="space.current.kind === 'personal'" :notes="space.current.modules?.notes !== false" />
   </div>
 </template>
