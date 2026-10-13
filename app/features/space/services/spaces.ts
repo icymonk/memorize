@@ -30,6 +30,12 @@ export interface Membership {
   displayName: string
   photoURL: string | null
   groupIds?: string[]
+  hideProgress?: boolean
+}
+
+/** ACC-11·22: 워크스페이스마다 내 표시 이름과 진도 숨기기 */
+export async function updateMyMembership(db: Firestore, spaceId: string, uid: string, patch: { displayName?: string, hideProgress?: boolean }) {
+  await updateDoc(doc(db, 'spaces', spaceId, 'members', uid), patch)
 }
 
 export async function getUserSpaceIds(db: Firestore, uid: string): Promise<string[]> {

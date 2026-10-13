@@ -36,6 +36,16 @@ export const ko = {
   },
   accountSettings: {
     title: '설정',
+    appearance: '화면',
+    appearanceHint: '이 기기에만 저장돼요.',
+    theme: { label: '테마', system: '시스템 설정', light: '밝게', dark: '어둡게' },
+    fontSize: { label: '글자 크기', sm: '작게', md: '보통', lg: '크게' },
+    workspaces: '워크스페이스별 설정',
+    workspacesHint: '워크스페이스마다 다른 이름을 쓰거나 내 학습 기록을 숨길 수 있어요.',
+    displayName: '표시 이름',
+    hideProgress: '내 학습 기록 숨기기',
+    hideProgressDesc: '다른 멤버에게 내 진도와 학습 활동이 보이지 않아요.',
+    noWorkspaces: '참여 중인 워크스페이스가 없어요.',
     notifications: '알림',
     hint: '알림함에 받을 알림을 고르세요.',
     types: {
