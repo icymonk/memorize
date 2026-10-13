@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.17 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.18 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -325,13 +325,20 @@ spaces/{sid}/questionSets/{setId}          title, questionIds[], createdBy, shar
 
 spaces/{sid}/tests/{testId}
   title, description
-  questionRefs: [{ questionId, points }], pickRule?
-  settings: { timeLimitSec?, openAt, closeAt, maxAttempts, scoring: 'best'|'last',
-              shuffleQuestions, shuffleChoices,
+  questionRefs: [{ questionId, points }]   # 조건 무작위(TST-10)는 만들 때 골라 여기에 넣는다
+  settings: { timeLimitMin|null, openAt|null, closeAt|null (epoch ms), maxAttempts (0=무제한),
+              scoring: 'best'|'last', shuffleQuestions, shuffleChoices,
               resultRelease: 'instant'|'afterClose'|'scoreOnly'|'hidden', practice }
-  assignees, missionId?                   # TST-19
-  createdBy, hostIds[]
+  assignees: { all, uids[], groupIds[] }, missionId?   # TST-16·19
+  status: 'draft'|'open'|'closed'         # draft만 진행자가 고친다. open은 openTest만
+  participantIds[], maxScore, openedAt    # openTest가 채움 (대상자 확정)
+  createdBy, hostIds[], deletedAt
   stats: { attempts, avg }                # 서버 관리 (연습 응시 제외)
+
+spaces/{sid}/tests/{testId}/paper/main     # 시험지 사본 (정답 없음). 진행자 + 시작 시각 이후 대상자 읽기
+  items: [{ questionId, type, prompt, choices, media, points }], hostIds[]
+spaces/{sid}/tests/{testId}/secret/key     # 정답 사본. 클라이언트 접근 불가 (채점 함수 전용)
+  items: { [questionId]: { answer, ignoreCase, ignoreSpaces, explanation, rubric } }
 
 spaces/{sid}/tests/{testId}/attempts/{attemptId}
   uid, isPractice, startedAt, deadlineAt?, submittedAt?
@@ -431,3 +438,4 @@ users/{uid}/avatar/{fileName}
 - v2.15: 유의어·반의어 `cardId` 자동 연결 (VOC-10)
 - v2.16: 문제·정답 문서 형태 확정 (3-A1, TST-01·02)
 - v2.17: 문제 media·copiedFrom 형태 (3-A2, TST-01·40)
+- v2.18: 시험 status·participantIds, 시험지·정답 사본 (3-B1, TST-10~16)
