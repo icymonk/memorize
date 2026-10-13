@@ -38,4 +38,11 @@ test('sign up, create a personal deck, study flashcards, review', async ({ page 
 
   await page.goto(`/s/${sid}/review`)
   await expect(page.getByText('오늘 복습할 카드가 없어요.')).toBeVisible()
+
+  // 새 학습일지는 기본 템플릿으로 시작한다 (NOTE-35)
+  await page.goto(`/s/${sid}/journal`)
+  await page.waitForURL(/\/collections\/journal/)
+  await page.getByRole('button', { name: '새 페이지' }).first().click()
+  await page.waitForURL(/\/notes\/[^/]+$/)
+  await expect(page.locator('.ProseMirror h2')).toHaveText(['오늘 배운 것', '어려웠던 점', '내일 할 것'])
 })

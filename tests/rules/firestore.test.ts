@@ -527,6 +527,7 @@ describe('pages and blocks (NOTE-01·10)', () => {
     const sys = { kind: 'system', systemType: 'journal', name: '학습일지', icon: '', ownerId: 'bob', scope: 'shared', schema: [], views: [], templateIds: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
     const colDoc = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'collections', id)
     await assertFails(setDoc(colDoc('bob', 'other'), sys))
+    await assertSucceeds(getDoc(colDoc('bob', 'journal')))
     await assertFails(setDoc(colDoc('bob', 'journal'), { ...sys, scope: 'private' }))
     await assertSucceeds(setDoc(colDoc('bob', 'journal'), sys))
     const j = (o: object) => page({ type: 'journal', collectionId: 'journal', editPolicy: 'editors', props: { date: '2026-10-12' }, ...o })

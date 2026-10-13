@@ -236,7 +236,7 @@ service cloud.firestore {
             && x.schema is list && x.schema.size() <= 20 && x.views is list && x.views.size() <= 20
             && (sid.matches('p_.*') == false || x.scope == 'private');
         }
-        allow read: if isMember(sid) && (resource.data.scope == 'shared' || resource.data.ownerId == uid());
+        allow read: if isMember(sid) && (resource == null || resource.data.scope == 'shared' || resource.data.ownerId == uid());
         allow create: if isMember(sid)
           && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || cid == 'journal')
           && request.resource.data.ownerId == uid() && validCollection(request.resource.data)
