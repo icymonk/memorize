@@ -9,6 +9,7 @@ import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
 import { XIcon } from '@lucide/vue'
 import { useTags } from '~/features/space/composables/useTags'
+import { saveSubjects } from '~/features/space/services/subjects'
 import { deleteTag, TAG_CLASS } from '~/features/space/services/tags'
 
 const t = ko.space.settings
@@ -21,6 +22,21 @@ if (space.current?.kind !== 'workspace') {
 const canManage = computed(() => space.can('manage'))
 const canDelete = computed(() => space.can('delete'))
 const tags = useTags()
+/** WS-09 공통 과목 */
+const newSubject = ref('')
+const subjects = computed(() => space.current?.subjects ?? [])
+function setSubjects(next: NonNullable<typeof space.current>['subjects'] & object) {
+  return run('subjects', async () => {
+    await saveSubjects(fs, space.current!.id, next)
+    space.current!.subjects = next
+    newSubject.value = ''
+  }, ko.vocab.saved)
+}
+function addSubject() {
+  const name = newSubject.value.trim().slice(0, 30)
+  if (!name || subjects.value.some(s => s.name === name)) return
+  return setSubjects([...subjects.value, { id: crypto.randomUUID().slice(0, 8), name, color: 'slate' }])
+}
 const { $firestore: fs } = useNuxtApp()
 
 const name = ref('')
@@ -245,6 +261,32 @@ async function leave() {
         <p v-if="!tags.length" class="text-muted-foreground">
           {{ t.tagsEmpty }}
         </p>
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>{{ t.subjects }}</CardTitle>
+        <CardDescription>{{ t.subjectsHint }}</CardDescription>
+      </CardHeader>
+      <CardContent class="flex flex-col gap-3 text-sm">
+        <div class="flex flex-wrap gap-1.5">
+          <span v-for="s in subjects" :key="s.id" class="bg-muted flex items-center gap-1 rounded-full px-2.5 py-0.5">
+            {{ s.name }}
+            <button v-if="canManage" type="button" :aria-label="t.subjectDelete(s.name)" :disabled="saving === 'subjects'" class="hover:opacity-70" @click="setSubjects(subjects.filter(x => x.id !== s.id))">
+              <XIcon class="size-3" />
+            </button>
+          </span>
+          <p v-if="!subjects.length" class="text-muted-foreground">
+            {{ t.subjectsEmpty }}
+          </p>
+        </div>
+        <form v-if="canManage" class="flex gap-2" @submit.prevent="addSubject">
+          <Input v-model="newSubject" maxlength="30" :placeholder="t.subjectName" :aria-label="t.subjectName" class="w-48" />
+          <Button type="submit" variant="outline" :disabled="saving === 'subjects' || !newSubject.trim()">
+            {{ t.subjectAdd }}
+          </Button>
+        </form>
       </CardContent>
     </Card>
 

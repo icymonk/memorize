@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { withSubjects } from '~/features/space/services/subjects'
 import type { Member } from '~/features/space/services/invites'
 import { doc, getDoc } from 'firebase/firestore'
 import { listMembers } from '~/features/space/services/invites'
@@ -63,7 +64,7 @@ const isManager = computed(() => ['owner', 'manager'].includes(space.membership?
 const canManage = computed(() => !!col.value && canManageCollection(col.value, uid.value, isManager.value))
 const canAdd = computed(() => !!col.value && (col.value.scope === 'private' ? col.value.ownerId === uid.value : space.can('create')))
 const spaceTags = useTags()
-const schema = computed(() => (col.value?.schema ?? []).map(d => withTags(d, spaceTags.value)))
+const schema = computed(() => (col.value?.schema ?? []).map(d => withSubjects(withTags(d, spaceTags.value), space.current?.subjects ?? [])))
 const defOf = (key: string | null | undefined) => schema.value.find(d => d.key === key)
 const filterDef = computed(() => defOf(filter.value?.key))
 const groupable = computed(() => schema.value.filter(d => ['select', 'multiSelect', 'checkbox'].includes(d.type)))

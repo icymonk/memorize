@@ -93,6 +93,14 @@ describe('group visibility (2-F1, WS-32)', () => {
   })
 })
 
+describe('workspace subjects (2-F2, WS-09)', () => {
+  it('owners and managers edit the shared subject list, members cannot', async () => {
+    const subjects = [{ id: 'en', name: '영어', color: 'blue' }]
+    await assertSucceeds(updateDoc(spaceRef('mia'), { subjects, updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(spaceRef('bob'), { subjects: [], updatedAt: serverTimestamp() }))
+  })
+})
+
 describe('users', () => {
   it('only the user reads their own doc', async () => {
     await assertSucceeds(getDoc(doc(db('alice'), 'users/alice')))
