@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import HomeWidgets from '~/features/home/components/HomeWidgets.vue'
+import PersonalHome from '~/features/home/components/PersonalHome.vue'
 import WelcomeCard from '~/features/space/components/WelcomeCard.vue'
 import OwnershipTransferBanner from '~/features/space/components/OwnershipTransferBanner.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
@@ -68,6 +69,7 @@ watch(() => space.current?.ownershipTransfer, async (transfer) => {
         </Button>
       </CardFooter>
     </Card>
+    <PersonalHome v-if="space.current.kind === 'personal'" :sid="space.current.id" />
     <HomeWidgets :sid="space.current.id" :personal="space.current.kind === 'personal'" :notes="space.current.modules?.notes !== false" />
   </div>
 </template>
