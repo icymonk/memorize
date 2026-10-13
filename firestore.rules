@@ -252,6 +252,34 @@ service cloud.firestore {
         allow delete: if isMember(sid) && resource.data.uid == uid();
       }
 
+      // 3-A1 문제 은행 (TST-01·02·04·07·08). 정답은 questionKeys에 따로 두고 출제자(+공개 설정 시 멤버)만 읽는다
+      match /questions/{qid} {
+        function validQ(x) {
+          return x.keys().hasOnly(['type', 'prompt', 'choices', 'tags', 'difficulty', 'defaultPoints', 'createdBy', 'sharing', 'answerVisibility', 'rev', 'deletedAt', 'createdAt', 'updatedAt'])
+            && x.type in ['single', 'multi', 'ox', 'short', 'essay'] && isText(x.prompt, 1, 2000)
+            && x.choices is list && x.choices.size() <= 6 && x.tags is list && x.tags.size() <= 10
+            && x.difficulty in ['easy', 'normal', 'hard'] && x.defaultPoints is int && x.defaultPoints >= 1 && x.defaultPoints <= 100
+            && x.sharing in ['private', 'space'] && x.answerVisibility in ['authors', 'space'] && x.rev is int;
+        }
+        allow read: if isMember(sid) && (resource.data.createdBy == uid() || resource.data.sharing == 'space');
+        allow create: if isMember(sid) && request.resource.data.createdBy == uid() && request.resource.data.deletedAt == null
+          && validQ(request.resource.data)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid));
+        allow update: if isMember(sid) && resource.data.createdBy == uid() && request.resource.data.createdBy == uid() && validQ(request.resource.data);
+      }
+      match /questionKeys/{qid} {
+        function qAfter() { return getAfter(/databases/$(database)/documents/spaces/$(sid)/questions/$(qid)).data; }
+        function validKey(x) {
+          return x.keys().hasOnly(['answer', 'ignoreCase', 'ignoreSpaces', 'explanation', 'rubric', 'authorIds', 'answerVisibility'])
+            && x.answer is list && x.answer.size() <= 20 && x.ignoreCase is bool && x.ignoreSpaces is bool
+            && isText(x.explanation, 0, 2000) && isText(x.rubric, 0, 2000)
+            && x.authorIds == [uid()] && qAfter().createdBy == uid() && x.answerVisibility == qAfter().answerVisibility;
+        }
+        allow read: if isMember(sid) && (uid() in resource.data.authorIds || resource.data.answerVisibility == 'space');
+        allow create: if isMember(sid) && validKey(request.resource.data);
+        allow update: if isMember(sid) && uid() in resource.data.authorIds && validKey(request.resource.data);
+      }
+
       // 2-E1 미션 (MIS-01·02·10~12·14·34). 개인 목표는 만든 사람만 보고, 내 공간에서는 개인 목표만 만든다
       match /missions/{missionId} {
         function canHost() {
