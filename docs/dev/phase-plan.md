@@ -1,6 +1,6 @@
 # 0~1단계 작업 분해
 
-> 상태: 확정 · v2.25 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
+> 상태: 확정 · v2.26 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
 
 ## 진행 상황
 | 작업 | 상태 | 비고 |
@@ -9,7 +9,7 @@
 | 0-3 서버 기능 기본 틀 | 일부 | `authedCallable`(로그인·zod 검증·오류), 서울 리전, App Check 파라미터(`ENFORCE_APP_CHECK`) |
 | 0-4 로그인 | 코드 완료 · 배포 전 | 구글·이메일 링크 로그인, `auth` 스토어, `auth.global`, `ensureAccount`·`completeOnboarding`, `/welcome` |
 | 0-5 레이아웃 | 일부 | default(사이드바)·auth·focus 레이아웃, 첫 화면. 공간 전환은 0-6 이후 |
-| 0-6 워크스페이스 | 일부 | `createWorkspace`, 공간 목록(사이드바·첫 화면), 만들기 창, `/s/:spaceId` 셸·`space` 미들웨어·`space` 스토어, `/s/:id/settings`(일반·기능·운영 방식·최대 인원 표시), `scheduleSpaceDeletion`·`cancelSpaceDeletion`, `shared/permissions.ts`. 남은 것: `cronSpaceDeletion`(Cloud Scheduler API 필요) |
+| 0-6 워크스페이스 | 일부 | `createWorkspace`, 공간 목록(사이드바·첫 화면), 만들기 창, `/s/:spaceId` 셸·`space` 미들웨어·`space` 스토어, `/s/:id/settings`(일반·기능·운영 방식·최대 인원 표시), `scheduleSpaceDeletion`·`cancelSpaceDeletion`, `shared/permissions.ts`. 남은 것: `cronSpaceDeletion`(Cloud Scheduler API 필요). 유예 끝난 워크스페이스 삭제 `cronSpaceDeletion`(매일 04시, 서울) |
 | 0-7 초대·멤버 | 일부 | `createInvite`·`getInvite`·`joinSpace`·`decideJoinRequest`, `/invite/:code`, 코드로 참여, `/s/:id/members`(멤버·초대·가입 대기), `setManager`·`removeMember`·`leaveSpace`·`transferOwnership`·`respondOwnership`. 남은 것: `onMemberWritten`(나간 멤버 노트 처리, 노트 기능과 함께) |
 | 1-B1 단어장 목록·만들기 | 일부 | `decks`·`deckFolders` 규칙(공개 대상·편집 범위·`whoCanCreate`), `shared/schemas/deck.ts`, `canSeeContent`·`canEditContent`·`canDeleteContent`, `/s/:id/decks`(폴더·태그 거르기)·`/s/:id/decks/:deckId`, 만들기·설정 창. 남은 것: 그룹 공개(그룹 기능과 함께), 진도 표시(1-B5) |
 | 1-B2 카드 입력 | 일부 | `cards` 규칙(단어장 편집 범위·`contentRev` 서버 전용), `onCardWritten`(카드 수·`contentRev`), 카드 한 장 추가·수정(단어장 항목별), 붙여넣기 입력(`shared/paste.ts`, 미리보기), 표 편집·순서 바꾸기, 기기 음성 발음·목소리 선택. 남은 것: 이미지·녹음 올리기(파일 기능과 함께), 유의어·반의어 카드 연결 |
@@ -19,7 +19,7 @@
 | 1-B6 개인 단어장·단어장 복사 | 일부 | 내 공간 단어장은 1-B1부터 같은 화면으로 동작(VOC-06). `copyContent` callable(단어장만): 볼 수 있는 단어장을 내가 만들 수 있는 다른 공간으로 복사, 작성자는 복사한 사람, 폴더·공개 대상·공동 편집자 초기화, 학습 기록·이미지·녹음 제외, "○○에서 복사함" 표시(VOC-04, WS-60~64). 남은 것: 파일 복사(파일 기능과 함께), 노트 복사(1-C) |
 | 1-C1 편집기 핵심 | 완료 | Tiptap 3.31.4 + 평평한 목록 블록·UniqueID. `serialize`(문서 ↔ 블록 목록), `diff`(내용 지문 비교 → 생성·수정·이동·삭제, 순서가 맞는 블록은 키 유지), `order`(순서 키), `writer`(0.8초 디바운스, 400건 묶음 + 페이지 메타, 떠날 때·탭 가릴 때 즉시 저장, 저장됨·저장 중·오프라인·실패·10,000자 초과 표시). 노트 메뉴·페이지 목록·새 페이지·제목 편집, `pages`·`blocks` 규칙(공간 공개·나만 보기, 소유자·공동 편집자 쓰기) (NOTE-01·10). 남은 것: `/` 메뉴·간단 입력·목록 들여쓰기(1-C2), 페이지 계층·휴지통(1-C3), 공개 범위·잠금(1-C4) |
 | 1-C2 블록·꾸미기·메뉴 | 일부 | 블록: 문단·제목 1~3·인용·강조 상자·구분선·코드, 글머리·번호·체크리스트·토글 목록(Tab/Shift+Tab 들여쓰기, Enter로 나누기·빈 줄에서 빠져나오기), 유튜브. 간단 입력(`#`·`-`·`1.`·`[]`·`>`), `/` 블록 메뉴, 선택 시 꾸미기 메뉴(굵게·기울임·밑줄·취소선·코드·링크·글자 색·형광펜), 끌기 손잡이(끌어 옮기기, 위·아래·복제·삭제·바꾸기) (NOTE-01~03·09). 남은 것: 이미지·파일·링크 미리보기(파일 기능과 함께, NOTE-04), `@` 언급(멤버·페이지 연결과 함께) |
-| 1-C3 페이지 정리 | 일부 | 사이드바 페이지 트리(공유 페이지·내 페이지 두 갈래, 하위 페이지 추가, 끌어서 안에 넣기·앞뒤로 옮기기 — `movePage`가 하위 페이지 `ancestorIds`까지 고침), 즐겨찾기·최근 본 페이지(`userPrefs/{uid}`), 경로 표시, 목차(제목 블록, 넓은 화면 오른쪽), 휴지통(`trashPage`·`restorePage`: 하위 페이지와 함께, 작성자·버린 사람만 봄, 복원 시 부모가 없으면 맨 위로) (NOTE-20~23). 남은 것: 30일 지난 휴지통 완전 삭제(`cronPurgeTrash`, Cloud Scheduler API 필요) |
+| 1-C3 페이지 정리 | 일부 | 사이드바 페이지 트리(공유 페이지·내 페이지 두 갈래, 하위 페이지 추가, 끌어서 안에 넣기·앞뒤로 옮기기 — `movePage`가 하위 페이지 `ancestorIds`까지 고침), 즐겨찾기·최근 본 페이지(`userPrefs/{uid}`), 경로 표시, 목차(제목 블록, 넓은 화면 오른쪽), 휴지통(`trashPage`·`restorePage`: 하위 페이지와 함께, 작성자·버린 사람만 봄, 복원 시 부모가 없으면 맨 위로) (NOTE-20~23). 남은 것: 30일 지난 휴지통 완전 삭제(`cronPurgeTrash`, Cloud Scheduler API 필요). 30일 지난 휴지통 자동 삭제 `cronPurgeTrash`(매일 04시, 서울 — 블록·버전·댓글·반응·피드백 요청까지) |
 | 1-C4 공개 범위·공동 편집 | 일부 | 공개 범위 나만·지정한 사람(`sharedWith`)·워크스페이스 전체, 공동 편집자(`editorIds`), 공유 페이지 편집 정책(`editPolicy`: 모든 멤버 기본 / 공동 편집자만), 편집 잠금(`lock`: 30초마다 갱신, 90초 지나면 만료, 다른 사람은 읽기만 — 블록 쓰기 규칙도 잠금 확인) (NOTE-50·52·54·60). 남은 것: 그룹 공개(그룹 기능과 함께), 다른 사람 편집 내용 실시간 반영 |
 | 1-C5 내 모음 | 완료 | 모음 만들기·설정(이름·아이콘·항목: 텍스트·숫자·선택·태그·날짜·체크, `collections/{id}`), 내 모음(만든 사람만)·공유 모음(모든 멤버가 페이지 추가, 설정은 만든 사람·매니저), 모음 페이지(`type: 'item'`, `collectionId`, `props`; 갈래는 모음을 따름, 사이드바 트리에는 안 보임), 리스트·표(바로 고치기·열 정렬)·캘린더(날짜 항목 기준 월간, 빈 날짜 클릭 → 그 날짜로 새 페이지) 보기, 필터 하나·묶기(선택·태그·체크)·정렬을 `views[]`에 이름 붙여 저장, 새 페이지 템플릿(`templateIds[0]` 페이지의 블록 복사), 모음 삭제(`deleteCollection`: 안의 페이지는 휴지통, 복원하면 일반 페이지) (NOTE-40~42·44·46~49). 기분 이모지 표시는 1-C6 일지와 함께
 | 1-C6 내 공간 노트·복사 | 완료 | 내 공간 노트(NOTE-26)는 1-C1부터 같은 화면으로 동작. 페이지·모음 복사(NOTE-27): `copyContent`에 `kind: 'page' \| 'collection'` 추가 — 페이지는 하위 페이지·블록까지 가져갈 공간의 "내 페이지" 맨 아래로(숨겨지거나 휴지통에 있는 페이지와 그 아래는 빠짐, 최대 300장), 모음은 설정·보기·안의 페이지·템플릿까지(내 공간으로 가면 내 모음, 워크스페이스로 가면 원래 갈래). 복사본은 가져간 사람이 작성자, 공유·공동 편집자·댓글·잠금은 처음 상태, "○○에서 복사함" 표시(WS-60~64). 순서 키 함수는 `shared/order.ts`로 옮겨 서버와 함께 씀
@@ -106,6 +106,7 @@
 - 없음
 
 ## 변경 이력
+- v2.26: `cronPurgeTrash`·`cronSpaceDeletion` 스케줄 함수
 - v2.25: 1-A2 홈 위젯·활동 피드 보충
 - v2.19: 1-C6 페이지·모음 복사(NOTE-27)
 - v2.20: 학습일지 1(NOTE-30·31·36)을 2단계에서 앞당겨 완료
