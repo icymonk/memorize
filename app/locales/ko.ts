@@ -6,6 +6,16 @@ export const ko = {
     remove: '삭제',
     unread: (n: number) => `읽지 않은 알림 ${n}개`,
   },
+  accountSettings: {
+    title: '설정',
+    notifications: '알림',
+    hint: '알림함에 받을 알림을 고르세요. 피드백·미션 알림은 그 기능이 생길 때 추가돼요.',
+    types: {
+      mention: { label: '멘션', desc: '댓글에서 누가 나를 @이름으로 불렀을 때' },
+      comment: { label: '내 페이지 댓글', desc: '내가 쓴 페이지에 새 댓글이 달렸을 때' },
+    },
+    saved: '저장했어요',
+  },
   app: {
     name: 'memorize',
     tagline: '함께 배우고, 만들고, 이끄는 그룹 학습 공간',
