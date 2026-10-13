@@ -416,6 +416,12 @@ export const ko = {
     },
     journal: {
       nav: '학습일지',
+      mine: '모든 공간의 내 일지',
+      mineHint: '모든 공간에서 내가 쓴 일지예요. 나만 볼 수 있고, 공간마다 색이 달라요.',
+      filter: '공간 거르기',
+      noJournals: '아직 쓴 일지가 없어요.',
+      members: '멤버별',
+      memberTable: '멤버별 일지 작성 수',
       streak: (n: number) => `일지 연속 ${n}일째`,
       summary: '이 날의 학습',
       noActivity: '이 날 기록된 학습이 없어요.',

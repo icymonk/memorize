@@ -534,4 +534,10 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertFails(setDoc(pageRef('bob', 'j4'), page({ type: 'item', collectionId: 'journal' })))
     await assertFails(updateDoc(pageRef('mia', 'j1'), { title: 'x', updatedAt: serverTimestamp() }))
   })
+
+  it('my journals across spaces: collectionGroup read of my own pages only (NOTE-39)', async () => {
+    await seed('pages/mine', page({ type: 'journal', collectionId: 'journal', editPolicy: 'editors', ownerId: 'bob' }))
+    await assertSucceeds(getDocs(query(collectionGroup(db('bob'), 'pages'), where('ownerId', '==', 'bob'), where('type', '==', 'journal'))))
+    await assertFails(getDocs(query(collectionGroup(db('bob'), 'pages'), where('ownerId', '==', 'alice'), where('type', '==', 'journal'))))
+  })
 })

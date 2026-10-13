@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Member } from '~/features/space/services/invites'
+import { listMembers } from '~/features/space/services/invites'
 import { journalStreak } from '#shared/journal'
 import type { PropDef, PropValue, ViewDef, ViewType } from '#shared/schemas/collection'
 import type { Page } from '~/features/notes/services/pages'
@@ -118,6 +120,30 @@ const todayYmd = ymd(new Date())
 /** NOTE-30·36: 일지는 오늘 날짜로, 지난 날짜에 쓰면 '늦게 씀' */
 const isJournal = computed(() => col.value?.kind === 'system' && col.value.systemType === 'journal')
 const myUid = useAuthStore().user?.uid
+/** NOTE-45 멤버 일지: 나에게 보이는 일지를 멤버 × 날짜(이번 달) 표로 */
+const showMembers = ref(false)
+const members = ref<Member[]>([])
+const { $firestore: fs } = useNuxtApp()
+async function toggleMembers() {
+  showMembers.value = !showMembers.value
+  if (!showMembers.value || members.value.length) return
+  try { members.value = (await listMembers(fs, sid.value)).filter(m => m.status === 'active').sort((a, b) => a.displayName.localeCompare(b.displayName, 'ko')) }
+  catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
+}
+const monthDays = computed(() => {
+  const y = month.value.getFullYear()
+  const m = month.value.getMonth()
+  return Array.from({ length: new Date(y, m + 1, 0).getDate() }, (_, i) => ymd(new Date(y, m, i + 1)))
+})
+const memberCounts = computed(() => {
+  const map = new Map<string, number>()
+  if (!col.value) return map
+  for (const p of notes.itemsOf(col.value.id)) {
+    const d = p.props?.date
+    if (typeof d === 'string' && !p.deletedAt) map.set(`${p.ownerId}|${d}`, (map.get(`${p.ownerId}|${d}`) ?? 0) + 1)
+  }
+  return map
+})
 const streak = computed(() => (isJournal.value && col.value
   ? journalStreak(notes.itemsOf(col.value.id).filter(p => p.ownerId === myUid && !p.deletedAt).map(p => p.props?.date).filter((d): d is string => typeof d === 'string'), todayYmd)
   : 0))
@@ -215,6 +241,14 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
           <span class="truncate">{{ col.name }}</span>
         </h1>
         <div class="flex items-center gap-2">
+          <Button v-if="isJournal" variant="ghost" size="sm" as-child>
+            <NuxtLink to="/journal">
+              {{ ko.notes.journal.mine }}
+            </NuxtLink>
+          </Button>
+          <Button v-if="isJournal && col.scope === 'shared'" :variant="showMembers ? 'secondary' : 'ghost'" size="sm" :aria-pressed="showMembers" @click="toggleMembers">
+            {{ ko.notes.journal.members }}
+          </Button>
           <Button v-if="col.kind !== 'system'" variant="ghost" size="icon" :aria-label="ko.notes.copy.button" :title="ko.notes.copy.button" @click="copyOpen = true">
             <CopyIcon />
           </Button>
@@ -290,6 +324,33 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
         </Button>
       </div>
 
+      <div v-if="isJournal && showMembers" class="overflow-x-auto rounded-lg border">
+        <table class="text-xs">
+          <caption class="sr-only">
+            {{ ko.notes.journal.memberTable }}
+          </caption>
+          <thead>
+            <tr>
+              <th class="bg-muted/50 sticky left-0 px-2 py-1 text-left font-medium">
+                {{ month.getMonth() + 1 }}
+              </th>
+              <th v-for="d in monthDays" :key="d" class="bg-muted/50 min-w-6 px-1 py-1 text-center font-normal">
+                {{ Number(d.slice(8)) }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="m in members" :key="m.uid" class="border-t">
+              <th class="bg-background sticky left-0 max-w-32 truncate px-2 py-1 text-left font-medium">
+                {{ m.displayName }}
+              </th>
+              <td v-for="d in monthDays" :key="d" :class="cn('px-1 py-1 text-center', memberCounts.get(`${m.uid}|${d}`) ? 'bg-primary/15 font-medium' : 'text-muted-foreground/40')">
+                {{ memberCounts.get(`${m.uid}|${d}`) ?? '·' }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <template v-if="type === 'calendar'">
         <p v-if="!calendarKey" class="text-muted-foreground py-12 text-center text-sm">
           {{ t.needDateProp }}
