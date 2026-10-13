@@ -1,6 +1,7 @@
 import type { BlockOp } from './diff'
 import type { FlatBlock } from './serialize'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { savedFrom } from './diff'
 import { chunkOps, createSaveQueue } from './writer'
 
 const b = (id: string, t = id): FlatBlock => ({ id, type: 'paragraph', parentBlockId: null, attrs: {}, content: [{ type: 'text', text: t }] })
@@ -40,6 +41,17 @@ describe('createSaveQueue', () => {
     ])
     expect(statuses.at(-1)).toBe('saved')
     expect(q.busy).toBe(false)
+  })
+
+  it('rebase adopts content received from others without writing it back', () => {
+    const { q, commit, state } = setup([b('a')])
+    state.blocks = [b('a', 'remote')]
+    q.rebase(savedFrom([{ ...b('a', 'remote'), order: 'a0' }]))
+    q.flush()
+    expect(commit).not.toHaveBeenCalled()
+    state.blocks = [b('a', 'remote!')]
+    q.flush()
+    expect(commit.mock.calls[0]![0]).toEqual([expect.objectContaining({ kind: 'update', id: 'a' })])
   })
 
   it('flush writes immediately; nothing changed → no write', async () => {
