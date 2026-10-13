@@ -835,3 +835,28 @@ describe('mission review (2-E3, MIS-31)', () => {
     await assertSucceeds(verdict('bob', 'approved'))
   })
 })
+
+describe('shelf (2-C1, READ-01~03·10)', () => {
+  const book = (uid: string, over: object = {}) => ({ uid, bookKey: 'isbn:9788936434120', title: '소년이 온다', authors: ['한강'], publisher: '창비', cover: 'https://img/x.jpg', format: 'paper', total: { pages: 216, minutes: null }, status: 'want', rating: null, ...over })
+  const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'shelf', id)
+
+  it('members shelve books only as themselves under uid_bookKey; others read but cannot change them', async () => {
+    await assertSucceeds(setDoc(ref('bob', 'bob_isbn:9788936434120'), book('bob')))
+    await assertFails(setDoc(ref('bob', 'alice_isbn:9788936434120'), book('alice')))
+    await assertFails(setDoc(ref('bob', 'bob_other'), book('bob')))
+    await assertFails(setDoc(ref('bob', 'bob_isbn:9788936434120'), book('bob', { cover: 'http://img/x.jpg' })))
+    await assertFails(setDoc(ref('lee', 'lee_isbn:9788936434120'), book('lee')))
+    await assertSucceeds(getDoc(ref('alice', 'bob_isbn:9788936434120')))
+    await assertFails(updateDoc(ref('alice', 'bob_isbn:9788936434120'), { status: 'done' }))
+    await assertSucceeds(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { status: 'done', rating: 5 }))
+    await assertFails(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { rating: 6 }))
+    await assertFails(deleteDoc(ref('alice', 'bob_isbn:9788936434120')))
+    await assertSucceeds(deleteDoc(ref('bob', 'bob_isbn:9788936434120')))
+  })
+
+  it('book groups are server-only', async () => {
+    await assertSucceeds(getDocs(collection(db('bob'), 'spaces', SID, 'books')))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'books', 'isbn:9788936434120'), { title: 'x' }))
+  })
+})
+

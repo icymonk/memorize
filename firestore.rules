@@ -169,6 +169,25 @@ service cloud.firestore {
         allow delete: if isMember(sid) && (resource.data.ownerId == uid() || isManager(sid));
       }
 
+      // 2-C1 내 책장 (READ-01~03·05·10·11). 책은 각자 자기 책장에, 묶음(books)은 서버만
+      match /shelf/{id} {
+        function validShelf(x) {
+          return x.uid == uid() && id == uid() + '_' + x.bookKey && isText(x.bookKey, 3, 80)
+            && isText(x.title, 1, 200) && x.authors is list && x.authors.size() <= 10
+            && isText(x.publisher, 0, 100) && isText(x.cover, 0, 500) && (x.cover == '' || x.cover.matches('https://.*'))
+            && x.format in ['paper', 'ebook', 'audio'] && x.status in ['want', 'reading', 'done', 'dropped']
+            && (!('rating' in x) || x.rating == null || (x.rating is int && x.rating >= 1 && x.rating <= 5));
+        }
+        allow read: if isMember(sid);
+        allow create: if isMember(sid) && validShelf(request.resource.data);
+        allow update: if isMember(sid) && resource.data.uid == uid() && validShelf(request.resource.data)
+          && request.resource.data.bookKey == resource.data.bookKey;
+        allow delete: if isMember(sid) && resource.data.uid == uid();
+      }
+      match /books/{key} {
+        allow read: if isMember(sid);
+      }
+
       // 2-E1 미션 (MIS-01·02·10~12·14·34). 개인 목표는 만든 사람만 보고, 내 공간에서는 개인 목표만 만든다
       match /missions/{missionId} {
         function canHost() {

@@ -11,7 +11,7 @@ export const modulesSchema = z.object(Object.fromEntries(MODULE_KEYS.map(k => [k
 export const DEFAULT_WORKSPACE_MODULES: Modules = {
   vocab: true,
   notes: true,
-  reading: false,
+  reading: true,
   reviews: false,
   missions: true,
   tests: false,
