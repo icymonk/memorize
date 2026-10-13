@@ -8,7 +8,11 @@ import { toast } from 'vue-sonner'
 import { dateKey } from '#shared/dates'
 import AddBookDialog from '~/features/reading/components/AddBookDialog.vue'
 import BookDetailDialog from '~/features/reading/components/BookDetailDialog.vue'
-import { askFinish, recordReading } from '~/features/reading/services/logs'
+import QuoteList from '~/features/reading/components/QuoteList.vue'
+import ReadingStats from '~/features/reading/components/ReadingStats.vue'
+import { askFinish, deleteRefs, myBookData, recordReading } from '~/features/reading/services/logs'
+import type { Quote } from '~/features/reading/services/quotes'
+import { listQuotes } from '~/features/reading/services/quotes'
 import { joinBook, listBooks, listMyShelf, removeFromShelf, statusPatch, updateShelf } from '~/features/reading/services/shelf'
 import { listMembers } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
@@ -30,7 +34,19 @@ const mine = ref<ShelfItem[]>([])
 const books = ref<BookGroup[]>([])
 const members = ref<Member[]>([])
 const loading = ref(true)
-const tab = ref<'all' | ShelfStatus | 'space'>('all')
+const tab = ref<'all' | ShelfStatus | 'space' | 'quotes' | 'stats'>('all')
+const quotes = ref<Quote[] | null>(null)
+const quoteMember = ref('')
+const quoteGroups = computed(() => {
+  const groups = new Map<string, { title: string, items: Quote[] }>()
+  for (const q of quotes.value ?? []) {
+    if (quoteMember.value && q.uid !== quoteMember.value) continue
+    const g = groups.get(q.bookKey) ?? { title: q.title, items: [] }
+    g.items.push(q)
+    groups.set(q.bookKey, g)
+  }
+  return [...groups.values()]
+})
 const addOpen = ref(false)
 const detail = ref<ShelfItem | null>(null)
 const detailOpen = ref(false)
@@ -61,7 +77,22 @@ async function load() {
   }
 }
 onMounted(load)
-watch(sid, load)
+watch(sid, () => {
+  quotes.value = null
+  load()
+})
+
+/** READ-31: 구절 모아 보기 — 책별, 멤버별 */
+watch(tab, async (v) => {
+  if (v !== 'quotes') return
+  try {
+    quotes.value = await listQuotes($firestore, sid.value, auth.user!.uid, workspace.value)
+  }
+  catch (e) {
+    quotes.value = []
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+})
 
 async function changeStatus(b: ShelfItem, status: ShelfStatus) {
   const patch = statusPatch(b, status, today)
@@ -113,8 +144,15 @@ async function join(g: BookGroup) {
 
 async function remove(b: ShelfItem) {
   if (!await confirmDialog(t.removeConfirm(b.title))) return
-  await removeFromShelf($firestore, sid.value, b.id)
-  mine.value = mine.value.filter(x => x.id !== b.id)
+  try {
+    const refs = await myBookData($firestore, sid.value, auth.user!.uid, b.bookKey)
+    if (refs.length && await confirmDialog(t.removeData(refs.length))) await deleteRefs($firestore, refs)
+    await removeFromShelf($firestore, sid.value, b.id)
+    mine.value = mine.value.filter(x => x.id !== b.id)
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
 }
 </script>
 
@@ -141,10 +179,41 @@ async function remove(b: ShelfItem) {
         <TabsTrigger v-if="workspace" value="space">
           {{ t.spaceShelf }}
         </TabsTrigger>
+        <TabsTrigger value="quotes">
+          {{ t.quotes.tab }}
+        </TabsTrigger>
+        <TabsTrigger value="stats">
+          {{ t.stats.tab }}
+        </TabsTrigger>
       </TabsList>
     </Tabs>
 
-    <p v-if="loading" class="text-muted-foreground text-sm">
+    <ReadingStats v-if="tab === 'stats'" :sid="sid" />
+    <template v-else-if="tab === 'quotes'">
+      <p v-if="!quotes" class="text-muted-foreground text-sm">
+        …
+      </p>
+      <template v-else>
+        <select v-if="workspace" v-model="quoteMember" :aria-label="t.quotes.member" class="border-input h-8 w-48 rounded-md border bg-transparent px-2 text-sm">
+          <option value="">
+            {{ t.quotes.allMembers }}
+          </option>
+          <option v-for="m in members" :key="m.uid" :value="m.uid">
+            {{ m.displayName }}
+          </option>
+        </select>
+        <p v-if="!quoteGroups.length" class="text-muted-foreground py-10 text-center text-sm">
+          {{ t.quotes.none }}
+        </p>
+        <section v-for="g in quoteGroups" :key="g.title" class="flex flex-col gap-2">
+          <h2 class="font-medium">
+            {{ g.title }}
+          </h2>
+          <QuoteList :sid="sid" :quotes="g.items" :name-of="workspace ? name : undefined" @removed="id => quotes = quotes!.filter(q => q.id !== id)" />
+        </section>
+      </template>
+    </template>
+    <p v-else-if="loading" class="text-muted-foreground text-sm">
       …
     </p>
     <template v-else-if="tab === 'space'">
@@ -197,6 +266,6 @@ async function remove(b: ShelfItem) {
     </ul>
 
     <AddBookDialog v-model:open="addOpen" :sid="sid" @saved="load" />
-    <BookDetailDialog v-model:open="detailOpen" :sid="sid" :book="detail" :today="today" @saved="load" />
+    <BookDetailDialog v-model:open="detailOpen" :sid="sid" :book="detail" :today="today" :workspace="workspace" :name-of="name" @saved="load" />
   </div>
 </template>
