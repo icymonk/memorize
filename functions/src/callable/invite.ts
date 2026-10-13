@@ -161,5 +161,17 @@ export const decideJoinRequest = authedCallable(decideJoinRequestInput, async ({
     tx.update(spaceRef, { memberCount: FieldValue.increment(1), updatedAt: now })
     tx.update(db.doc(`users/${data.uid}`), { spaceIds: FieldValue.arrayUnion(spaceRef.id), updatedAt: now })
   })
+  // WS-13: 신청자에게 결과 알림 (거절이면 멤버 문서가 없으니 알림함에 바로 쓴다)
+  const name = (await spaceRef.get()).get('name') ?? ''
+  await db.collection(`users/${data.uid}/notifications`).add({
+    spaceId: data.spaceId,
+    type: 'join',
+    actorId: uid,
+    refPath: data.approve ? `/s/${data.spaceId}` : '/',
+    title: data.approve ? `'${name}' 가입이 승인됐어요` : `'${name}' 가입 신청이 거절됐어요`,
+    body: '',
+    read: false,
+    createdAt: FieldValue.serverTimestamp(),
+  })
   return { ok: true as const }
 })
