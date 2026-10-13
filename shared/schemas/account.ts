@@ -1,3 +1,4 @@
+import type { BookSearchInput, BookSearchOutput } from './book'
 import type { CreateInviteInput, CreateInviteOutput, DecideJoinRequestInput, InviteCodeInput, InvitePreview, JoinSpaceOutput } from './invite'
 import type { CancelSpaceDeletionInput, CreateWorkspaceInput, CreateWorkspaceOutput, MemberTargetInput, RespondOwnershipInput, ScheduleSpaceDeletionInput, SetManagerInput, TransferOwnershipInput } from './space'
 import type { CopyContentInput, CopyContentOutput } from './copy'
@@ -49,4 +50,5 @@ export interface Callables {
   restorePage: { input: PageRefInput, output: PageOpOutput }
   deleteCollection: { input: CollectionRefInput, output: PageOpOutput }
   leaveFeedback: { input: LeaveFeedbackInput, output: { ok: true } }
+  searchBooks: { input: BookSearchInput, output: BookSearchOutput }
 }
