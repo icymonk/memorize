@@ -1096,6 +1096,16 @@ describe('question bank (3-A1, TST-01·07·08)', () => {
     await assertFails(save('lee', 'q9'))
   })
 
+  it('15 generated questions with keys fit in one batch (TST-03)', async () => {
+    const d = db('bob')
+    const b = writeBatch(d)
+    for (let i = 0; i < 15; i++) {
+      b.set(doc(d, 'spaces', SID, 'questions', `g${i}`), q('bob', { type: 'single', choices: ['a', 'b', 'c', 'd'] }))
+      b.set(doc(d, 'spaces', SID, 'questionKeys', `g${i}`), k('bob', { answer: [0] }))
+    }
+    await assertSucceeds(b.commit())
+  })
+
   it('subject and up to 5 media files', async () => {
     const f = { id: 'f1', name: 'a.png', path: `spaces/${SID}/files/bob/f1/a.png`, contentType: 'image/png', size: 10 }
     await assertSucceeds(save('bob', 'q10', { subjectId: 's1', media: [f] }))

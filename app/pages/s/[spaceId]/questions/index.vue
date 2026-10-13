@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { Member } from '~/features/space/services/invites'
 import type { Question, QuestionKey } from '~/features/tests/services/questions'
-import { CopyIcon, PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { CopyIcon, LayersIcon, PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import AttachmentList from '~/features/files/components/AttachmentList.vue'
 import { listMembers } from '~/features/space/services/invites'
+import DeckQuestionsDialog from '~/features/tests/components/DeckQuestionsDialog.vue'
 import QuestionFormDialog from '~/features/tests/components/QuestionFormDialog.vue'
 import { deleteQuestion, getQuestionKey, listQuestions } from '~/features/tests/services/questions'
 import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
@@ -38,6 +39,8 @@ const subjectName = computed(() => new Map(subjects.value.map(s => [s.id, s.name
 const copyOpen = ref(false)
 const copyId = ref('')
 const formOpen = ref(false)
+const genOpen = ref(false)
+const vocabOn = computed(() => space.current?.modules?.vocab !== false)
 const editing = ref<Question | null>(null)
 const openId = ref<string | null>(null)
 const keys = ref<Record<string, QuestionKey | null>>({})
@@ -108,9 +111,14 @@ async function remove(q: Question) {
   <div class="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4 md:p-6">
     <div class="flex items-center justify-between gap-2">
       <h1 class="text-xl font-semibold">{{ t.title }}</h1>
-      <Button v-if="canCreate" size="sm" @click="create">
-        <PlusIcon /> {{ t.create }}
-      </Button>
+      <div v-if="canCreate" class="flex gap-2">
+        <Button v-if="vocabOn" size="sm" variant="outline" @click="genOpen = true">
+          <LayersIcon /> {{ t.gen.open }}
+        </Button>
+        <Button size="sm" @click="create">
+          <PlusIcon /> {{ t.create }}
+        </Button>
+      </div>
     </div>
     <Tabs v-if="!personal" v-model="tab">
       <TabsList>
@@ -172,6 +180,7 @@ async function remove(q: Question) {
       </li>
     </ul>
     <QuestionFormDialog v-model:open="formOpen" :question="editing" @saved="load" />
+    <DeckQuestionsDialog v-model:open="genOpen" @saved="tab = 'mine'; load()" />
     <CopyDeckDialog v-model:open="copyOpen" kind="question" :from-space-id="sid" :content-id="copyId" />
   </div>
 </template>

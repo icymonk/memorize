@@ -52,6 +52,24 @@ export async function saveQuestion(db: Firestore, sid: string, uid: string, q: Q
 }
 
 /** 시험에 쓰였을 수 있으므로 지우지 않고 표시만 한다 (TST 예외 상황) */
+/** 규칙이 정답마다 같은 묶음의 문제를 읽으므로(getAfter) 묶음 하나의 문서 읽기 한도(20) 안으로 나눈다 */
+const GEN_BATCH = 15
+
+/** TST-03 여러 문제를 한꺼번에 새로 만든다 */
+export async function saveQuestions(db: Firestore, sid: string, uid: string, items: { q: QuestionInput, k: QuestionKeyInput }[]) {
+  const now = serverTimestamp()
+  for (let i = 0; i < items.length; i += GEN_BATCH) {
+    const batch = writeBatch(db)
+    for (const { q, k } of items.slice(i, i + GEN_BATCH)) {
+      const ref = doc(questionsOf(db, sid))
+      batch.set(ref, { ...q, createdBy: uid, rev: 1, deletedAt: null, createdAt: now, updatedAt: now })
+      batch.set(keyRef(db, sid, ref.id), { ...k, authorIds: [uid], answerVisibility: q.answerVisibility })
+    }
+    await batch.commit()
+  }
+  return items.length
+}
+
 export async function deleteQuestion(db: Firestore, sid: string, q: Question) {
   const batch = writeBatch(db)
   batch.update(doc(questionsOf(db, sid), q.id), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() })
