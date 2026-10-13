@@ -80,7 +80,7 @@ const cancelDeletion = () => run('delete', () => space.cancelDeletion(), t.delet
 
 async function leave() {
   const s = space.current
-  if (!s || !window.confirm(ko.members.leave.confirm(s.name))) return
+  if (!s || !(await confirmDialog(ko.members.leave.confirm(s.name)))) return
   await run('leave', async () => {
     await space.leave()
     await navigateTo('/', { replace: true })

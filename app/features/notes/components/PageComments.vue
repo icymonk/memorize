@@ -54,7 +54,7 @@ const saveEdit = (c: Comment) => run(async () => {
   editing.value = null
 })
 const remove = (c: Comment) => run(async () => {
-  if (window.confirm(t.removeConfirm)) await removeComment($firestore, props.sid, c.id)
+  if (await confirmDialog(t.removeConfirm)) await removeComment($firestore, props.sid, c.id)
 })
 </script>
 

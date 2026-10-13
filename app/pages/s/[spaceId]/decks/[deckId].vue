@@ -185,7 +185,7 @@ async function saveTable() {
 }
 
 async function removeCard(card: Card) {
-  if (!window.confirm(t.cards.deleteConfirm(card.front))) return
+  if (!(await confirmDialog(t.cards.deleteConfirm(card.front)))) return
   try {
     await saveCards($firestore, sid.value, deckId.value, [], [card.id])
     toast.success(t.cards.deleted)
@@ -197,7 +197,7 @@ async function removeCard(card: Card) {
 }
 
 async function remove() {
-  if (!deck.value || !window.confirm(t.deleteConfirm(deck.value.title))) return
+  if (!deck.value || !(await confirmDialog(t.deleteConfirm(deck.value.title)))) return
   try {
     await deleteDeck($firestore, sid.value, deck.value.id)
     toast.success(t.deleted)

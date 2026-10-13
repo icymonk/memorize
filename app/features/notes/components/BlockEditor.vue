@@ -63,9 +63,12 @@ function slashRender(): ReturnType<NonNullable<SuggestionOptions<SlashItem>['ren
 
 function onSlashItem(key: string, e: CoreEditor) {
   if (key !== 'video') return false
-  const src = youtubeEmbed(window.prompt(t.videoPrompt) ?? '')
-  if (src) insertBlock(e, 'video', { src })
-  else toast.error(t.videoInvalid)
+  void promptDialog(t.videoPrompt).then((raw) => {
+    if (raw === null) return
+    const src = youtubeEmbed(raw)
+    if (src) insertBlock(e, 'video', { src })
+    else toast.error(t.videoInvalid)
+  })
   return true
 }
 
@@ -134,9 +137,9 @@ const marks = computed(() => [
   { key: 'strike', icon: StrikethroughIcon, run: () => chain().toggleStrike().run() },
   { key: 'code', icon: CodeIcon, run: () => chain().toggleCode().run() },
 ] as const)
-function setLink() {
+async function setLink() {
   const prev = editor.value!.getAttributes('link').href as string | undefined
-  const href = window.prompt(t.format.linkPrompt, prev ?? 'https://')
+  const href = await promptDialog(t.format.linkPrompt, prev ?? 'https://')
   if (href === null) return
   if (!href.trim()) chain().extendMarkRange('link').unsetLink().run()
   else chain().extendMarkRange('link').setLink({ href: href.trim() }).run()

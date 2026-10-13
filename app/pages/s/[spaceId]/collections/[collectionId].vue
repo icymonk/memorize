@@ -197,7 +197,7 @@ async function setProp(p: Page, def: PropDef, v: PropValue) {
 
 async function saveView() {
   if (!col.value) return
-  const name = window.prompt(t.viewName, t.views[type.value])?.trim()
+  const name = (await promptDialog(t.viewName, t.views[type.value]))?.trim()
   if (!name) return
   const parsed = viewDef.safeParse({
     id: newPropKey(views.value.map(v => v.id)).replace('p', 'v'),
