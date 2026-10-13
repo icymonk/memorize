@@ -415,6 +415,7 @@ export const ko = {
       editPolicy: '공유 페이지 편집',
       policies: { everyone: '모든 멤버가 편집', editors: '나와 공동 편집자만 편집' } as Record<string, string>,
     },
+    reactions: { label: '반응' },
     comments: {
       title: '댓글',
       empty: '아직 댓글이 없어요.',

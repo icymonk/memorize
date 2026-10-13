@@ -12,6 +12,7 @@ import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import JournalSummary from '~/features/notes/components/JournalSummary.vue'
 import IconPicker from '~/features/notes/components/IconPicker.vue'
 import PageComments from '~/features/notes/components/PageComments.vue'
+import PageReactions from '~/features/notes/components/PageReactions.vue'
 import PropCell from '~/features/notes/components/PropCell.vue'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
 import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
@@ -264,6 +265,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         @error="loadError = true"
         @headings="headings = $event"
       />
+      <PageReactions v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
       <PageComments v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
     </template>
   </div>
