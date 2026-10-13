@@ -880,7 +880,7 @@ describe('shelf (2-C1, READ-01~03·10)', () => {
   })
 })
 
-describe('reading logs (2-C3, READ-20·23)', () => {
+describe('reading logs (2-C3, READ-20·23; others see them like study sessions)', () => {
   const log = (uid: string, over: object = {}) => ({ uid, bookKey: 'isbn:9788936434120', title: '소년이 온다', date: '2026-10-12', unit: 'page', from: 10, to: 40, minutes: 30, memo: '', ...over })
   const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'readingLogs', id)
 
@@ -890,10 +890,38 @@ describe('reading logs (2-C3, READ-20·23)', () => {
     await assertFails(setDoc(ref('bob', 'l3'), log('bob', { unit: 'chapter' })))
     await assertFails(setDoc(ref('lee', 'l4'), log('lee')))
     await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'readingLogs'), where('uid', '==', 'bob'), where('bookKey', '==', 'isbn:9788936434120'))))
-    await assertFails(getDoc(ref('alice', 'l1')))
-    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'readingLogs')))
+    await assertSucceeds(getDoc(ref('alice', 'l1')))
+    await assertFails(getDoc(ref('lee', 'l1')))
     await assertFails(deleteDoc(ref('alice', 'l1')))
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'members', 'bob'), { hideProgress: true }))
+    await assertFails(getDoc(ref('alice', 'l1')))
+    await assertSucceeds(getDoc(ref('bob', 'l1')))
     await assertSucceeds(deleteDoc(ref('bob', 'l1')))
+  })
+})
+
+describe('quotes (2-C4, READ-30·31)', () => {
+  const quote = (uid: string, over: object = {}) => ({ uid, bookKey: 'isbn:9788936434120', title: '소년이 온다', date: '2026-10-12', unit: 'page', position: 12, text: '너는 내 손을 잡고', visibility: 'private', ...over })
+  const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'quotes', id)
+  const quotes = (uid: string) => collection(db(uid), 'spaces', SID, 'quotes')
+
+  it('private quotes are only for the author, space quotes for all members', async () => {
+    await assertSucceeds(setDoc(ref('bob', 'q1'), quote('bob')))
+    await assertSucceeds(setDoc(ref('bob', 'q2'), quote('bob', { visibility: 'space' })))
+    await assertFails(setDoc(ref('bob', 'q3'), quote('alice')))
+    await assertFails(setDoc(ref('bob', 'q4'), quote('bob', { text: '' })))
+    await assertFails(setDoc(ref('bob', 'q5'), quote('bob', { visibility: 'group' })))
+    await assertFails(setDoc(ref('lee', 'q6'), quote('lee')))
+    await assertFails(getDoc(ref('alice', 'q1')))
+    await assertSucceeds(getDoc(ref('alice', 'q2')))
+    await assertFails(getDoc(ref('lee', 'q2')))
+    await assertSucceeds(getDocs(query(quotes('alice'), where('visibility', '==', 'space'))))
+    await assertFails(getDocs(quotes('alice')))
+    await assertSucceeds(getDocs(query(quotes('bob'), where('uid', '==', 'bob'), where('date', '==', '2026-10-12'))))
+    await assertFails(updateDoc(ref('alice', 'q2'), { visibility: 'private' }))
+    await assertSucceeds(updateDoc(ref('bob', 'q1'), { visibility: 'space' }))
+    await assertFails(deleteDoc(ref('alice', 'q2')))
+    await assertSucceeds(deleteDoc(ref('bob', 'q2')))
   })
 })
 

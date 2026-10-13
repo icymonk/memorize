@@ -254,7 +254,7 @@ spaces/{sid}/readingLogs/{id}                 # READ-20
   uid, bookKey, date, from?, to?, unit: 'page'|'percent'|'minute', minutes, memo?
 
 spaces/{sid}/quotes/{id}                      # READ-30
-  uid, bookKey, position, text, visibility: 'private' | 'space'
+  uid, bookKey, title, date, unit, position, text, visibility: 'private' | 'space'   # title·date: 모아 보기·학습일지 요약용 복사본
 
 spaces/{sid}/readingGroups/{id}               # READ-40~45
   bookKey, book: { title, authors, cover }
@@ -410,6 +410,7 @@ users/{uid}/avatar/{fileName}
 
 ## 16. 변경 이력
 - v2.7: 독후감 페이지의 `book`, 기본 모음 `collections/bookReview`
+- v2.6: `quotes`에 `title`·`date`·`unit`, `readingLogs`는 진도 공유 규칙으로 멤버가 읽음
 - v2.5: 페이지 휴지통 필드(`deletedAt`은 항상 기록, `deletedBy`·`trashRootId`), `userPrefs` 추가
 - v2.4: `decks.copiedFrom.spaceName`(WS-63, 원본 공간을 나간 뒤에도 표시)
 - v2.3: `spaces.ownershipTransfer`(WS-25)

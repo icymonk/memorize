@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ReadingLog } from '../services/logs'
+import type { Quote } from '../services/quotes'
 import type { ShelfItem } from '../services/shelf'
 import { logUnit } from '#shared/schemas/book'
 import { StarIcon } from '@lucide/vue'
@@ -7,10 +8,12 @@ import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 import { askFinish, listBookLogs, recordReading } from '../services/logs'
+import { addQuote, listQuotes } from '../services/quotes'
 import { updateShelf } from '../services/shelf'
+import QuoteList from './QuoteList.vue'
 
 /** READ-11: 책별 내 정보 — 현재 위치, 시작일, 완독일, 별점 */
-const props = defineProps<{ sid: string, book: ShelfItem | null, today: string, reviews?: boolean }>()
+const props = defineProps<{ sid: string, book: ShelfItem | null, today: string, workspace?: boolean, nameOf?: (uid: string) => string, reviews?: boolean }>()
 const emit = defineEmits<{ saved: [], review: [book: ShelfItem] }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -32,6 +35,12 @@ const logMinutes = ref<number | null>(null)
 const logMemo = ref('')
 const logging = ref(false)
 const unit = computed(() => logUnit(props.book?.format ?? 'paper'))
+const quotes = ref<Quote[]>([])
+const qPos = ref<number | null>(null)
+const qText = ref('')
+const qShare = ref(false)
+const quoting = ref(false)
+const Q = t.quotes
 const num = (v: string | number | null | undefined) => v === '' || v == null ? null : Number(v)
 
 const key = computed(() => props.book?.format === 'audio' ? 'minutes' : props.book?.format === 'ebook' ? 'percent' : 'page')
@@ -51,7 +60,42 @@ watch(open, (v) => {
   logMemo.value = ''
   logs.value = []
   listBookLogs($firestore, props.sid, auth.user!.uid, b.bookKey).then(l => logs.value = l).catch(() => {})
+  qPos.value = pos.value
+  qText.value = ''
+  qShare.value = false
+  quotes.value = []
+  loadQuotes(b.bookKey)
 })
+
+function loadQuotes(bookKey: string) {
+  listQuotes($firestore, props.sid, auth.user!.uid, !!props.workspace, bookKey).then(q => quotes.value = q).catch(() => {})
+}
+
+/** READ-30 */
+async function saveQuote() {
+  const b = props.book
+  if (!b || !qText.value.trim()) return
+  quoting.value = true
+  try {
+    await addQuote($firestore, props.sid, auth.user!.uid, b.title, {
+      bookKey: b.bookKey,
+      date: props.today,
+      unit: unit.value,
+      position: qPos.value == null ? null : Math.max(0, Math.round(qPos.value)),
+      text: qText.value.trim().slice(0, 1000),
+      visibility: props.workspace && qShare.value ? 'space' : 'private',
+    })
+    toast.success(Q.saved)
+    qText.value = ''
+    loadQuotes(b.bookKey)
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+  finally {
+    quoting.value = false
+  }
+}
 
 /** READ-20·24 */
 async function addLog() {
@@ -107,7 +151,7 @@ async function save() {
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent v-if="book" class="sm:max-w-md">
+    <DialogContent v-if="book" class="max-h-[90vh] overflow-y-auto sm:max-w-md">
       <DialogHeader>
         <DialogTitle>{{ book.title }}</DialogTitle>
         <DialogDescription>{{ [book.authors.join(', '), t.formats[book.format], t.statuses[book.status]].filter(Boolean).join(' · ') }}</DialogDescription>
@@ -171,6 +215,27 @@ async function save() {
             <span>{{ l.from != null ? `${l.from} → ` : '' }}{{ l.to }}{{ L.units[l.unit] }}<template v-if="l.minutes"> · {{ l.minutes }}분</template><template v-if="l.memo"> · {{ l.memo }}</template></span>
           </li>
         </ol>
+      </section>
+      <section class="flex flex-col gap-3 border-t pt-4">
+        <h3 class="text-sm font-medium">
+          {{ Q.title }}
+        </h3>
+        <form class="flex flex-col gap-2" @submit.prevent="saveQuote">
+          <Textarea v-model="qText" rows="2" maxlength="1000" :placeholder="Q.text" :aria-label="Q.text" />
+          <div class="flex items-center gap-2">
+            <Input type="number" min="0" class="w-28" :placeholder="Q.position(L.units[unit] ?? '')" :aria-label="Q.position(L.units[unit] ?? '')" :model-value="qPos ?? undefined" @update:model-value="v => qPos = num(v)" />
+            <label v-if="workspace" class="flex items-center gap-1.5 text-xs">
+              <input v-model="qShare" type="checkbox" class="accent-primary">
+              {{ Q.share }}
+            </label>
+            <Button type="submit" variant="outline" size="sm" class="ml-auto" :disabled="quoting || !qText.trim()">
+              {{ Q.save }}
+            </Button>
+          </div>
+        </form>
+        <div class="max-h-56 overflow-y-auto">
+          <QuoteList :sid="sid" :quotes="quotes" :name-of="nameOf" @removed="id => quotes = quotes.filter(q => q.id !== id)" />
+        </div>
       </section>
     </DialogContent>
   </Dialog>
