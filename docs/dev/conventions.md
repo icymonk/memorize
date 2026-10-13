@@ -1,6 +1,6 @@
 # 개발 환경 · 코드 규칙 · 테스트 · 배포 · 모니터링
 
-> 상태: 확정 · v2.7
+> 상태: 확정 · v2.8
 
 ## 1. 개발 환경
 | 항목 | 명령 / 내용 |
@@ -43,7 +43,7 @@
 | 단위 | Vitest | `shared/` 전체(권한 판정, 간격 반복, 채점, 포인트·악용 방지, 날짜), 편집기 `serialize`·`diff`, 붙여넣기 파서 |
 | 규칙 | `@firebase/rules-unit-testing` + 에뮬레이터 | 관계 × 컬렉션 행렬 ([security.md](./security.md#6-규칙-테스트)). `tests/rules/`(루트 lockfile과 분리된 독립 패키지), 실행 `pnpm test:rules` (Java 21, 처음 한 번 `pnpm --dir tests/rules install`). CI에서도 실행 |
 | 서버 기능 | Vitest + 에뮬레이터 | callable·트리거 |
-| E2E | Playwright + 에뮬레이터 | 아래 핵심 흐름 |
+| E2E | Playwright + 에뮬레이터 | 아래 핵심 흐름. `tests/e2e/`(루트 lockfile과 분리된 독립 패키지), 로컬에서만 실행 `pnpm test:e2e [파일 이름 일부]` (에뮬레이터용 빌드 → auth·firestore·functions·storage 에뮬레이터 → Playwright). 처음 한 번 `pnpm --dir tests/e2e install`과 `pnpm --dir tests/e2e exec playwright install chromium`(또는 `CHROME_PATH`로 설치된 Chrome). 로그인은 에뮬레이터 이메일 링크(`oobCodes`). CI에는 넣지 않는다 |
 
 E2E 핵심 흐름:
 1. 가입 → 내 공간 → 개인 단어장 만들기 → 낱말카드 학습 → 오늘의 복습
@@ -92,6 +92,7 @@ E2E 핵심 흐름:
 - 없음
 
 ## 8. 변경 이력
+- v2.8: E2E 위치·실행 방법(`tests/e2e`, `pnpm test:e2e`, 로컬 전용)
 - v2.7: Sentry(운영만)
 - v2.6: 운영 authDomain을 Hosting 사이트로
 - v2.5: 규칙 테스트 위치·실행 방법(`tests/rules`, `pnpm test:rules`)
