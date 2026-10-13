@@ -49,7 +49,7 @@ service cloud.firestore {
       allow update: if signedIn() && userId == uid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notifications'])
         && request.resource.data.notifications is map
-        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback']);
+        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview']);
       // CMN-30 알림함: 서버가 만들고, 본인은 읽기·읽음 표시·삭제만
       match /notifications/{id} {
         allow read, delete: if signedIn() && userId == uid();
@@ -222,6 +222,12 @@ service cloud.firestore {
           && resource.data.status in ['submitted', 'rejected'] && validSub(request.resource.data, ms())
           && request.resource.data.periodKey == resource.data.periodKey
           && onlyChanges(['content', 'pageId', 'late', 'status', 'reviewerUids', 'submittedAt', 'reason']);
+        // MIS-31: 검토자는 검토 대기 제출을 승인·반려(사유 선택)
+        allow update: if isMember(sid) && resource.data.status == 'submitted' && uid() in resource.data.reviewerUids
+          && request.resource.data.status in ['approved', 'rejected']
+          && request.resource.data.reviewedBy == uid() && request.resource.data.reviewedAt == request.time
+          && isText(request.resource.data.get('reason', ''), 0, 500)
+          && onlyChanges(['status', 'reviewedBy', 'reviewedAt', 'reason']);
         allow delete: if isMember(sid) && resource.data.uid == uid() && ms().closedAt == null
           && (ms().type == 'check' || resource.data.status == 'submitted');
       }

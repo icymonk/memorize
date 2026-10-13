@@ -118,3 +118,19 @@ export async function setJoined(db: Firestore, sid: string, m: Mission, uid: str
     participantIds: joined ? [...m.participantIds, uid] : m.participantIds.filter(u => u !== uid),
   })
 }
+
+/** MIS-30: 진행자·리뷰어용 전체 제출 */
+export async function listSubmissions(db: Firestore, sid: string, mid: string): Promise<Submission[]> {
+  const snap = await getDocs(subsOf(db, sid, mid))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as Submission)
+}
+
+/** MIS-31: 승인·반려 */
+export async function review(db: Firestore, sid: string, mid: string, subId: string, uid: string, approve: boolean, reason = '') {
+  await updateDoc(doc(subsOf(db, sid, mid), subId), {
+    status: approve ? 'approved' : 'rejected',
+    reviewedBy: uid,
+    reviewedAt: serverTimestamp(),
+    ...(approve ? {} : { reason: reason.trim() }),
+  })
+}

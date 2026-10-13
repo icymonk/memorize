@@ -813,3 +813,25 @@ describe('mission join and submissions (2-E2, MIS-21~24·32)', () => {
     await assertFails(setDoc(sref('alice', 'alice_once'), sub()))
   })
 })
+
+describe('mission review (2-E3, MIS-31)', () => {
+  const s = { uid: 'alice', periodKey: 'once', status: 'submitted', content: 'x', pageId: null, late: false, reviewerUids: ['bob', 'mia'] }
+  const seed = (over: object = {}) => env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(ctx.firestore(), 'spaces', SID, 'missions', 'm1'), { title: 'm', type: 'submission', isPersonal: false, createdBy: 'bob', hostIds: ['bob'], reviewerIds: ['mia'], participantIds: ['alice'], closedAt: null })
+    await setDoc(doc(ctx.firestore(), 'spaces', SID, 'missions', 'm1', 'submissions', 'alice_once'), { ...s, ...over })
+  })
+  const ref = (uid: string) => doc(db(uid), 'spaces', SID, 'missions', 'm1', 'submissions', 'alice_once')
+  const verdict = (uid: string, status: string, extra: object = {}) => updateDoc(ref(uid), { status, reviewedBy: uid, reviewedAt: serverTimestamp(), ...extra })
+
+  it('reviewers approve or reject pending submissions; others cannot', async () => {
+    await seed()
+    await assertFails(verdict('alice', 'approved'))
+    await assertFails(verdict('lee', 'approved'))
+    await assertFails(updateDoc(ref('mia'), { status: 'approved', reviewedBy: 'bob', reviewedAt: serverTimestamp() }))
+    await assertFails(verdict('mia', 'done'))
+    await assertSucceeds(verdict('mia', 'rejected', { reason: '분량이 부족해요' }))
+    await assertFails(verdict('bob', 'approved'))
+    await seed()
+    await assertSucceeds(verdict('bob', 'approved'))
+  })
+})

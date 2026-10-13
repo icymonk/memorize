@@ -1,6 +1,6 @@
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 
-export type NotifyType = 'mention' | 'comment' | 'feedbackRequest' | 'feedback'
+export type NotifyType = 'mention' | 'comment' | 'feedbackRequest' | 'feedback' | 'mission' | 'missionReview'
 
 export interface Notice {
   uid: string

@@ -82,4 +82,11 @@ test('a note survives reload and is read-only for another member while locked', 
   await pb.locator('form').getByRole('button', { name: '제출', exact: true }).click()
   await expect(pb.getByText('검토 대기')).toBeVisible()
   await expect(pb.getByText('재밌게 읽었어요')).toBeVisible()
+  // 2-E3: 진행자가 현황판에서 승인
+  await pa.reload()
+  await expect(pa.locator('section[aria-label="현황판"]')).toContainText('검토 대기')
+  await pa.getByRole('button', { name: '승인', exact: true }).click()
+  await expect(pa.getByRole('button', { name: '승인', exact: true })).toHaveCount(0)
+  await pb.reload()
+  await expect(pb.getByText('승인', { exact: true })).toBeVisible()
 })
