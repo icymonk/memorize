@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { Group } from '~/features/space/services/groups'
+import { listGroups } from '~/features/space/services/groups'
 import type { MissionInput } from '#shared/schemas/mission'
 import type { Mission } from '../services/missions'
 import type { Member } from '~/features/space/services/invites'
@@ -24,10 +26,14 @@ const pending = ref(false)
 const me = computed(() => auth.user?.uid ?? '')
 const others = computed(() => props.members.filter(m => m.status === 'active' && m.uid !== (props.mission?.createdBy ?? me.value)))
 const activeIds = computed(() => props.members.filter(m => m.status === 'active').map(m => m.uid))
+/** WS-32: 그룹 대상 */
+const groups = ref<Group[]>([])
+const memberGroups = computed(() => Object.fromEntries(props.members.map(m => [m.uid, (m as typeof m & { groupIds?: string[] }).groupIds ?? []])))
 const selectClass = 'border-input bg-background h-9 rounded-md border px-3 text-sm'
 
 watch(open, (v) => {
   if (!v) return
+  if (space.current?.kind === 'workspace') listGroups($firestore, space.current.id).then(g => groups.value = g).catch(() => {})
   const m = props.mission
   const base = missionInput.parse(m
     ? { ...m, coHostIds: m.hostIds.filter(u => u !== m.createdBy) }
@@ -57,8 +63,8 @@ async function submit() {
   try {
     const sid = space.current!.id
     let id = props.mission?.id
-    if (props.mission) await updateMission($firestore, sid, props.mission, parsed.data, activeIds.value)
-    else id = await createMission($firestore, sid, me.value, parsed.data, activeIds.value)
+    if (props.mission) await updateMission($firestore, sid, props.mission, parsed.data, activeIds.value, memberGroups.value)
+    else id = await createMission($firestore, sid, me.value, parsed.data, activeIds.value, memberGroups.value)
     toast.success(props.mission ? t.saved : t.created)
     open.value = false
     emit('saved', id!)
@@ -142,6 +148,12 @@ async function submit() {
               <label class="flex items-center gap-2 text-sm"><RadioGroupItem value="all" />{{ f.everyone }}</label>
               <label class="flex items-center gap-2 text-sm"><RadioGroupItem value="pick" />{{ f.pick }}</label>
             </RadioGroup>
+            <div v-if="!form.assignees.all && groups.length" class="flex flex-wrap gap-x-4 gap-y-1 rounded-md border p-2" :aria-label="f.groups">
+              <label v-for="g in groups" :key="g.id" class="flex items-center gap-2 text-sm">
+                <input type="checkbox" class="size-4" :checked="form.assignees.groupIds.includes(g.id)" @change="form.assignees.groupIds = toggle(form.assignees.groupIds, g.id)">
+                {{ f.groupLabel(g.name) }}
+              </label>
+            </div>
             <div v-if="!form.assignees.all" class="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-md border p-2">
               <label v-for="m in others" :key="m.uid" class="flex items-center gap-2 text-sm">
                 <input type="checkbox" class="size-4" :checked="form.assignees.uids.includes(m.uid)" @change="form.assignees.uids = toggle(form.assignees.uids, m.uid)">

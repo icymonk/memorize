@@ -6,6 +6,8 @@ import { listMembers } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 import { updateSharing } from '../services/pages'
+import type { Group } from '~/features/space/services/groups'
+import { listGroups } from '~/features/space/services/groups'
 
 /** NOTE-50·54: 공개 범위와 공동 편집자 (작성자만) */
 const props = defineProps<{ page: Page }>()
@@ -19,6 +21,8 @@ const { $firestore } = useNuxtApp()
 const members = ref<Member[]>([])
 const visibility = ref<Page['visibility']>('private')
 const sharedWith = ref<string[]>([])
+const groupIds = ref<string[]>([])
+const groups = ref<Group[]>([])
 const editorIds = ref<string[]>([])
 const editPolicy = ref<'everyone' | 'editors'>('everyone')
 const pending = ref(false)
@@ -29,6 +33,8 @@ watch(open, async (v) => {
   if (!v) return
   visibility.value = props.page.visibility
   sharedWith.value = [...(props.page.sharedWith ?? [])]
+  groupIds.value = [...(props.page.groupIds ?? [])]
+  if (!personal.value) listGroups($firestore, space.current!.id).then(g => groups.value = g).catch(() => {})
   editorIds.value = [...(props.page.editorIds ?? [])]
   editPolicy.value = props.page.editPolicy ?? 'everyone'
   if (!personal.value && !members.value.length) members.value = await listMembers($firestore, space.current!.id).catch(() => [])
@@ -42,6 +48,7 @@ async function save() {
     const patch = {
       visibility: visibility.value,
       sharedWith: visibility.value === 'people' ? sharedWith.value : [],
+      groupIds: visibility.value === 'group' ? groupIds.value : [],
       editorIds: editorIds.value,
       editPolicy: editPolicy.value,
     }
@@ -72,9 +79,19 @@ async function save() {
       <div v-else class="flex flex-col gap-4">
         <div class="flex flex-col gap-2">
           <Label>{{ t.visibility }}</Label>
-          <label v-for="v in (['private', 'people', 'space'] as const)" :key="v" class="flex items-center gap-2 text-sm">
+          <label v-for="v in (['private', 'people', 'group', 'space'] as const)" :key="v" class="flex items-center gap-2 text-sm">
             <input v-model="visibility" type="radio" :value="v">
             {{ t.visibilities[v] }}
+          </label>
+        </div>
+        <div v-if="visibility === 'group'" class="flex flex-col gap-1">
+          <Label>{{ t.groups }}</Label>
+          <p v-if="!groups.length" class="text-muted-foreground text-xs">
+            {{ ko.vocab.noGroups }}
+          </p>
+          <label v-for="g in groups" :key="g.id" class="flex items-center gap-2 text-sm">
+            <input type="checkbox" :checked="groupIds.includes(g.id)" @change="groupIds = toggle(groupIds, g.id)">
+            {{ g.name }}
           </label>
         </div>
         <div v-if="visibility === 'people'" class="flex flex-col gap-1">

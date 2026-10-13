@@ -30,6 +30,7 @@ export interface Page {
   visibility: PageVisibility
   editorIds: string[]
   sharedWith?: string[]
+  groupIds?: string[]
   reviewerIds?: string[]
   editPolicy?: 'everyone' | 'editors'
   lock?: { uid: string, name: string, at: Timestamp } | null
@@ -57,13 +58,15 @@ export const canEditPage = (p: Pick<Page, 'ownerId' | 'editorIds' | 'root' | 'ed
   p.ownerId === uid || (p.editorIds ?? []).includes(uid) || (p.root === 'shared' && (p.editPolicy ?? 'everyone') === 'everyone')
 
 /** 규칙이 허용하는 것만 조회: 휴지통이 아닌 내 페이지 + 나간 멤버 것이 아닌 공개·공유 페이지 (WS-23) */
-const visiblePages = (db: Firestore, sid: string, uid: string) => {
+const visiblePages = (db: Firestore, sid: string, uid: string, groupIds: string[] = []) => {
   const active = where('ownerStatus', '==', 'active')
+  const byGroup = groupIds.length ? [and(where('visibility', '==', 'group'), where('groupIds', 'array-contains-any', groupIds.slice(0, 10)), active)] : []
   return query(pagesOf(db, sid), and(where('deletedAt', '==', null), or(
     and(where('visibility', '==', 'space'), active),
     where('ownerId', '==', uid),
     and(where('sharedWith', 'array-contains', uid), active),
     and(where('editorIds', 'array-contains', uid), active),
+    ...byGroup,
   )))
 }
 
@@ -73,8 +76,8 @@ export async function listPages(db: Firestore, sid: string, uid: string): Promis
 }
 
 /** 사이드바 페이지 트리: 제목·이동이 바로 보이도록 구독 */
-export function watchPages(db: Firestore, sid: string, uid: string, cb: (pages: Page[]) => void, onError: (e: unknown) => void) {
-  return onSnapshot(visiblePages(db, sid, uid), snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Page)), onError)
+export function watchPages(db: Firestore, sid: string, uid: string, cb: (pages: Page[]) => void, onError: (e: unknown) => void, groupIds: string[] = []) {
+  return onSnapshot(visiblePages(db, sid, uid, groupIds), snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Page)), onError)
 }
 
 /** NOTE-22: 내가 버린 페이지 */
@@ -196,7 +199,7 @@ export async function writeBlocks(db: Firestore, sid: string, uid: string, pageI
 }
 
 /** NOTE-50·54: 공개 범위·공유 대상·공동 편집자·편집 정책 (작성자만) */
-export async function updateSharing(db: Firestore, sid: string, pageId: string, patch: Pick<Page, 'visibility' | 'editorIds'> & { sharedWith: string[], editPolicy: 'everyone' | 'editors' }) {
+export async function updateSharing(db: Firestore, sid: string, pageId: string, patch: Pick<Page, 'visibility' | 'editorIds'> & { sharedWith: string[], groupIds: string[], editPolicy: 'everyone' | 'editors' }) {
   await updateDoc(doc(pagesOf(db, sid), pageId), { ...patch, updatedAt: serverTimestamp() })
 }
 
