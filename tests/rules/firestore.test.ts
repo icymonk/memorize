@@ -586,3 +586,33 @@ describe('access matrix (security.md 6)', () => {
     )))))
   })
 })
+
+describe('comments (CMN-20·22)', () => {
+  const seed = (path: string, data: object) => env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, path), data))
+  const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'comments', id)
+  const pageData = (o: object = {}) => ({ type: 'page', ownerId: 'bob', root: 'shared', visibility: 'space', sharedWith: [], editorIds: [], ownerStatus: 'active', deletedAt: null, ...o })
+  const c = (uid: string, o: object = {}) => ({ targetType: 'page', targetId: 'p1', uid, kind: 'comment', body: '좋아요', mentions: [], createdAt: serverTimestamp(), ...o })
+
+  it('members who can read the page comment as themselves; others cannot', async () => {
+    await seed('pages/p1', pageData())
+    await seed('pages/p2', pageData({ root: 'private', visibility: 'private' }))
+    await assertSucceeds(setDoc(ref('mia', 'c1'), c('mia', { mentions: ['bob'] })))
+    await assertFails(setDoc(ref('mia', 'c2'), c('bob')))
+    await assertFails(setDoc(ref('mia', 'c3'), c('mia', { targetId: 'p2' })))
+    await assertFails(setDoc(ref('mia', 'c4'), c('mia', { kind: 'feedback' })))
+    await assertFails(setDoc(ref('lee', 'c5'), c('lee')))
+    await assertSucceeds(setDoc(ref('bob', 'c6'), c('bob', { targetId: 'p2' })))
+    await assertFails(getDoc(ref('mia', 'c6')))
+    await assertSucceeds(getDoc(ref('alice', 'c1')))
+  })
+
+  it('author edits; author or manager deletes', async () => {
+    await seed('pages/p1', pageData())
+    await seed('comments/c1', { targetType: 'page', targetId: 'p1', uid: 'bob', kind: 'comment', body: 'a', mentions: [], createdAt: new Date() })
+    await assertSucceeds(updateDoc(ref('bob', 'c1'), { body: 'b', editedAt: serverTimestamp() }))
+    await assertFails(updateDoc(ref('mia', 'c1'), { body: 'x', editedAt: serverTimestamp() }))
+    await assertFails(updateDoc(ref('bob', 'c1'), { targetId: 'p9', editedAt: serverTimestamp() }))
+    await assertSucceeds(deleteDoc(ref('mia', 'c1')))
+  })
+})
+
