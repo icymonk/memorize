@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test'
+import type { Browser, Page } from '@playwright/test'
 import { expect } from '@playwright/test'
 
 const AUTH = 'http://127.0.0.1:9099/emulator/v1/projects/demo-memorize'
@@ -18,4 +18,32 @@ export async function signUp(page: Page, name: string): Promise<string> {
   await page.locator('form button[type="submit"]').click()
   await page.waitForURL(/\/s\/p_/)
   return page.url().match(/\/s\/(p_[^/?#]+)/)![1]!
+}
+
+/** 워크스페이스를 만들고 초대 코드로 다른 사람을 들인다. 두 페이지와 워크스페이스 id를 돌려준다 */
+export async function workspaceWithMember(browser: Browser, owner: string, member: string, name: string) {
+  const pa = await (await browser.newContext()).newPage()
+  const personal = await signUp(pa, owner)
+  await pa.getByRole('button', { name: /내 공간/ }).first().click()
+  await pa.getByRole('menuitem', { name: '워크스페이스 만들기' }).click()
+  await pa.locator('#ws-name').fill(name)
+  await pa.locator('button[form="create-workspace"]').click()
+  await pa.waitForURL(url => !url.pathname.startsWith(`/s/${personal}`) && /\/s\/[^/]+/.test(url.pathname))
+  const ws = pa.url().match(/\/s\/([^/?#]+)/)![1]!
+
+  await pa.goto(`/s/${ws}/members`)
+  await pa.getByRole('tab', { name: '초대' }).click()
+  await pa.getByRole('button', { name: '초대 만들기' }).click()
+  const code = (await pa.locator('span.font-mono').first().textContent())!.trim()
+
+  const pb = await (await browser.newContext()).newPage()
+  await signUp(pb, member)
+  await pb.getByRole('button', { name: /내 공간/ }).first().click()
+  await pb.getByRole('menuitem', { name: '코드로 참여' }).click()
+  await pb.getByRole('dialog').locator('input').first().fill(code)
+  await pb.locator('button[form="join-with-code"]').click()
+  await pb.waitForURL(/\/invite\//)
+  await pb.getByRole('button', { name: '참여하기' }).click()
+  await pb.waitForURL(new RegExp(`/s/${ws}`))
+  return { pa, pb, ws }
 }
