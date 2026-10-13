@@ -78,7 +78,7 @@ spaces/{spaceId}/members/{uid}
   stats: { created, hosted, feedbackGiven } # 서버 관리
   joinedAt, leftAt?
 
-spaces/{spaceId}/groups/{groupId}    name, color, joinable, createdBy, memberCount, deletedAt?   # WS-30~33
+spaces/{spaceId}/groups/{groupId}    name, color, joinable, createdBy, deletedAt, deletedBy?, createdAt, updatedAt   # WS-30~33. 소속은 members.groupIds, 삭제 30일 뒤 서버가 지움
 spaces/{spaceId}/invites/{code}      code, createdBy, expiresAt?, maxUses?, uses, disabled        # WS-10~11 (code: 컬렉션 그룹 조회용, 문서 ID와 같음)
 spaces/{spaceId}/emailInvites/{id}   email, createdBy, expiresAt                                  # WS-12
 spaces/{spaceId}/tags/{tagId}        name, color                                                  # CMN-51
@@ -410,6 +410,7 @@ users/{uid}/avatar/{fileName}
 
 ## 16. 변경 이력
 - v2.9: 독후감 `status` 대신 `publishedAt`·`rewriteRequestedAt`(임시저장은 나만 보기)
+- v2.8: `groups`에서 `memberCount` 빼고 `deletedBy`, 소속은 `members.groupIds`
 - v2.7: 독후감 페이지의 `book`, 기본 모음 `collections/bookReview`
 - v2.6: `quotes`에 `title`·`date`·`unit`, `readingLogs`는 진도 공유 규칙으로 멤버가 읽음
 - v2.5: 페이지 휴지통 필드(`deletedAt`은 항상 기록, `deletedBy`·`trashRootId`), `userPrefs` 추가

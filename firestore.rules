@@ -49,7 +49,7 @@ service cloud.firestore {
       allow update: if signedIn() && userId == uid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notifications'])
         && request.resource.data.notifications is map
-        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview']);
+        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group']);
       // CMN-30 알림함: 서버가 만들고, 본인은 읽기·읽음 표시·삭제만
       match /notifications/{id} {
         allow read, delete: if signedIn() && userId == uid();
@@ -73,6 +73,28 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isMember(sid);
+        // WS-31: 그룹 소속은 모든 멤버가 바꾼다. 다른 항목은 서버
+        allow update: if isMember(sid) && space(sid).kind == 'workspace'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['groupIds'])
+          && request.resource.data.groupIds is list && request.resource.data.groupIds.size() <= 20;
+      }
+
+      // WS-30~33 그룹: 모든 멤버가 만들고 고치고 지운다(휴지통처럼 deletedAt, 30일 뒤 서버가 완전 삭제)
+      match /groups/{gid} {
+        function validGroup(x) {
+          return x.keys().hasOnly(['name', 'color', 'joinable', 'createdBy', 'deletedAt', 'deletedBy', 'createdAt', 'updatedAt'])
+            && isText(x.name, 1, 40) && isText(x.color, 1, 20) && x.joinable is bool && x.createdBy is string;
+        }
+        allow read: if isMember(sid);
+        allow create: if isMember(sid) && space(sid).kind == 'workspace' && validGroup(request.resource.data)
+          && request.resource.data.createdBy == uid() && request.resource.data.deletedAt == null
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+        allow update: if isMember(sid) && validGroup(request.resource.data)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdBy', 'createdAt'])
+          && (request.resource.data.deletedAt == null || request.resource.data.deletedAt == resource.data.deletedAt
+            || (request.resource.data.deletedAt == request.time && request.resource.data.deletedBy == uid()))
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
       }
 
       // VOC-01·02·03·05 — docs/dev/security.md 3절 공유 콘텐츠

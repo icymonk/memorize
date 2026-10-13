@@ -3,7 +3,11 @@ import type { Invite, Member } from '~/features/space/services/invites'
 import { INVITE_EXPIRY_DAYS } from '#shared/schemas/invite'
 import { EllipsisIcon } from '@lucide/vue'
 import { useClipboard } from '@vueuse/core'
+import type { Group } from '~/features/space/services/groups'
+import GroupsPanel from '~/features/space/components/GroupsPanel.vue'
 import OwnershipTransferBanner from '~/features/space/components/OwnershipTransferBanner.vue'
+import { SPACE_COLOR_CLASS } from '~/features/space/colors'
+import { watchGroups } from '~/features/space/services/groups'
 import { toast } from 'vue-sonner'
 import { inviteLink, inviteUsable, listInvites, listMembers, setInviteDisabled } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
@@ -53,6 +57,13 @@ async function load() {
   }
 }
 onMounted(load)
+
+/** WS-20·30: 그룹 목록과 멤버의 소속 그룹 */
+const groups = ref<Group[]>([])
+let stopGroups: (() => void) | undefined
+onMounted(() => { stopGroups = watchGroups($firestore, spaceId.value, (g) => { groups.value = g }, () => {}) })
+onBeforeUnmount(() => stopGroups?.())
+const groupsOf = (m: Member) => groups.value.filter(g => !g.deletedAt && ((m as Member & { groupIds?: string[] }).groupIds ?? []).includes(g.id))
 
 async function run(key: string, fn: () => Promise<unknown>, success?: string) {
   busy.value = key
@@ -154,6 +165,9 @@ const initial = (name: string) => name.slice(0, 1).toUpperCase()
         <TabsTrigger value="members">
           {{ t.tabs.members }} {{ activeMembers.length }}
         </TabsTrigger>
+        <TabsTrigger value="groups">
+          {{ t.tabs.groups }} {{ groups.filter(g => !g.deletedAt).length || '' }}
+        </TabsTrigger>
         <TabsTrigger value="invites">
           {{ t.tabs.invites }}
         </TabsTrigger>
@@ -172,6 +186,7 @@ const initial = (name: string) => name.slice(0, 1).toUpperCase()
             {{ m.displayName }}
             <span v-if="m.uid === uid" class="text-muted-foreground">({{ t.me }})</span>
           </span>
+          <span v-for="g in groupsOf(m)" :key="g.id" :class="['rounded-full px-2 py-0.5 text-xs', SPACE_COLOR_CLASS[g.color]]">{{ g.name }}</span>
           <Badge v-if="m.access !== 'member'" variant="secondary">
             {{ t.access[m.access] }}
           </Badge>
@@ -195,6 +210,10 @@ const initial = (name: string) => name.slice(0, 1).toUpperCase()
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+      </TabsContent>
+
+      <TabsContent value="groups" class="pt-2">
+        <GroupsPanel :sid="spaceId" :groups="groups" :members="activeMembers" @changed="load" />
       </TabsContent>
 
       <TabsContent value="invites" class="flex flex-col gap-4 pt-2">
