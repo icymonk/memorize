@@ -86,6 +86,7 @@ export const ko = {
       empty: '아직 활동이 없어요.',
       someone: '알 수 없음',
       deckCreated: (name: string, title: string) => `${name}님이 새 단어장 '${title}'을 만들었어요`,
+      reviewPublished: (name: string, title: string) => `${name}님이 『${title}』 독후감을 발행했어요`,
       journal: (name: string) => `${name}님이 학습일지를 썼어요`,
       cards: (n: number, mode: string) => `단어 ${n}개 ${mode}`,
       journalPart: '학습일지 작성',
@@ -509,6 +510,9 @@ export const ko = {
       waiting: '아직 피드백이 없어요.',
       remove: '삭제',
       removeConfirm: '이 피드백을 삭제할까요?',
+      rewrite: '다시 쓰기 요청',
+      rewriteReason: '고칠 점 (선택)',
+      rewriteSent: '다시 쓰기를 요청했어요',
     },
     journal: {
       nav: '학습일지',
@@ -546,6 +550,9 @@ export const ko = {
       start: '쓰기 시작',
       chars: (n: number) => `${n.toLocaleString()}자`,
       draftHint: '발행 전까지 나만 볼 수 있어요.',
+      publish: '발행',
+      published: '발행했어요. 워크스페이스 멤버가 볼 수 있어요.',
+      rewriteRequested: '다시 써 달라는 요청을 받았어요. 고친 뒤 다시 발행해 주세요.',
     },
     copy: {
       button: '다른 공간으로 복사',

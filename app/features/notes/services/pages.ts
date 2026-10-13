@@ -36,6 +36,8 @@ export interface Page {
   collectionId?: string
   copiedFrom?: { spaceId: string, pageId: string, spaceName?: string }
   book?: PageBook
+  publishedAt?: Timestamp | null
+  rewriteRequestedAt?: Timestamp | null
   cover?: string | null
   props?: Record<string, PropValue>
   excerpt: string
@@ -199,6 +201,11 @@ export async function updateSharing(db: Firestore, sid: string, pageId: string, 
 }
 
 /** NOTE-60: 편집 잠금. 30초마다 갱신, 90초 넘게 갱신이 없으면 다른 사람이 가져갈 수 있다 */
+/** REV-10: 독후감 발행 — 공간 전체 공개 */
+export async function publishPage(db: Firestore, sid: string, pageId: string) {
+  await updateDoc(doc(pagesOf(db, sid), pageId), { visibility: 'space', publishedAt: serverTimestamp(), rewriteRequestedAt: null, updatedAt: serverTimestamp() })
+}
+
 export const LOCK_REFRESH_MS = 30_000
 export async function setLock(db: Firestore, sid: string, pageId: string, lock: { uid: string, name: string } | null) {
   const now = serverTimestamp()

@@ -9,7 +9,7 @@ import { listMembers } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 import { removeComment, watchPageComments } from '../services/comments'
-import { leaveFeedback, setReviewers } from '../services/feedback'
+import { leaveFeedback, requestRewrite, setReviewers } from '../services/feedback'
 
 /** CMN-23~25: 작성자는 피드백을 부탁할 멤버를 고르고, 부탁받은 멤버는 스탬프와 총평을 남긴다 */
 const props = defineProps<{ sid: string, page: Page }>()
@@ -71,6 +71,15 @@ const submit = () => run(async () => {
   writing.value = false
   toast.success(t.sent)
 })
+/** REV-14 */
+async function askRewrite() {
+  const reason = await promptDialog(t.rewriteReason, '')
+  if (reason === null) return
+  await run(async () => {
+    await requestRewrite($functions, props.sid, props.page.id, reason.trim().slice(0, 500))
+    toast.success(t.rewriteSent)
+  })
+}
 const remove = (c: Comment) => run(async () => {
   if (await confirmDialog(t.removeConfirm)) await removeComment($firestore, props.sid, c.id)
 })
@@ -85,6 +94,7 @@ const remove = (c: Comment) => run(async () => {
       <span v-if="reviewers.length" class="text-muted-foreground text-xs">{{ t.requested(reviewers.map(nameOf).join(', ')) }}</span>
       <span class="ml-auto flex gap-1">
         <Button v-if="isOwner && !picking" variant="outline" size="sm" class="h-7 text-xs" @click="startPick">{{ t.request }}</Button>
+        <Button v-if="canGive && page.type === 'bookReview' && page.visibility !== 'private'" variant="outline" size="sm" class="h-7 text-xs" :disabled="pending" @click="askRewrite">{{ t.rewrite }}</Button>
         <Button v-if="canGive && !writing" size="sm" class="h-7 text-xs" @click="startWrite">{{ mine ? t.edit : t.leave }}</Button>
       </span>
     </div>

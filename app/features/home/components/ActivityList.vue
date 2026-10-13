@@ -42,7 +42,8 @@ const rows = computed<Row[]>(() => {
   const groups = new Map<string, Activity[]>()
   for (const a of props.items) {
     if (a.size === 'major') {
-      out.push({ key: a.id, size: 'major', text: t.deckCreated(name(a.uid), a.data.title ?? ''), link: link(a), at: a.createdAt })
+      const text = a.type === 'bookReview' ? t.reviewPublished(name(a.uid), a.data.title ?? '') : t.deckCreated(name(a.uid), a.data.title ?? '')
+      out.push({ key: a.id, size: 'major', text, link: link(a), at: a.createdAt })
       continue
     }
     const key = `${a.uid}_${a.date}`

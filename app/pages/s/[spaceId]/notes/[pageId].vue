@@ -18,7 +18,7 @@ import PropCell from '~/features/notes/components/PropCell.vue'
 import { useTags } from '~/features/space/composables/useTags'
 import { ensureTags, isTagProp, tagAwareDef, withTags } from '~/features/space/services/tags'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
-import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
+import { canEditPage, getPage, LOCK_REFRESH_MS, publishPage, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
@@ -26,6 +26,18 @@ import { ko } from '~/locales/ko'
 
 /** NOTE-01·10: 페이지 편집 — 블록 편집기와 자동 저장 상태 */
 const t = ko.notes
+/** REV-10: 독후감 발행 */
+const me = useAuthStore().user?.uid
+const publishing = ref(false)
+async function publish() {
+  publishing.value = true
+  try {
+    await publishPage(useNuxtApp().$firestore, unref(sid), unref(pageId))
+    toast.success(t.review.published)
+  }
+  catch (e) { toast.error(errorMessage(e) ?? ko.errors.unknown) }
+  finally { publishing.value = false }
+}
 const route = useRoute()
 const space = useSpaceStore()
 const auth = useAuthStore()
@@ -254,9 +266,12 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         </div>
         <span class="text-muted-foreground shrink-0 text-xs tabular-nums">{{ t.review.chars(live.textLength ?? 0) }}</span>
       </div>
-      <p v-if="live?.type === 'bookReview' && live.visibility === 'private'" class="text-muted-foreground -mt-2 text-xs">
-        {{ t.review.draftHint }}
-      </p>
+      <div v-if="live?.type === 'bookReview' && live.visibility === 'private'" class="-mt-2 flex items-center gap-2 text-xs" :class="live.rewriteRequestedAt ? 'rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950 dark:text-amber-100' : 'text-muted-foreground'">
+        <span class="flex-1">{{ live.rewriteRequestedAt ? t.review.rewriteRequested : t.review.draftHint }}</span>
+        <Button v-if="live.ownerId === me && space.current?.kind === 'workspace'" size="sm" class="h-7" :disabled="publishing" @click="publish">
+          {{ t.review.publish }}
+        </Button>
+      </div>
       <dl v-if="collection?.schema.length" class="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-1 text-sm">
         <template v-for="d in defs" :key="d.key">
           <dt class="text-muted-foreground truncate">{{ d.name }}</dt>
