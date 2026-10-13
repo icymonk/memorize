@@ -36,7 +36,7 @@ async function signOut() {
             <UserIcon />
             {{ ko.nav.profile }}
           </DropdownMenuItem>
-          <DropdownMenuItem disabled>
+          <DropdownMenuItem @select="navigateTo('/settings')">
             <SettingsIcon />
             {{ ko.nav.settings }}
           </DropdownMenuItem>

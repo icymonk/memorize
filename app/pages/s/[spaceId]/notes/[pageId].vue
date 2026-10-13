@@ -1,13 +1,24 @@
 <script setup lang="ts">
 import type { Page } from '~/features/notes/services/pages'
 import type { SaveStatus } from '~/features/notes/sync/writer'
-import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, StarIcon, Trash2Icon } from '@lucide/vue'
+import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon, CopyIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { useDebounceFn } from '@vueuse/core'
 import { LIMITS } from '#shared/limits'
 import BlockEditor from '~/features/notes/components/BlockEditor.vue'
+import type { PropDef, PropValue } from '#shared/schemas/collection'
+import { coerceProp } from '#shared/schemas/collection'
+import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
+import JournalSummary from '~/features/notes/components/JournalSummary.vue'
+import IconPicker from '~/features/notes/components/IconPicker.vue'
+import PageComments from '~/features/notes/components/PageComments.vue'
+import PageFeedback from '~/features/notes/components/PageFeedback.vue'
+import PageReactions from '~/features/notes/components/PageReactions.vue'
+import PropCell from '~/features/notes/components/PropCell.vue'
+import { useTags } from '~/features/space/composables/useTags'
+import { ensureTags, isTagProp, tagAwareDef, withTags } from '~/features/space/services/tags'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
-import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, updatePageTitle } from '~/features/notes/services/pages'
+import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
@@ -19,9 +30,14 @@ const route = useRoute()
 const space = useSpaceStore()
 const auth = useAuthStore()
 const { $firestore } = useNuxtApp()
+const spaceTags = useTags()
+const defs = computed(() => (collection.value?.schema ?? []).map(d => withTags(d, spaceTags.value)))
 
 const sid = computed(() => space.current!.id)
-const pageId = computed(() => route.params.pageId as string)
+/** 페이지마다 새로 마운트해서 편집기·잠금·자동 저장 상태가 이전 페이지와 섞이지 않게 한다 */
+const mountedPageId = route.params.pageId as string
+const pageId = computed(() => mountedPageId)
+definePageMeta({ key: r => r.fullPath })
 const page = ref<Page | null>(null)
 const loading = ref(true)
 const loadError = ref(false)
@@ -42,7 +58,7 @@ function jump(id: string) {
   document.querySelector(`.note-editor [data-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 async function toTrash() {
-  if (!page.value || !window.confirm(t.trashConfirm(page.value.title || t.untitled))) return
+  if (!page.value || !(await confirmDialog(t.trashConfirm(page.value.title || t.untitled)))) return
   try {
     editorRef.value?.flush()
     await notes.trash(page.value.id)
@@ -78,6 +94,24 @@ onBeforeUnmount(() => {
   clearInterval(lockTimer)
   if (canEdit.value && !lockedBy.value) setLock($firestore, sid.value, pageId.value, null).catch(() => {})
 })
+async function setIcon(icon: string) {
+  try {
+    await updatePageIcon($firestore, sid.value, pageId.value, icon)
+    if (page.value) page.value = { ...page.value, icon }
+  }
+  catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
+}
+const icon = computed(() => live.value?.icon ?? page.value?.icon ?? '')
+const copyOpen = ref(false)
+
+/** NOTE-46: 모음 페이지는 제목 아래에 항목 값을 보여 준다 */
+const collection = computed(() => (live.value?.collectionId ? notes.collections.find(c => c.id === live.value!.collectionId) ?? null : null))
+async function setProp(def: PropDef, v: PropValue) {
+  const value = coerceProp(tagAwareDef(def, v), v)
+  if (isTagProp(def) && Array.isArray(value)) void ensureTags($firestore, sid.value, auth.user!.uid, value, spaceTags.value)
+  try { await setPageProp($firestore, sid.value, pageId.value, def.key, value) }
+  catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
+}
 const status = computed<SaveStatus>(() => {
   if (blockStatus.value !== 'saved') return blockStatus.value
   if (titleFailed.value) return 'error'
@@ -130,9 +164,13 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
           <ArrowLeftIcon class="size-4" />
           {{ t.back }}
         </NuxtLink>
+        <template v-if="collection">
+          <ChevronRightIcon class="size-3.5 shrink-0" />
+          <NuxtLink :to="`/s/${sid}/collections/${collection.id}`" class="hover:text-foreground max-w-40 truncate">{{ collection.icon }} {{ collection.name }}</NuxtLink>
+        </template>
         <template v-for="c in crumbs" :key="c.id">
           <ChevronRightIcon class="size-3.5 shrink-0" />
-          <NuxtLink :to="`/s/${sid}/notes/${c.id}`" class="hover:text-foreground max-w-40 truncate">{{ c.title || t.untitled }}</NuxtLink>
+          <NuxtLink :to="`/s/${sid}/notes/${c.id}`" class="hover:text-foreground max-w-40 truncate">{{ c.icon }} {{ c.title || t.untitled }}</NuxtLink>
         </template>
       </nav>
       <span class="flex shrink-0 items-center gap-1">
@@ -149,6 +187,9 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="notes.isFavorite(page.id) ? t.removeFavorite : t.addFavorite" @click="notes.toggleFavorite(page.id)">
           <StarIcon :class="notes.isFavorite(page.id) && 'fill-amber-400 text-amber-500'" />
         </Button>
+        <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="t.copy.button" :title="t.copy.button" @click="copyOpen = true">
+          <CopyIcon />
+        </Button>
         <Button v-if="page && page.ownerId === auth.user?.uid && !page.deletedAt" variant="ghost" size="sm" @click="shareOpen = true">
           {{ t.share.button }}
         </Button>
@@ -163,6 +204,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
     <p v-else-if="lockedBy" class="bg-muted rounded-md px-3 py-2 text-sm">
       {{ t.editingBy(lockedBy) }}
     </p>
+    <CopyDeckDialog v-if="page" v-model:open="copyOpen" kind="page" :from-space-id="sid" :content-id="page.id" />
     <ShareDialog v-if="page" v-model:open="shareOpen" :page="live ?? page" @saved="page = { ...page!, ...$event }" />
 
     <p v-if="loadError" class="text-destructive text-sm">
@@ -176,6 +218,18 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
       {{ t.notFound }}
     </p>
     <template v-else>
+      <div class="group/icon -mb-2 flex min-h-8 items-end">
+        <IconPicker v-if="editable" @pick="setIcon">
+          <button v-if="icon" type="button" class="hover:bg-muted rounded-md px-1 text-5xl leading-tight" :aria-label="t.icon.change">
+            {{ icon }}
+          </button>
+          <Button v-else variant="ghost" size="sm" class="text-muted-foreground opacity-0 group-hover/icon:opacity-100 focus-visible:opacity-100">
+            <SmileIcon />
+            {{ t.icon.add }}
+          </Button>
+        </IconPicker>
+        <span v-else-if="icon" class="px-1 text-5xl leading-tight">{{ icon }}</span>
+      </div>
       <input
         v-model="title"
         :readonly="!editable"
@@ -185,6 +239,26 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         @input="onTitle"
         @keydown.enter.prevent="editorRef?.focus()"
       >
+      <p v-if="live?.copiedFrom" class="text-muted-foreground -mt-2 text-xs">
+        {{ t.copy.from(live.copiedFrom.spaceName ?? '') }}
+      </p>
+      <dl v-if="collection?.schema.length" class="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-1 text-sm">
+        <template v-for="d in defs" :key="d.key">
+          <dt class="text-muted-foreground truncate">{{ d.name }}</dt>
+          <dd class="min-w-0">
+            <PropCell :def="d" :value="live?.props?.[d.key]" :readonly="!editable" @update="setProp(d, $event)" />
+          </dd>
+        </template>
+      </dl>
+      <JournalSummary
+        v-if="live?.type === 'journal' && typeof live.props?.date === 'string'"
+        :sid="sid"
+        :owner-id="live.ownerId"
+        :date="live.props.date"
+        :minutes="live.props.minutes"
+        :editable="editable"
+        @fill-minutes="(m) => collection && setProp(collection.schema.find(d => d.key === 'minutes') ?? { key: 'minutes', name: '', type: 'number', options: [] }, m)"
+      />
       <p v-if="blockCount > LIMITS.pageBlockWarn" class="text-muted-foreground text-xs">
         {{ t.tooManyBlocks(LIMITS.pageBlockWarn) }}
       </p>
@@ -198,6 +272,9 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         @error="loadError = true"
         @headings="headings = $event"
       />
+      <PageReactions v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
+      <PageFeedback v-if="page && !page.deletedAt && space.current?.kind !== 'personal'" :sid="sid" :page="live ?? page" @saved="page = { ...page!, ...$event }" />
+      <PageComments v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
     </template>
   </div>
   <aside v-if="headings.length" class="sticky top-4 hidden w-48 shrink-0 self-start xl:block">

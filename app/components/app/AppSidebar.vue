@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { BookOpenIcon, CalendarCheckIcon, FileTextIcon, LayoutDashboardIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, NotebookPenIcon, FlagIcon, LibraryIcon, PlusIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
 import JoinWithCodeDialog from '~/features/space/components/JoinWithCodeDialog.vue'
+import NotificationBell from '~/features/notifications/components/NotificationBell.vue'
 import SpaceSwitcher from '~/features/space/components/SpaceSwitcher.vue'
 import { ko } from '~/locales/ko'
 
@@ -17,6 +19,7 @@ const currentSpace = computed(() => space.current && space.current.id === active
 const currentWorkspace = computed(() => currentSpace.value?.kind === 'workspace' ? currentSpace.value : null)
 const notes = useNotesStore()
 const activePageId = computed(() => 'pageId' in route.params ? route.params.pageId : null)
+const collectionOpen = ref(false)
 const notesOn = computed(() => !!currentSpace.value && currentSpace.value.modules?.notes !== false)
 
 watch(() => auth.account, (account) => {
@@ -69,6 +72,30 @@ watch(() => auth.account, (account) => {
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.notes !== false">
+            <SidebarMenuButton as-child :tooltip="ko.notes.journal.nav" :is-active="route.path === `/s/${currentSpace.id}/collections/journal`">
+              <NuxtLink :to="`/s/${currentSpace.id}/journal`">
+                <NotebookPenIcon />
+                <span>{{ ko.notes.journal.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.reading">
+            <SidebarMenuButton as-child :tooltip="ko.reading.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/reading`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/reading`">
+                <LibraryIcon />
+                <span>{{ ko.reading.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.missions">
+            <SidebarMenuButton as-child :tooltip="ko.missions.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/missions`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/missions`">
+                <FlagIcon />
+                <span>{{ ko.missions.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem v-if="currentWorkspace">
             <SidebarMenuButton as-child :tooltip="ko.members.nav" :is-active="route.path === `/s/${currentWorkspace.id}/members`">
               <NuxtLink :to="`/s/${currentWorkspace.id}/members`">
@@ -105,6 +132,24 @@ watch(() => auth.account, (account) => {
         <PageTree v-if="currentWorkspace" :sid="currentSpace.id" root="shared" :label="ko.notes.sharedPages" :can-create="space.can('create')" />
         <PageTree :sid="currentSpace.id" root="private" :label="currentWorkspace ? ko.notes.myPages : ko.notes.pages" :can-create="true" />
         <SidebarGroup class="group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel>{{ ko.notes.collections.nav }}</SidebarGroupLabel>
+          <SidebarGroupAction :title="ko.notes.collections.create" @click="collectionOpen = true">
+            <PlusIcon />
+          </SidebarGroupAction>
+          <SidebarMenu>
+            <SidebarMenuItem v-for="c in notes.collections.filter(c => c.kind !== 'system')" :key="c.id">
+              <SidebarMenuButton as-child size="sm" :is-active="route.path === `/s/${currentSpace.id}/collections/${c.id}`">
+                <NuxtLink :to="`/s/${currentSpace.id}/collections/${c.id}`">
+                  <span v-if="c.icon" class="w-4 text-center">{{ c.icon }}</span>
+                  <LayersIcon v-else />
+                  <span>{{ c.name }}</span>
+                </NuxtLink>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+        <CollectionFormDialog v-model:open="collectionOpen" @saved="navigateTo(`/s/${currentSpace!.id}/collections/${$event}`)" />
+        <SidebarGroup class="group-data-[collapsible=icon]:hidden">
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton as-child size="sm" :is-active="route.path === `/s/${currentSpace.id}/notes/trash`">
@@ -120,6 +165,7 @@ watch(() => auth.account, (account) => {
     </SidebarContent>
 
     <SidebarFooter>
+      <NotificationBell />
       <AppUserMenu />
     </SidebarFooter>
     <SidebarRail />

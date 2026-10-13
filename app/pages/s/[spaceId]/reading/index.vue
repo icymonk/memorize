@@ -1,0 +1,202 @@
+<script setup lang="ts">
+import type { ShelfStatus } from '#shared/schemas/book'
+import type { BookGroup, ShelfItem } from '~/features/reading/services/shelf'
+import type { Member } from '~/features/space/services/invites'
+import { logUnit, positionKey, SHELF_STATUS } from '#shared/schemas/book'
+import { PencilLineIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
+import { dateKey } from '#shared/dates'
+import AddBookDialog from '~/features/reading/components/AddBookDialog.vue'
+import BookDetailDialog from '~/features/reading/components/BookDetailDialog.vue'
+import { askFinish, recordReading } from '~/features/reading/services/logs'
+import { joinBook, listBooks, listMyShelf, removeFromShelf, statusPatch, updateShelf } from '~/features/reading/services/shelf'
+import { listMembers } from '~/features/space/services/invites'
+import { errorMessage } from '~/lib/errors'
+import { ko } from '~/locales/ko'
+
+/** READ-01~03·05·10·12·13: 내 책장(상태별)과 워크스페이스 책장 */
+const t = ko.reading
+const space = useSpaceStore()
+const auth = useAuthStore()
+const { $firestore } = useNuxtApp()
+
+if (!space.current?.modules?.reading) {
+  await navigateTo(`/s/${space.current!.id}`, { replace: true })
+}
+
+const sid = computed(() => space.current!.id)
+const workspace = computed(() => space.current?.kind === 'workspace')
+const mine = ref<ShelfItem[]>([])
+const books = ref<BookGroup[]>([])
+const members = ref<Member[]>([])
+const loading = ref(true)
+const tab = ref<'all' | ShelfStatus | 'space'>('all')
+const addOpen = ref(false)
+const detail = ref<ShelfItem | null>(null)
+const detailOpen = ref(false)
+const today = dateKey(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone)
+const mineKeys = computed(() => new Set(mine.value.map(b => b.bookKey)))
+
+const shown = computed(() => (tab.value === 'all' ? mine.value : mine.value.filter(b => b.status === tab.value))
+  .slice().sort((a, b) => (b.updatedAt?.toMillis() ?? 0) - (a.updatedAt?.toMillis() ?? 0)))
+const name = (uid: string) => members.value.find(m => m.uid === uid)?.displayName ?? t.someone
+
+async function load() {
+  loading.value = true
+  try {
+    const [m, b, mb] = await Promise.all([
+      listMyShelf($firestore, sid.value, auth.user!.uid),
+      workspace.value ? listBooks($firestore, sid.value) : Promise.resolve([]),
+      workspace.value ? listMembers($firestore, sid.value) : Promise.resolve([]),
+    ])
+    mine.value = m
+    books.value = b.sort((x, y) => y.readerUids.length - x.readerUids.length)
+    members.value = mb
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+  finally {
+    loading.value = false
+  }
+}
+onMounted(load)
+watch(sid, load)
+
+async function changeStatus(b: ShelfItem, status: ShelfStatus) {
+  const patch = statusPatch(b, status, today)
+  await updateShelf($firestore, sid.value, b.id, patch)
+  Object.assign(b, patch)
+}
+
+function openDetail(b: ShelfItem) {
+  detail.value = b
+  detailOpen.value = true
+}
+
+/** READ-21: 빠른 기록 */
+async function quickLog(b: ShelfItem) {
+  const unit = logUnit(b.format)
+  const cur = b.position?.[positionKey(unit)] ?? null
+  const v = await promptDialog(t.log.quickPrompt(t.log.units[unit] ?? ''), cur != null ? String(cur) : '')
+  if (v == null) return
+  const to = Number.parseInt(v, 10)
+  if (!Number.isFinite(to) || to < 0) {
+    toast.error(t.invalid)
+    return
+  }
+  const input = { bookKey: b.bookKey, date: today, unit, from: cur, to, minutes: 0, memo: '' }
+  try {
+    Object.assign(b, await recordReading($firestore, sid.value, auth.user!.uid, b, input))
+    toast.success(t.log.saved)
+    const done = await askFinish($firestore, sid.value, b, input, t.log.finishAsk)
+    if (done) {
+      Object.assign(b, done)
+      toast.success(t.log.finished)
+    }
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+}
+
+async function join(g: BookGroup) {
+  try {
+    await joinBook($firestore, sid.value, auth.user!.uid, g)
+    toast.success(t.joined)
+    await load()
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+}
+
+async function remove(b: ShelfItem) {
+  if (!await confirmDialog(t.removeConfirm(b.title))) return
+  await removeFromShelf($firestore, sid.value, b.id)
+  mine.value = mine.value.filter(x => x.id !== b.id)
+}
+</script>
+
+<template>
+  <div class="mx-auto flex w-full max-w-4xl flex-col gap-6 p-6">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+      <h1 class="text-2xl font-semibold">
+        {{ t.title }}
+      </h1>
+      <Button @click="addOpen = true">
+        <PlusIcon />
+        {{ t.add }}
+      </Button>
+    </div>
+
+    <Tabs v-model="tab">
+      <TabsList class="flex-wrap">
+        <TabsTrigger value="all">
+          {{ t.all }} <span class="text-muted-foreground ml-1 text-xs">{{ mine.length }}</span>
+        </TabsTrigger>
+        <TabsTrigger v-for="s in SHELF_STATUS" :key="s" :value="s">
+          {{ t.statuses[s] }} <span class="text-muted-foreground ml-1 text-xs">{{ mine.filter(b => b.status === s).length }}</span>
+        </TabsTrigger>
+        <TabsTrigger v-if="workspace" value="space">
+          {{ t.spaceShelf }}
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+
+    <p v-if="loading" class="text-muted-foreground text-sm">
+      …
+    </p>
+    <template v-else-if="tab === 'space'">
+      <p v-if="!books.length" class="text-muted-foreground py-10 text-center text-sm">
+        {{ t.spaceEmpty }}
+      </p>
+      <ul v-else class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <li v-for="b in books" :key="b.id" class="flex flex-col gap-1">
+          <img v-if="b.cover" :src="b.cover" alt="" class="aspect-[2/3] w-full rounded-md border object-cover">
+          <div v-else class="bg-muted flex aspect-[2/3] w-full items-center justify-center rounded-md border p-2 text-center text-sm">
+            {{ b.title }}
+          </div>
+          <span class="truncate text-sm font-medium">{{ b.title }}</span>
+          <span class="text-muted-foreground truncate text-xs" :title="b.readerUids.map(name).join(', ')">{{ t.readers(b.readerUids.length, b.readerUids.slice(0, 2).map(name)) }}</span>
+          <span v-if="mineKeys.has(b.bookKey)" class="text-muted-foreground text-xs">{{ t.onShelf }}</span>
+          <Button v-else size="sm" variant="outline" @click="join(b)">
+            {{ t.join }}
+          </Button>
+        </li>
+      </ul>
+    </template>
+    <p v-else-if="!shown.length" class="text-muted-foreground py-10 text-center text-sm">
+      {{ t.empty }}
+    </p>
+    <ul v-else class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <li v-for="b in shown" :key="b.id" class="group flex flex-col gap-1">
+        <button type="button" class="flex flex-col gap-1 text-left" @click="openDetail(b)">
+          <img v-if="b.cover" :src="b.cover" alt="" class="aspect-[2/3] w-full rounded-md border object-cover">
+          <div v-else class="bg-muted flex aspect-[2/3] w-full items-center justify-center rounded-md border p-2 text-center text-sm">
+            {{ b.title }}
+          </div>
+          <span class="truncate text-sm font-medium">{{ b.title }}</span>
+          <span v-if="b.rating" class="text-xs text-amber-500">{{ '★'.repeat(b.rating) }}</span>
+        </button>
+        <span class="text-muted-foreground truncate text-xs">{{ [b.authors.join(', '), t.formats[b.format]].filter(Boolean).join(' · ') }}</span>
+        <div class="flex items-center gap-1">
+          <select :value="b.status" :aria-label="t.fields.status" class="border-input h-8 flex-1 rounded-md border bg-transparent px-1 text-xs" @change="changeStatus(b, ($event.target as HTMLSelectElement).value as ShelfStatus)">
+            <option v-for="s in SHELF_STATUS" :key="s" :value="s">
+              {{ t.statuses[s] }}
+            </option>
+          </select>
+          <Button variant="ghost" size="icon" class="size-8" :aria-label="t.log.quick" :title="t.log.quick" @click="quickLog(b)">
+            <PencilLineIcon />
+          </Button>
+          <Button variant="ghost" size="icon" class="size-8" :aria-label="t.remove" @click="remove(b)">
+            <Trash2Icon />
+          </Button>
+        </div>
+      </li>
+    </ul>
+
+    <AddBookDialog v-model:open="addOpen" :sid="sid" @saved="load" />
+    <BookDetailDialog v-model:open="detailOpen" :sid="sid" :book="detail" :today="today" @saved="load" />
+  </div>
+</template>

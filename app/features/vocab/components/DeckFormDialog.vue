@@ -4,6 +4,9 @@ import type { Deck, DeckFolder } from '../services/decks'
 import type { Member } from '~/features/space/services/invites'
 import { CARD_FIELDS, deckInput, EDIT_POLICY, LANGS } from '#shared/schemas/deck'
 import { toast } from 'vue-sonner'
+import TagSuggest from '~/features/space/components/TagSuggest.vue'
+import { useTags } from '~/features/space/composables/useTags'
+import { ensureTags } from '~/features/space/services/tags'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
@@ -21,6 +24,7 @@ const { $firestore } = useNuxtApp()
 
 const form = ref<DeckInput>(deckInput.parse({ title: '-' }))
 const tagsText = ref('')
+const spaceTags = useTags()
 const pending = ref(false)
 
 const isPersonal = computed(() => space.current?.kind === 'personal')
@@ -58,6 +62,7 @@ async function submit() {
   pending.value = true
   try {
     const sid = space.current!.id
+    void ensureTags($firestore, sid, auth.user!.uid, data.tags, spaceTags.value)
     let id: string
     if (props.deck) {
       const patch: Partial<DeckInput> = { ...data }
@@ -131,6 +136,7 @@ async function submit() {
           <div class="flex flex-col gap-2">
             <Label for="deck-tags">{{ t.fields.tags }}</Label>
             <Input id="deck-tags" v-model="tagsText" maxlength="230" />
+            <TagSuggest v-model="tagsText" :tags="spaceTags" />
             <p class="text-muted-foreground text-xs">
               {{ t.fields.tagsHint }}
             </p>

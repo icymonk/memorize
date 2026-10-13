@@ -1,9 +1,11 @@
-import type { Firestore, Timestamp } from 'firebase/firestore'
-import type { StoredBlock } from '../sync/serialize'
+import type { Firestore, QueryDocumentSnapshot, Timestamp } from 'firebase/firestore'
+import type { FlatBlock, StoredBlock } from '../sync/serialize'
 import type { Functions } from 'firebase/functions'
-import { addDoc, and, collection, doc, getDoc, getDocs, onSnapshot, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
+import type { PropValue } from '#shared/schemas/collection'
+import { addDoc, and, collection, doc, getDoc, getDocs, onSnapshot, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { callFn } from '~/lib/functions'
 import { keyBetween } from '../sync/order'
+import { pageStats } from '../sync/serialize'
 
 export type PageVisibility = 'private' | 'people' | 'group' | 'space'
 
@@ -20,8 +22,12 @@ export interface Page {
   visibility: PageVisibility
   editorIds: string[]
   sharedWith?: string[]
+  reviewerIds?: string[]
   editPolicy?: 'everyone' | 'editors'
   lock?: { uid: string, name: string, at: Timestamp } | null
+  collectionId?: string
+  copiedFrom?: { spaceId: string, pageId: string, spaceName?: string }
+  props?: Record<string, PropValue>
   excerpt: string
   blockCount: number
   textLength: number
@@ -38,9 +44,16 @@ const pagesOf = (db: Firestore, sid: string) => collection(db, 'spaces', sid, 'p
 export const canEditPage = (p: Pick<Page, 'ownerId' | 'editorIds' | 'root' | 'editPolicy'>, uid: string) =>
   p.ownerId === uid || (p.editorIds ?? []).includes(uid) || (p.root === 'shared' && (p.editPolicy ?? 'everyone') === 'everyone')
 
-/** 규칙이 허용하는 것만 조회: 휴지통이 아닌 공간 전체 공개 + 내 페이지 (공개 범위 세분화는 1-C4) */
-const visiblePages = (db: Firestore, sid: string, uid: string) =>
-  query(pagesOf(db, sid), and(where('deletedAt', '==', null), or(where('visibility', '==', 'space'), where('ownerId', '==', uid), where('sharedWith', 'array-contains', uid), where('editorIds', 'array-contains', uid))))
+/** 규칙이 허용하는 것만 조회: 휴지통이 아닌 내 페이지 + 나간 멤버 것이 아닌 공개·공유 페이지 (WS-23) */
+const visiblePages = (db: Firestore, sid: string, uid: string) => {
+  const active = where('ownerStatus', '==', 'active')
+  return query(pagesOf(db, sid), and(where('deletedAt', '==', null), or(
+    and(where('visibility', '==', 'space'), active),
+    where('ownerId', '==', uid),
+    and(where('sharedWith', 'array-contains', uid), active),
+    and(where('editorIds', 'array-contains', uid), active),
+  )))
+}
 
 export async function listPages(db: Firestore, sid: string, uid: string): Promise<Page[]> {
   const snap = await getDocs(visiblePages(db, sid, uid))
@@ -81,12 +94,15 @@ export async function getPage(db: Firestore, sid: string, pageId: string): Promi
 }
 
 /** NOTE-20: 공유 페이지(공간 전체) 또는 내 페이지(나만). 하위 페이지는 부모의 갈래·공개 범위를 따른다 */
-export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null }): Promise<string> {
+export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue>, journal?: boolean, visibility?: 'private' | 'space' }): Promise<string> {
   const now = serverTimestamp()
-  const parent = opts.parent ?? null
-  const root = parent?.root ?? opts.root
+  const col = opts.collection
+  const parent = col ? null : opts.parent ?? null
+  const root = col?.scope ?? parent?.root ?? opts.root
   const ref = await addDoc(pagesOf(db, sid), {
-    type: 'page',
+    type: col ? (opts.journal ? 'journal' : 'item') : 'page',
+    ...(opts.journal ? { editPolicy: 'editors' } : {}),
+    ...(col ? { collectionId: col.id } : {}),
     title: '',
     icon: '',
     cover: null,
@@ -95,8 +111,8 @@ export async function createPage(db: Firestore, sid: string, uid: string, opts: 
     parentId: parent?.id ?? null,
     order: keyBetween(opts.after ?? null, null),
     ancestorIds: parent ? [...(parent.ancestorIds ?? []), parent.id] : [],
-    props: {},
-    visibility: parent?.visibility ?? (root === 'private' ? 'private' : 'space'),
+    props: opts.props ?? {},
+    visibility: parent?.visibility ?? (root === 'private' ? 'private' : opts.visibility ?? 'space'),
     groupIds: [],
     sharedWith: [],
     editorIds: [],
@@ -113,16 +129,57 @@ export async function createPage(db: Firestore, sid: string, uid: string, opts: 
   return ref.id
 }
 
+export async function updatePageIcon(db: Firestore, sid: string, pageId: string, icon: string) {
+  await updateDoc(doc(pagesOf(db, sid), pageId), { icon, updatedAt: serverTimestamp() })
+}
+
 export async function updatePageTitle(db: Firestore, sid: string, pageId: string, title: string) {
   await updateDoc(doc(pagesOf(db, sid), pageId), { title, updatedAt: serverTimestamp() })
 }
 
-export async function loadBlocks(db: Firestore, sid: string, pageId: string): Promise<StoredBlock[]> {
-  const snap = await getDocs(query(collection(db, 'spaces', sid, 'pages', pageId, 'blocks'), orderBy('order')))
-  return snap.docs.map((d) => {
+const blocksQuery = (db: Firestore, sid: string, pageId: string) =>
+  query(collection(db, 'spaces', sid, 'pages', pageId, 'blocks'), orderBy('order'))
+
+function toStored(docs: QueryDocumentSnapshot[]): StoredBlock[] {
+  return docs.map((d) => {
     const { type, parentBlockId, order, attrs, content } = d.data()
     return { id: d.id, type, parentBlockId: parentBlockId ?? null, order, attrs: attrs ?? {}, content: content ?? [] }
   })
+}
+
+export async function loadBlocks(db: Firestore, sid: string, pageId: string): Promise<StoredBlock[]> {
+  return toStored((await getDocs(blocksQuery(db, sid, pageId))).docs)
+}
+
+/** 다른 사람이 고친 내용을 새로고침 없이 받는다. 내 쓰기가 아직 서버에 가지 않은 스냅샷은 `local` */
+export function watchBlocks(db: Firestore, sid: string, pageId: string, cb: (blocks: StoredBlock[], local: boolean) => void, onError: (e: unknown) => void) {
+  return onSnapshot(blocksQuery(db, sid, pageId), snap => cb(toStored(snap.docs), snap.metadata.hasPendingWrites), onError)
+}
+
+/** NOTE-48: 템플릿 페이지의 블록과 요약을 새 페이지로 복사 */
+export async function copyBlocks(db: Firestore, sid: string, uid: string, from: Page, toId: string) {
+  const blocks = await loadBlocks(db, sid, from.id)
+  if (!blocks.length) return
+  const now = serverTimestamp()
+  const batch = writeBatch(db)
+  for (const { id, ...b } of blocks.slice(0, 450)) {
+    batch.set(doc(db, 'spaces', sid, 'pages', toId, 'blocks', id), { ...b, rev: 1, updatedBy: uid, updatedAt: now })
+  }
+  batch.update(doc(pagesOf(db, sid), toId), { excerpt: from.excerpt ?? '', blockCount: Math.min(blocks.length, 450), textLength: from.textLength ?? 0, updatedAt: now })
+  await batch.commit()
+}
+
+/** 빈 새 페이지에 정해진 블록(예: 기본 템플릿)을 넣는다 */
+export async function writeBlocks(db: Firestore, sid: string, uid: string, pageId: string, blocks: FlatBlock[]) {
+  const now = serverTimestamp()
+  const batch = writeBatch(db)
+  let order: string | null = null
+  for (const { id, ...b } of blocks) {
+    order = keyBetween(order, null)
+    batch.set(doc(db, 'spaces', sid, 'pages', pageId, 'blocks', id), { ...b, order, rev: 1, updatedBy: uid, updatedAt: now })
+  }
+  batch.update(doc(pagesOf(db, sid), pageId), { ...pageStats(blocks), updatedAt: now })
+  await batch.commit()
 }
 
 /** NOTE-50·54: 공개 범위·공유 대상·공동 편집자·편집 정책 (작성자만) */
@@ -135,4 +192,9 @@ export const LOCK_REFRESH_MS = 30_000
 export async function setLock(db: Firestore, sid: string, pageId: string, lock: { uid: string, name: string } | null) {
   const now = serverTimestamp()
   await updateDoc(doc(pagesOf(db, sid), pageId), { lock: lock ? { ...lock, at: now } : null, updatedAt: now })
+}
+
+/** NOTE-46: 모음 페이지의 항목 값 */
+export async function setPageProp(db: Firestore, sid: string, pageId: string, key: string, value: PropValue) {
+  await updateDoc(doc(pagesOf(db, sid), pageId), { [`props.${key}`]: value, updatedAt: serverTimestamp() })
 }

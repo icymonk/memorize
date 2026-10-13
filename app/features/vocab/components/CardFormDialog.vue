@@ -6,6 +6,9 @@ import type { Deck } from '../services/decks'
 import { cardInput, DIFFICULTY, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
 import { ChevronDownIcon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
+import TagSuggest from '~/features/space/components/TagSuggest.vue'
+import { useTags } from '~/features/space/composables/useTags'
+import { ensureTags } from '~/features/space/services/tags'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 import { useSpeech } from '../composables/useSpeech'
@@ -21,8 +24,10 @@ const label = ko.vocab.cardFields
 const space = useSpaceStore()
 const { $firestore } = useNuxtApp()
 const speech = useSpeech()
+const auth = useAuthStore()
+const spaceTags = useTags()
 
-const empty = () => ({ front: '', back: '', pos: '', phonetic: '', examples: '', forms: '', synonyms: '', antonyms: '', collocations: '', tip: '', tags: '', difficulty: '' })
+const empty = () => ({ front: '', back: '', reading: '', pos: '', phonetic: '', examples: '', forms: '', synonyms: '', antonyms: '', collocations: '', tip: '', tags: '', difficulty: '' })
 const form = ref(empty())
 const pending = ref(false)
 const selectClass = 'border-input bg-background h-9 rounded-md border px-3 text-sm'
@@ -31,6 +36,8 @@ const has = (field: CardField) => props.deck.fields.includes(field)
 const EXTRA: CardField[] = ['pos', 'examples', 'forms', 'synonyms', 'antonyms', 'collocations', 'tip', 'tags', 'difficulty', 'image']
 const hasExtras = computed(() => EXTRA.some(has))
 const showMore = ref(false)
+/** 일본어 단어장은 읽는 법(히라가나)을 기본으로 보여 준다 */
+const showReading = computed(() => props.deck.langFrom === 'ja' || !!props.card?.reading)
 
 const lines = (s: string) => s.split('\n').map(x => x.trim()).filter(Boolean)
 const list = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
@@ -44,6 +51,7 @@ watch(open, (value) => {
     ? {
         front: c.front,
         back: c.back.join('\n'),
+        reading: c.reading ?? '',
         pos: c.pos ?? '',
         phonetic: c.phonetic ?? '',
         examples: c.examples.map(e => e.translation ? `${e.text} | ${e.translation}` : e.text).join('\n'),
@@ -63,6 +71,7 @@ function build(): CardInput | null {
   const parsed = cardInput.safeParse({
     front: f.front,
     back: lines(f.back),
+    reading: opt(f.reading),
     pos: opt(f.pos),
     phonetic: opt(f.phonetic),
     audio: has('audio') ? { tts: true } : props.card?.audio,
@@ -96,6 +105,7 @@ async function submit() {
   pending.value = true
   try {
     const sid = space.current!.id
+    void ensureTags($firestore, sid, auth.user!.uid, data.tags ?? [], spaceTags.value)
     if (props.card) {
       await saveCard($firestore, sid, props.deck.id, { ...data, id: props.card.id, order: props.card.order, contentRev: props.card.contentRev })
       open.value = false
@@ -130,7 +140,7 @@ async function submit() {
           <Label for="card-front">{{ t.front }}</Label>
           <div class="flex gap-2">
             <Input id="card-front" v-model="form.front" required maxlength="200" autofocus />
-            <Button v-if="speech.supported" type="button" variant="outline" size="icon" :aria-label="t.speak" @click="speech.speak(form.front, deck.langFrom)">
+            <Button v-if="speech.supported" type="button" variant="outline" size="icon" :aria-label="t.speak" @click="speech.speak(form.reading.trim() || form.front, deck.langFrom)">
               <Volume2Icon />
             </Button>
           </div>
@@ -140,6 +150,14 @@ async function submit() {
           <Textarea id="card-back" v-model="form.back" rows="2" required />
           <p class="text-muted-foreground text-xs">
             {{ t.backHint }}
+          </p>
+        </div>
+
+        <div v-if="showReading" class="flex flex-col gap-2">
+          <Label for="card-reading">{{ label.reading }}</Label>
+          <Input id="card-reading" v-model="form.reading" maxlength="100" lang="ja" />
+          <p class="text-muted-foreground text-xs">
+            {{ label.readingHint }}
           </p>
         </div>
 
@@ -200,6 +218,7 @@ async function submit() {
           <div v-if="has('tags')" class="flex flex-col gap-2">
             <Label for="card-tags">{{ label.tags }}</Label>
             <Input id="card-tags" v-model="form.tags" />
+            <TagSuggest v-model="form.tags" :tags="spaceTags" />
           </div>
           <div v-if="has('difficulty')" class="flex flex-col gap-2">
             <Label for="card-difficulty">{{ label.difficulty }}</Label>

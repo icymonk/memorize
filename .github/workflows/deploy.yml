@@ -63,9 +63,11 @@ jobs:
           credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       # 서버 기능 파라미터: 비대화형 배포는 값을 물어볼 수 없으므로 dotenv로 넘긴다
       - if: github.event_name != 'pull_request'
-        run: echo "ENFORCE_APP_CHECK=$ENFORCE_APP_CHECK" > functions/.env
+        run: printf 'ENFORCE_APP_CHECK=%s\nKAKAO_REST_KEY=%s\nGOOGLE_BOOKS_KEY=%s\n' "$ENFORCE_APP_CHECK" "$KAKAO_REST_KEY" "$GOOGLE_BOOKS_KEY" > functions/.env
         env:
           ENFORCE_APP_CHECK: ${{ vars.ENFORCE_APP_CHECK || 'false' }}
+          KAKAO_REST_KEY: ${{ secrets.KAKAO_REST_KEY }}
+          GOOGLE_BOOKS_KEY: ${{ secrets.GOOGLE_BOOKS_KEY }}
       - if: github.event_name != 'pull_request'
         run: pnpm exec firebase deploy --project default --non-interactive --force --only "$ONLY"
         env:

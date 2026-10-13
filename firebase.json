@@ -9,6 +9,13 @@
     ],
     "rewrites": [
       {
+        "source": "/fn/searchBooks",
+        "function": {
+          "functionId": "searchBooks",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/cancelSpaceDeletion",
         "function": {
           "functionId": "cancelSpaceDeletion",
@@ -124,6 +131,20 @@
         "source": "/fn/trashPage",
         "function": {
           "functionId": "trashPage",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/leaveFeedback",
+        "function": {
+          "functionId": "leaveFeedback",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/deleteCollection",
+        "function": {
+          "functionId": "deleteCollection",
           "region": "asia-northeast3"
         }
       },

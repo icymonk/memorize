@@ -14,7 +14,7 @@ const { $firestore } = useNuxtApp()
 const items = ref<ReviewItem[]>([])
 const loading = ref(true)
 const result = ref<ModeResult | null>(null)
-const home = computed(() => auth.account ? `/s/${auth.account.personalSpaceId}` : '/')
+const home = computed(() => auth.account ? `/s/${auth.account.personalSpaceId}/decks` : '/')
 
 onMounted(async () => {
   try {

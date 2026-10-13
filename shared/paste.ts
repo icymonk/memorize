@@ -43,3 +43,11 @@ export function parsePaste(input: string, termSep: TermSeparator, cardSep: CardS
   })
   return out
 }
+
+const KANA_READING = /^(.+?)\s*[(（]\s*([\u3040-\u30FFー・\s]+?)\s*[)）]$/
+
+/** 일본어 단어장: `漢字(かんじ)`처럼 단어 뒤 괄호 안 가나를 읽는 법으로 뗀다 */
+export function splitKanaReading(front: string): { front: string, reading?: string } {
+  const m = front.match(KANA_READING)
+  return m ? { front: m[1]!.trim(), reading: m[2]!.trim() } : { front }
+}

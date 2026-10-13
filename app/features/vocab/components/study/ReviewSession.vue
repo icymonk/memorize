@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CardWord from '../CardWord.vue'
 import type { ModeResult, ReviewItem } from './types'
 import type { Rating } from '#shared/srs'
 import type { CardState } from '~/features/vocab/services/srs'
@@ -57,7 +58,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
       <span class="text-sm tabular-nums">{{ t.remaining(queue.length) }}</span>
     </Teleport>
     <div class="bg-card flex min-h-64 flex-1 flex-col items-center justify-center gap-3 rounded-2xl border p-6 text-center shadow-sm">
-      <span class="text-3xl font-semibold">{{ item.card.front }}</span>
+      <span class="text-3xl font-semibold"><CardWord :front="item.card.front" :reading="item.card.reading" /></span>
       <span v-if="item.card.phonetic" class="text-muted-foreground">{{ item.card.phonetic }}</span>
       <template v-if="revealed">
         <hr class="w-24">

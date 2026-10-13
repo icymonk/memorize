@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import CardWord from '../CardWord.vue'
 import type { ModeResult } from './types'
 import type { Card } from '~/features/vocab/services/cards'
 import type { Deck } from '~/features/vocab/services/decks'
@@ -92,7 +93,7 @@ const showFront = computed(() => flipped.value === state.value.swapped)
       @click="flipped = !flipped"
     >
       <template v-if="showFront">
-        <span class="text-3xl font-semibold">{{ card.front }}</span>
+        <span class="text-3xl font-semibold"><CardWord :front="card.front" :reading="card.reading" /></span>
         <span v-if="card.phonetic" class="text-muted-foreground">{{ card.phonetic }}</span>
       </template>
       <template v-else>
@@ -114,7 +115,7 @@ const showFront = computed(() => flipped.value === state.value.swapped)
         <ArrowLeftIcon />
       </Button>
       <div class="flex gap-1">
-        <Button v-if="speech.supported" variant="ghost" size="icon" aria-label="발음" @click="speech.speak(card.front, lang)">
+        <Button v-if="speech.supported" variant="ghost" size="icon" aria-label="발음" @click="speech.speak(card.reading || card.front, lang)">
           <Volume2Icon />
         </Button>
         <Button variant="ghost" size="icon" :aria-label="t.shuffle" @click="reshuffle">

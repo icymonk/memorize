@@ -14,8 +14,8 @@ import { youtubeEmbed } from '../extensions/blocks'
 import { deleteBlock, duplicateBlock, findBlockPos, insertBlock, moveBlock } from '../extensions/commands'
 import { ensureUniqueIds, noteExtensions } from '../extensions/index'
 import { SLASH_ITEMS } from '../extensions/slash'
-import { loadBlocks } from '../services/pages'
-import { savedFrom } from '../sync/diff'
+import { loadBlocks, watchBlocks } from '../services/pages'
+import { diffBlocks, savedFrom } from '../sync/diff'
 import { fromBlocks, toBlocks } from '../sync/serialize'
 import { createSaveQueue, firestoreCommitter } from '../sync/writer'
 import { cn } from '~/lib/utils'
@@ -33,6 +33,7 @@ const editor = shallowRef<Editor>()
 const online = useOnline()
 const wrapper = ref<HTMLElement>()
 let queue: ReturnType<typeof createSaveQueue> | undefined
+let unwatch: (() => void) | undefined
 
 function slashRender(): ReturnType<NonNullable<SuggestionOptions<SlashItem>['render']>> {
   let menu: VueRenderer | undefined
@@ -63,9 +64,12 @@ function slashRender(): ReturnType<NonNullable<SuggestionOptions<SlashItem>['ren
 
 function onSlashItem(key: string, e: CoreEditor) {
   if (key !== 'video') return false
-  const src = youtubeEmbed(window.prompt(t.videoPrompt) ?? '')
-  if (src) insertBlock(e, 'video', { src })
-  else toast.error(t.videoInvalid)
+  void promptDialog(t.videoPrompt).then((raw) => {
+    if (raw === null) return
+    const src = youtubeEmbed(raw)
+    if (src) insertBlock(e, 'video', { src })
+    else toast.error(t.videoInvalid)
+  })
   return true
 }
 
@@ -102,6 +106,15 @@ onMounted(async () => {
     })
     editor.value = e
     nextTick(emitHeadings)
+    // 편집 잠금 때문에 동시에 고치는 사람은 없다. 내가 쓰는 중이 아닐 때만 남이 고친 내용으로 바꾼다
+    unwatch = watchBlocks($firestore, props.spaceId, props.pageId, (remote, local) => {
+      if (local || (props.editable && queue?.busy)) return
+      if (!diffBlocks(savedFrom(remote), toBlocks(e.getJSON())).ops.length) return
+      e.commands.setContent(fromBlocks(remote), { emitUpdate: false })
+      queue?.rebase(savedFrom(remote))
+      emit('loaded', remote.length)
+      emitHeadings()
+    }, () => {})
   }
   catch (error) {
     emit('error', error)
@@ -118,6 +131,7 @@ useEventListener(window, 'beforeunload', (e: BeforeUnloadEvent) => {
   if (queue?.busy) e.preventDefault()
 })
 onBeforeUnmount(() => {
+  unwatch?.()
   flush()
   queue?.dispose()
   editor.value?.destroy()
@@ -134,9 +148,9 @@ const marks = computed(() => [
   { key: 'strike', icon: StrikethroughIcon, run: () => chain().toggleStrike().run() },
   { key: 'code', icon: CodeIcon, run: () => chain().toggleCode().run() },
 ] as const)
-function setLink() {
+async function setLink() {
   const prev = editor.value!.getAttributes('link').href as string | undefined
-  const href = window.prompt(t.format.linkPrompt, prev ?? 'https://')
+  const href = await promptDialog(t.format.linkPrompt, prev ?? 'https://')
   if (href === null) return
   if (!href.trim()) chain().extendMarkRange('link').unsetLink().run()
   else chain().extendMarkRange('link').setLink({ href: href.trim() }).run()

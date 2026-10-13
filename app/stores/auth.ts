@@ -7,6 +7,7 @@ import {
   sendSignInLinkToEmail,
   signInWithEmailLink,
   signInWithPopup,
+  updateProfile,
   signOut as firebaseSignOut,
 } from 'firebase/auth'
 import { defineStore } from 'pinia'
@@ -61,6 +62,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function completeOnboarding(displayName: string, timezone: string) {
     await callFn($functions, 'completeOnboarding', { displayName, timezone })
+    // 편집 잠금 등 Auth 프로필 이름을 쓰는 곳도 고른 이름을 보이게 (이메일 링크 가입은 이름이 비어 있다)
+    if ($auth.currentUser) await updateProfile($auth.currentUser, { displayName })
     if (account.value) account.value = { ...account.value, needsOnboarding: false }
   }
 

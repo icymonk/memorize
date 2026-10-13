@@ -10,7 +10,8 @@
     "postinstall": "nuxt prepare",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:rules": "firebase emulators:exec --only firestore --project demo-memorize-rules \"pnpm --dir tests/rules test\"",
+    "test:e2e": "bash tests/e2e/run.sh",
+    "test:rules": "firebase emulators:exec --only firestore,storage --project demo-memorize-rules \"pnpm --dir tests/rules test\"",
     "typecheck": "nuxt typecheck && pnpm --filter functions typecheck",
     "functions:build": "pnpm --filter functions build",
     "emulators": "pnpm functions:build && firebase emulators:start"

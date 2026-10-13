@@ -7,6 +7,9 @@ import { SPACE_COLOR_CLASS, SPACE_ICONS } from '~/features/space/colors'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
+import { XIcon } from '@lucide/vue'
+import { useTags } from '~/features/space/composables/useTags'
+import { deleteTag, TAG_CLASS } from '~/features/space/services/tags'
 
 const t = ko.space.settings
 const space = useSpaceStore()
@@ -17,6 +20,8 @@ if (space.current?.kind !== 'workspace') {
 
 const canManage = computed(() => space.can('manage'))
 const canDelete = computed(() => space.can('delete'))
+const tags = useTags()
+const { $firestore: fs } = useNuxtApp()
 
 const name = ref('')
 const icon = ref('')
@@ -75,7 +80,7 @@ const cancelDeletion = () => run('delete', () => space.cancelDeletion(), t.delet
 
 async function leave() {
   const s = space.current
-  if (!s || !window.confirm(ko.members.leave.confirm(s.name))) return
+  if (!s || !(await confirmDialog(ko.members.leave.confirm(s.name)))) return
   await run('leave', async () => {
     await space.leave()
     await navigateTo('/', { replace: true })
@@ -198,6 +203,15 @@ async function leave() {
             </div>
           </RadioGroup>
         </div>
+        <div class="flex flex-col gap-2">
+          <Label>{{ t.journalVisibility }}</Label>
+          <RadioGroup v-model="settings.journalVisibility" :disabled="!canManage" class="flex flex-wrap gap-4">
+            <div v-for="(label, value) in t.journalVisibilityOptions" :key="value" class="flex items-center gap-2">
+              <RadioGroupItem :id="`journal-${value}`" :value="value" />
+              <Label :for="`journal-${value}`" class="font-normal">{{ label }}</Label>
+            </div>
+          </RadioGroup>
+        </div>
       </CardContent>
       <CardFooter v-if="canManage" class="justify-end">
         <Button :disabled="saving === 'settings'" @click="saveSettings">
@@ -213,6 +227,24 @@ async function leave() {
       </CardHeader>
       <CardContent class="text-sm">
         {{ t.capacityValue(space.current.memberCount, space.current.maxMembers ?? LIMITS.workspaceMaxMembers) }}
+      </CardContent>
+    </Card>
+
+    <Card>
+      <CardHeader>
+        <CardTitle>{{ t.tags }}</CardTitle>
+        <CardDescription>{{ t.tagsHint }}</CardDescription>
+      </CardHeader>
+      <CardContent class="flex flex-wrap gap-1.5 text-sm">
+        <span v-for="tag in tags" :key="tag.id" class="flex items-center gap-1 rounded-full px-2.5 py-0.5" :class="TAG_CLASS[tag.color] ?? TAG_CLASS.gray">
+          #{{ tag.name }}
+          <button v-if="canManage" type="button" :aria-label="t.tagDelete(tag.name)" :disabled="saving === 'tags'" class="hover:opacity-70" @click="run('tags', () => deleteTag(fs, space.current!.id, tag.id), t.tagDeleted)">
+            <XIcon class="size-3" />
+          </button>
+        </span>
+        <p v-if="!tags.length" class="text-muted-foreground">
+          {{ t.tagsEmpty }}
+        </p>
       </CardContent>
     </Card>
 

@@ -11,9 +11,9 @@ export const modulesSchema = z.object(Object.fromEntries(MODULE_KEYS.map(k => [k
 export const DEFAULT_WORKSPACE_MODULES: Modules = {
   vocab: true,
   notes: true,
-  reading: false,
+  reading: true,
   reviews: false,
-  missions: false,
+  missions: true,
   tests: false,
   math: false,
   courses: false,
@@ -42,6 +42,8 @@ export const spaceSettingsSchema = z.object({
   whoCanCreate: z.enum(WHO_OPTIONS),
   whoCanHost: z.enum(WHO_OPTIONS),
   progressSharing: z.enum(['everyone', 'self']),
+  /** WS-06 새 학습일지의 기본 공개 범위 */
+  journalVisibility: z.enum(['space', 'private']),
 })
 export type SpaceSettings = z.infer<typeof spaceSettingsSchema>
 
@@ -52,6 +54,7 @@ export const DEFAULT_SPACE_SETTINGS: SpaceSettings = {
   whoCanCreate: 'everyone',
   whoCanHost: 'everyone',
   progressSharing: 'everyone',
+  journalVisibility: 'space',
 }
 
 /** WS-01 설정 화면의 일반 항목 (규칙에서도 같은 한도를 검사한다) */
