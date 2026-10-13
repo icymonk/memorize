@@ -569,6 +569,24 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertFails(updateDoc(pageRef('mia', 'j1'), { title: 'x', updatedAt: serverTimestamp() }))
   })
 
+  it('book review: any member writes their own about a book, others cannot edit (REV-01·02)', async () => {
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID), { 'settings.whoCanCreate': 'managers' }))
+    const sys = { kind: 'system', systemType: 'bookReview', name: '독후감', icon: '', ownerId: 'bob', scope: 'shared', schema: [], views: [], templateIds: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
+    const colDoc = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'collections', id)
+    await assertSucceeds(getDoc(colDoc('bob', 'bookReview')))
+    await assertFails(setDoc(colDoc('bob', 'bookReview'), { ...sys, systemType: 'journal' }))
+    await assertSucceeds(setDoc(colDoc('bob', 'bookReview'), sys))
+    const book = { bookKey: 'isbn:9788936434120', title: '소년이 온다', authors: ['한강'], cover: '' }
+    const r = (o: object) => page({ type: 'bookReview', collectionId: 'bookReview', editPolicy: 'editors', visibility: 'private', book, ...o })
+    await assertSucceeds(setDoc(pageRef('bob', 'r1'), r({})))
+    await assertFails(setDoc(pageRef('bob', 'r2'), r({ book: null })))
+    await assertFails(setDoc(pageRef('bob', 'r3'), r({ editPolicy: 'everyone' })))
+    await assertFails(setDoc(pageRef('bob', 'r4'), r({ collectionId: 'journal' })))
+    await assertFails(setDoc(pageRef('bob', 'r5'), page({ type: 'item', collectionId: 'bookReview' })))
+    await assertFails(updateDoc(pageRef('bob', 'r1'), { book: { ...book, title: 'x' }, updatedAt: serverTimestamp() }))
+    await assertFails(getDoc(pageRef('alice', 'r1')))
+  })
+
   it('my journals across spaces: collectionGroup read of my own pages only (NOTE-39)', async () => {
     await seed('pages/mine', page({ type: 'journal', collectionId: 'journal', editPolicy: 'editors', ownerId: 'bob' }))
     await assertSucceeds(getDocs(query(collectionGroup(db('bob'), 'pages'), where('ownerId', '==', 'bob'), where('type', '==', 'journal'))))

@@ -242,6 +242,21 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
       <p v-if="live?.copiedFrom" class="text-muted-foreground -mt-2 text-xs">
         {{ t.copy.from(live.copiedFrom.spaceName ?? '') }}
       </p>
+      <div v-if="live?.type === 'bookReview' && live.book" class="flex items-center gap-3 rounded-lg border p-3">
+        <img v-if="live.book.cover" :src="live.book.cover" alt="" class="h-16 w-11 rounded-sm object-cover">
+        <div class="min-w-0 flex-1 text-sm">
+          <p class="font-medium">
+            {{ live.book.title }}
+          </p>
+          <p class="text-muted-foreground text-xs">
+            {{ live.book.authors.join(', ') }}
+          </p>
+        </div>
+        <span class="text-muted-foreground shrink-0 text-xs tabular-nums">{{ t.review.chars(live.textLength ?? 0) }}</span>
+      </div>
+      <p v-if="live?.type === 'bookReview' && live.visibility === 'private'" class="text-muted-foreground -mt-2 text-xs">
+        {{ t.review.draftHint }}
+      </p>
       <dl v-if="collection?.schema.length" class="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-1 text-sm">
         <template v-for="d in defs" :key="d.key">
           <dt class="text-muted-foreground truncate">{{ d.name }}</dt>

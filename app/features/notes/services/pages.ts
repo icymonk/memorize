@@ -9,6 +9,14 @@ import { pageStats } from '../sync/serialize'
 
 export type PageVisibility = 'private' | 'people' | 'group' | 'space'
 
+/** REV-02·03: 독후감의 책 (책장에서 복사) */
+export interface PageBook {
+  bookKey: string
+  title: string
+  authors: string[]
+  cover: string
+}
+
 export interface Page {
   id: string
   type: 'page' | 'journal' | 'bookReview' | 'lessonNote' | 'item'
@@ -27,6 +35,8 @@ export interface Page {
   lock?: { uid: string, name: string, at: Timestamp } | null
   collectionId?: string
   copiedFrom?: { spaceId: string, pageId: string, spaceName?: string }
+  book?: PageBook
+  cover?: string | null
   props?: Record<string, PropValue>
   excerpt: string
   blockCount: number
@@ -94,18 +104,19 @@ export async function getPage(db: Firestore, sid: string, pageId: string): Promi
 }
 
 /** NOTE-20: 공유 페이지(공간 전체) 또는 내 페이지(나만). 하위 페이지는 부모의 갈래·공개 범위를 따른다 */
-export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue>, journal?: boolean, visibility?: 'private' | 'space' }): Promise<string> {
+export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue>, journal?: boolean, book?: PageBook, visibility?: 'private' | 'space' }): Promise<string> {
   const now = serverTimestamp()
   const col = opts.collection
   const parent = col ? null : opts.parent ?? null
   const root = col?.scope ?? parent?.root ?? opts.root
   const ref = await addDoc(pagesOf(db, sid), {
-    type: col ? (opts.journal ? 'journal' : 'item') : 'page',
-    ...(opts.journal ? { editPolicy: 'editors' } : {}),
+    type: col ? (opts.journal ? 'journal' : opts.book ? 'bookReview' : 'item') : 'page',
+    ...(opts.journal || opts.book ? { editPolicy: 'editors' } : {}),
+    ...(opts.book ? { book: opts.book } : {}),
     ...(col ? { collectionId: col.id } : {}),
     title: '',
     icon: '',
-    cover: null,
+    cover: opts.book?.cover || null,
     ownerId: uid,
     root,
     parentId: parent?.id ?? null,
