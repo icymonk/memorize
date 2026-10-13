@@ -605,6 +605,7 @@ export const ko = {
       tooLarge: '한 블록의 글자가 너무 많아 저장을 멈췄어요. 블록을 나눠 주세요.',
     },
   },
+  dialog: { ok: '확인', cancel: '취소' },
   errors: {
     popupClosed: '로그인 창이 닫혔어요.',
     unauthorizedDomain: '이 주소에서는 로그인할 수 없어요. 관리자에게 알려 주세요.',

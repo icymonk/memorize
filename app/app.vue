@@ -8,4 +8,5 @@ import 'vue-sonner/style.css'
     <NuxtPage />
   </NuxtLayout>
   <Sonner rich-colors position="top-center" />
+  <AppDialogs />
 </template>

@@ -53,7 +53,7 @@ function jump(id: string) {
   document.querySelector(`.note-editor [data-id="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 async function toTrash() {
-  if (!page.value || !window.confirm(t.trashConfirm(page.value.title || t.untitled))) return
+  if (!page.value || !(await confirmDialog(t.trashConfirm(page.value.title || t.untitled)))) return
   try {
     editorRef.value?.flush()
     await notes.trash(page.value.id)

@@ -46,7 +46,7 @@ function addRow() {
 
 async function remove() {
   const c = props.collection
-  if (!c || !window.confirm(t.deleteConfirm(c.name))) return
+  if (!c || !(await confirmDialog(t.deleteConfirm(c.name)))) return
   pending.value = true
   try {
     await deleteCollection($functions, space.current!.id, c.id)

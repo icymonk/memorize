@@ -48,7 +48,7 @@ async function addChild() {
   catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
 }
 async function toTrash() {
-  if (!window.confirm(t.trashConfirm(props.page.title || t.untitled))) return
+  if (!(await confirmDialog(t.trashConfirm(props.page.title || t.untitled)))) return
   try {
     await notes.trash(props.page.id)
     toast.success(t.trashed)

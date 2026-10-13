@@ -98,16 +98,16 @@ const toggleManager = (m: Member) => run(m.uid, async () => {
   await callFn($functions, 'setManager', { spaceId: spaceId.value, uid: m.uid, manager: m.access !== 'manager' })
 }, t.actions.done)
 
-function removeMember(m: Member) {
-  if (!window.confirm(t.actions.removeConfirm(m.displayName))) return
+async function removeMember(m: Member) {
+  if (!(await confirmDialog(t.actions.removeConfirm(m.displayName)))) return
   return run(m.uid, async () => {
     await callFn($functions, 'removeMember', { spaceId: spaceId.value, uid: m.uid })
     await afterChange()
   }, t.actions.done)
 }
 
-function requestTransfer(m: Member) {
-  if (!window.confirm(t.actions.transferConfirm(m.displayName))) return
+async function requestTransfer(m: Member) {
+  if (!(await confirmDialog(t.actions.transferConfirm(m.displayName)))) return
   return run(m.uid, async () => {
     await callFn($functions, 'transferOwnership', { spaceId: spaceId.value, uid: m.uid })
     await afterChange()
