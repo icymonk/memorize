@@ -29,4 +29,20 @@ test('copy a personal deck into a workspace', async ({ page }) => {
   await page.waitForURL(url => !url.pathname.startsWith(`/s/${sid}`) && /\/decks\/[^/]+$/.test(url.pathname))
   await expect(page.getByText('내 공간에서 복사함')).toBeVisible()
   await expect(page.getByText('run')).toBeVisible()
+
+  // 2-E1: 미션 만들기 → 상세 → 조기 종료
+  const ws = new URL(page.url()).pathname.split('/')[2]
+  await page.goto(`/s/${ws}/missions`)
+  await page.getByRole('button', { name: '미션 만들기' }).click()
+  await page.locator('#mis-title').fill('매일 영어 일기')
+  await page.getByLabel('나도 참여').check()
+  await page.locator('button[form="mission-form"]').click()
+  await page.waitForURL(/\/missions\/[^/]+$/)
+  await expect(page.getByRole('heading', { name: '매일 영어 일기' })).toBeVisible()
+  await page.getByRole('button', { name: '조기 종료' }).click()
+  await page.getByRole('button', { name: '확인', exact: true }).click()
+  await expect(page.getByRole('button', { name: '다시 열기' })).toBeVisible()
+  await page.goto(`/s/${ws}/missions`)
+  await page.getByRole('tab', { name: /완료/ }).click()
+  await expect(page.getByText('매일 영어 일기')).toBeVisible()
 })

@@ -711,3 +711,61 @@ describe('tags (CMN-51)', () => {
     await assertSucceeds(deleteDoc(ref('mia', '시험')))
   })
 })
+
+describe('missions (2-E1, MIS-10~12·14·34)', () => {
+  const mission = (over: object = {}) => ({
+    title: '매일 영어 일기',
+    description: '',
+    type: 'check',
+    recurrence: { kind: 'daily', weekdays: [] },
+    startDate: '2026-10-12',
+    endDate: null,
+    allowLate: false,
+    assignees: { all: true, uids: [] },
+    includeSelf: false,
+    joinable: false,
+    isPersonal: false,
+    notifyOnComplete: 'feed',
+    reviewerIds: [],
+    hostIds: ['bob'],
+    participantIds: ['alice', 'mia'],
+    createdBy: 'bob',
+    closedAt: null,
+    ...over,
+  })
+  const ref = (uid: string, id: string, sid = SID) => doc(db(uid), 'spaces', sid, 'missions', id)
+  const goal = { isPersonal: true, hostIds: ['bob'], participantIds: ['bob'], assignees: { all: false, uids: ['bob'] } }
+
+  it('members host missions as themselves; whoCanHost=managers limits to managers but not personal goals', async () => {
+    await assertSucceeds(setDoc(ref('bob', 'm1'), mission()))
+    await assertFails(setDoc(ref('bob', 'm2'), mission({ createdBy: 'alice' })))
+    await assertFails(setDoc(ref('bob', 'm3'), mission({ hostIds: ['alice'] })))
+    await assertFails(setDoc(ref('bob', 'm4'), mission({ endDate: '2026-10-01' })))
+    await assertFails(setDoc(ref('lee', 'm5'), mission({ createdBy: 'lee', hostIds: ['lee'] })))
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID), { 'settings.whoCanHost': 'managers' }))
+    await assertFails(setDoc(ref('bob', 'm6'), mission()))
+    await assertSucceeds(setDoc(ref('bob', 'g1'), mission(goal)))
+    await assertSucceeds(setDoc(ref('mia', 'm7'), mission({ createdBy: 'mia', hostIds: ['mia'] })))
+  })
+
+  it('personal goals stay with their creator; the personal space only takes personal goals', async () => {
+    await assertFails(setDoc(ref('bob', 'g2'), mission({ ...goal, participantIds: ['bob', 'alice'] })))
+    await assertSucceeds(setDoc(ref('bob', 'g1'), mission(goal)))
+    await assertFails(getDoc(ref('alice', 'g1')))
+    await assertSucceeds(getDoc(ref('bob', 'g1')))
+    await assertSucceeds(getDocs(query(collection(db('alice'), 'spaces', SID, 'missions'), or(where('isPersonal', '==', false), where('createdBy', '==', 'alice')))))
+    const own = { ...goal, hostIds: ['alice'], participantIds: ['alice'], createdBy: 'alice' }
+    await assertSucceeds(setDoc(ref('alice', 'pg', 'p_alice'), mission(own)))
+    await assertFails(setDoc(ref('alice', 'pm', 'p_alice'), mission({ createdBy: 'alice', hostIds: ['alice'] })))
+  })
+
+  it('only hosts edit or close; the creator stays and nobody deletes a shared mission', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'missions', 'm1'), mission({ hostIds: ['bob', 'mia'] })))
+    await assertSucceeds(updateDoc(ref('mia', 'm1'), { title: '주 3회 일기', closedAt: serverTimestamp() }))
+    await assertFails(updateDoc(ref('alice', 'm1'), { title: 'x' }))
+    await assertFails(updateDoc(ref('bob', 'm1'), { createdBy: 'mia' }))
+    await assertFails(updateDoc(ref('bob', 'm1'), { isPersonal: true }))
+    await assertFails(deleteDoc(ref('bob', 'm1')))
+    await assertSucceeds(getDoc(ref('alice', 'm1')))
+  })
+})

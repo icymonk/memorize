@@ -13,7 +13,7 @@ export const DEFAULT_WORKSPACE_MODULES: Modules = {
   notes: true,
   reading: false,
   reviews: false,
-  missions: false,
+  missions: true,
   tests: false,
   math: false,
   courses: false,
