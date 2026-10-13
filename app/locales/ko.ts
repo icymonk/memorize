@@ -133,6 +133,17 @@ export const ko = {
       grass: (weeks: number) => `최근 ${weeks}주 학습 잔디`,
       minutes: '분',
     },
+    leading: {
+      title: '내가 이끄는 것',
+      summary: (pending: number, feedback: number) => [pending ? `검토 대기 ${pending}건` : '', feedback ? `피드백 요청 ${feedback}건` : ''].filter(Boolean).join(' · ') || '진행 중인 내 미션',
+      missions: '내가 연 미션',
+      today: '오늘',
+      progress: (label: string, done: number, total: number) => `${label ? `${label} ` : ''}${done}/${total}명 완료`,
+      notStarted: '시작 전',
+      pending: (n: number) => `검토 대기 ${n}`,
+      feedback: '피드백을 요청받은 글',
+      untitled: '제목 없음',
+    },
     feed: {
       title: '활동',
       more: '더보기',

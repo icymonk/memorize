@@ -737,6 +737,16 @@ describe('reactions (CMN-21)', () => {
   })
 })
 
+describe('leading: pages asking me for feedback (CMN-06)', () => {
+  it('a reviewer lists private pages that ask them for feedback', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'pages', 'fb1'), { ownerId: 'alice', visibility: 'private', root: 'private', parentId: null, deletedAt: null, ownerStatus: 'active', editorIds: [], reviewerIds: ['bob'] }))
+    const asked = (uid: string) => getDocs(query(collection(db(uid), 'spaces', SID, 'pages'), where('deletedAt', '==', null), where('ownerStatus', '==', 'active'), where('reviewerIds', 'array-contains', uid)))
+    await assertSucceeds(asked('bob'))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'pages', 'fb1')))
+    await assertFails(getDoc(doc(db('mia'), 'spaces', SID, 'pages', 'fb1')))
+  })
+})
+
 describe('uploads (CMN-62)', () => {
   it('only the owner reads their upload list; clients never write it', async () => {
     await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/bob/uploads/f1'), { size: 1 }))
