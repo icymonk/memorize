@@ -1,6 +1,6 @@
 # 0~1단계 작업 분해
 
-> 상태: 확정 · v2.27 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
+> 상태: 확정 · v2.28 — [planning/roadmap.md](../planning/roadmap.md)의 0·1단계를 개발 작업으로 나눈 것. 2단계 이후는 1단계 마무리 시점에 작성한다.
 
 ## 진행 상황
 | 작업 | 상태 | 비고 |
@@ -12,7 +12,7 @@
 | 0-6 워크스페이스 | 일부 | `createWorkspace`, 공간 목록(사이드바·첫 화면), 만들기 창, `/s/:spaceId` 셸·`space` 미들웨어·`space` 스토어, `/s/:id/settings`(일반·기능·운영 방식·최대 인원 표시), `scheduleSpaceDeletion`·`cancelSpaceDeletion`, `shared/permissions.ts`. 남은 것: `cronSpaceDeletion`(Cloud Scheduler API 필요). 유예 끝난 워크스페이스 삭제 `cronSpaceDeletion`(매일 04시, 서울) |
 | 0-7 초대·멤버 | 일부 | `createInvite`·`getInvite`·`joinSpace`·`decideJoinRequest`, `/invite/:code`, 코드로 참여, `/s/:id/members`(멤버·초대·가입 대기), `setManager`·`removeMember`·`leaveSpace`·`transferOwnership`·`respondOwnership`. 남은 것: `onMemberWritten`(나간 멤버 노트 처리, 노트 기능과 함께) |
 | 1-B1 단어장 목록·만들기 | 일부 | `decks`·`deckFolders` 규칙(공개 대상·편집 범위·`whoCanCreate`), `shared/schemas/deck.ts`, `canSeeContent`·`canEditContent`·`canDeleteContent`, `/s/:id/decks`(폴더·태그 거르기)·`/s/:id/decks/:deckId`, 만들기·설정 창. 남은 것: 그룹 공개(그룹 기능과 함께), 진도 표시(1-B5) |
-| 1-B2 카드 입력 | 일부 | `cards` 규칙(단어장 편집 범위·`contentRev` 서버 전용), `onCardWritten`(카드 수·`contentRev`), 카드 한 장 추가·수정(단어장 항목별), 붙여넣기 입력(`shared/paste.ts`, 미리보기), 표 편집·순서 바꾸기, 기기 음성 발음·목소리 선택. 남은 것: 이미지·녹음 올리기(파일 기능과 함께), 유의어·반의어 카드 연결 |
+| 1-B2 카드 입력 | 일부 | `cards` 규칙(단어장 편집 범위·`contentRev` 서버 전용), `onCardWritten`(카드 수·`contentRev`), 카드 한 장 추가·수정(단어장 항목별), 붙여넣기 입력(`shared/paste.ts`, 미리보기), 표 편집·순서 바꾸기, 기기 음성 발음·목소리 선택. 유의어·반의어는 저장할 때 같은 단어장의 카드와 자동 연결해 뜻을 함께 보여 준다. 남은 것: 이미지·녹음 올리기(파일 기능과 함께) |
 | 1-B3 학습 모드 | 완료 | `/s/:id/study/:deckId?mode=` (낱말카드·학습하기·쓰기·매칭), `shared/study.ts`(오타 허용·보기·라운드·순위), `studySessions`·`deckProgress`·`matchTop` 규칙, `onStudySessionCreated`(매칭 순위·내 최고 기록), 키보드 조작, 기기에 이어하기, 결과 화면. 매칭 쌍 수 고르기(6~12쌍, 순위는 6쌍 기록만). 별표 카드만·활동 피드 반영도 완료 |
 | 1-B4 간격 반복·오늘의 복습 | 일부 | `shared/srs.ts`(SM-2 단순화판, 다시/어려움/알맞음/쉬움), `cardStates` 규칙·컬렉션 그룹 읽기·색인, 단어장 복습(오늘 복습할 카드 + 새 카드 하루 20장), `/s/:id/review`(공간 오늘의 복습), `/review`(전체 오늘의 복습), 홈 카드·사이드바, 카드 삭제 시 학습 기록 정리(`onCardWritten`). 하루 새 카드 수는 처음 본 날짜(`firstSeenAt`) 기준, 전체 복습 결과도 공간별 `studySessions`에 기록. 남은 것: 하루 상한을 학습 설정(ACC-24)에서 바꾸기 |
 | 1-B5 학습 상태·진도·별표·멤버 진도 | 일부 | 카드별 상태·맞힘/틀림·다음 복습(VOC-40), `onCardStateWritten`로 `deckProgress`(외움·학습 중)와 `learnerCount` 집계, 단어장 목록·상세 진도율(VOC-41), 별표와 "별표 카드만" 낱말카드(VOC-42·20), 멤버 진도(VOC-45, 진도 공유 '모두'일 때). 학습하기·쓰기 답도 카드 상태에 반영(`practice`: 횟수, 새 카드→학습 중, 틀리면 오늘 복습). 남은 것: 오답 노트(3단계) |
@@ -106,6 +106,7 @@
 - 없음
 
 ## 변경 이력
+- v2.28: 1-B2 유의어·반의어 카드 연결
 - v2.27: 1-B 남은 것 — 매칭 쌍 수, 학습하기·쓰기 카드 상태, 하루 새 카드 수 날짜 기준, 전체 복습 결과 기록
 - v2.26: `cronPurgeTrash`·`cronSpaceDeletion` 스케줄 함수
 - v2.25: 1-A2 홈 위젯·활동 피드 보충
