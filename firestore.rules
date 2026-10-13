@@ -37,6 +37,11 @@ service cloud.firestore {
       allow read: if signedIn() && resource.data.uid == uid();
     }
 
+    // NOTE-39 내 일지 모아 보기: 모든 공간에서 내가 쓴 페이지만
+    match /{path=**}/pages/{id} {
+      allow read: if signedIn() && resource.data.ownerId == uid();
+    }
+
     match /users/{userId} {
       allow read: if signedIn() && userId == uid();
     }
