@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.14 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.15 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -189,7 +189,7 @@ spaces/{sid}/decks/{deckId}/cards/{cardId}
   audio?: { fileId?, tts: bool }
   examples: [{ text, translation? }]
   forms?: map                           # 복수형, 과거형 …
-  synonyms: [{ text, cardId? }], antonyms: [{ text, cardId? }]
+  synonyms: [{ text, cardId? }], antonyms: [{ text, cardId? }]   # cardId: 저장할 때 같은 단어장에서 앞면이 같은 카드와 자동 연결 (VOC-10)
   collocations[], imageFileId?, tip?, tags[], difficulty?
   order, contentRev                     # 뜻이 크게 바뀌면 +1 (VOC 예외 상황)
 
@@ -427,3 +427,4 @@ users/{uid}/avatar/{fileName}
 - v2.12: 피드 반응(CMN-12) — reactions targetType `feed`
 - v2.13: 피드백 `score`를 `{ format, value }`로 (CMN-24)
 - v2.14: cardStates `firstSeenAt`, studySessions `pairs` (VOC-23·40·44 1단계 마무리)
+- v2.15: 유의어·반의어 `cardId` 자동 연결 (VOC-10)

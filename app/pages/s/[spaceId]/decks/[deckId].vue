@@ -10,6 +10,7 @@ import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardPasteIcon, CopyIcon
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
 import CardFormDialog from '~/features/vocab/components/CardFormDialog.vue'
+import RelatedWords from '~/features/vocab/components/RelatedWords.vue'
 import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import DeckFormDialog from '~/features/vocab/components/DeckFormDialog.vue'
 import PasteCardsDialog from '~/features/vocab/components/PasteCardsDialog.vue'
@@ -413,6 +414,7 @@ async function remove() {
               </div>
               <span class="text-sm">{{ card.back.join(', ') }}</span>
               <span v-if="card.examples[0]" class="text-muted-foreground truncate text-xs">{{ card.examples[0].text }}</span>
+              <RelatedWords :card="card" :cards="cards" class="text-xs" />
               <span v-if="states.get(card.id) && states.get(card.id)!.reps + states.get(card.id)!.wrong > 0" class="text-muted-foreground flex flex-wrap gap-x-2 text-xs">
                 <Badge variant="secondary" class="px-1.5 py-0 text-[10px]">{{ t.progress.status[states.get(card.id)!.status] }}</Badge>
                 <span>{{ t.progress.counts(states.get(card.id)!.correct, states.get(card.id)!.wrong) }}</span>
@@ -440,8 +442,8 @@ async function remove() {
       </section>
 
       <CopyDeckDialog v-model:open="copyOpen" :from-space-id="sid" :content-id="deckId" />
-      <CardFormDialog v-model:open="cardOpen" :deck="deck" :card="editingCard" :next-order="nextOrder" :count="cards.length" @saved="reloadCards" />
-      <PasteCardsDialog v-model:open="pasteOpen" :deck="deck" :next-order="nextOrder" :count="cards.length" @saved="reloadCards" />
+      <CardFormDialog v-model:open="cardOpen" :deck="deck" :card="editingCard" :next-order="nextOrder" :count="cards.length" :cards="cards" @saved="reloadCards" />
+      <PasteCardsDialog v-model:open="pasteOpen" :deck="deck" :next-order="nextOrder" :count="cards.length" :cards="cards" @saved="reloadCards" />
 
       <DeckFormDialog v-model:open="editOpen" :deck="deck" :folders="folders" :members="members" @saved="load" />
     </template>

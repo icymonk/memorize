@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RelatedWords from '../RelatedWords.vue'
 import CardWord from '../CardWord.vue'
 import type { ModeResult } from './types'
 import type { Card } from '~/features/vocab/services/cards'
@@ -99,6 +100,7 @@ const showFront = computed(() => flipped.value === state.value.swapped)
       <template v-else>
         <span class="text-2xl">{{ card.back.join(', ') }}</span>
         <span v-if="card.examples[0]" class="text-muted-foreground text-sm">{{ card.examples[0].text }}</span>
+        <RelatedWords :card="card" :cards="props.cards" class="text-sm" />
       </template>
       <span class="text-muted-foreground mt-2 text-xs">{{ t.flipHint }}</span>
     </button>
