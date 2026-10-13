@@ -1,6 +1,6 @@
 # 블록 편집기 · 블록 단위 저장
 
-> 상태: 확정 · v2.4 — 결정 D2: 블록마다 문서 1개
+> 상태: 확정 · v2.5 — 결정 D2: 블록마다 문서 1개
 
 노트·학습일지·독후감·내 모음·강의 본문이 쓰는 편집기. 기능은 [features/notes.md](../features/notes.md).
 
@@ -136,10 +136,13 @@ features/notes/
 - 구현 메모(1-C1): 순서 키는 외부 패키지 없이 `sync/order.ts`(0-9A-Za-z, 문서 끝 덧붙이기는 짧은 키)로 만든다. 저장은 Firestore 로컬 캐시에 먼저 반영되므로 서버 응답을 기다리지 않고 비교 기준을 옮기고, 응답이 남은 동안 "저장 중"(연결 없으면 "오프라인")으로 표시한다. 쓰기에 실패한 블록은 다음 저장 때 다시 쓴다.
 - 구현 메모(1-C2): 저장되는 블록 타입 이름은 Tiptap 이름을 따른다 — 인용 `blockquote`(한 줄 글자 블록), 구분선 `horizontalRule`, 유튜브 `video`(attrs `src`는 youtube-nocookie 임베드 주소만 그린다). 끌기 손잡이는 drag-handle 확장(공동 편집 패키지를 함께 요구) 대신 직접 만든다.
 
+- 구현 메모(NOTE-07): 연결 블록은 `/연결 블록`으로 넣는다. `pageLink`(`pageId`), `appEmbed`(`refType` deck·book·mission, `refId`. 책은 `bookKey`), `todaySummary`(`uid`, `date`). 제목은 저장하지 않고 볼 때 대상 문서를 읽는다(권한 없음 → "볼 수 없는 항목", 없음 → "삭제된 항목"). 책은 워크스페이스 `books/{bookKey}`, 내 공간은 내 책장 문서를 읽는다. `todaySummary`는 학습일지 요약 화면을 그대로 쓰며(`dailySummaries` 고정본은 아직 없음), `bookQuote`는 지금처럼 구절을 인용 블록으로 넣는다. 역링크(`pageLinks`, NOTE-24)는 3단계.
+
 ## 13. 리뷰 질문
 - 없음
 
 ## 14. 변경 이력
+- v2.5: 12절 NOTE-07 연결 블록 구현 메모
 - v2.4: 12절 1-C2 구현 메모
 - v2.3: 12절 1-C1 구현 메모
 - v2.2: 12절 S1·S2 검증 결과 반영

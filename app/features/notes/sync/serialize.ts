@@ -5,7 +5,7 @@ import { compareOrder } from './order'
 /** 들여쓰기 = 자식 블록인 노션식 목록 블록. 첫 줄(itemLine)이 블록 본문, 나머지 자식이 자식 블록 */
 export const LIST_TYPES: ReadonlySet<string> = new Set(['bulletItem', 'numberedItem', 'todoItem', 'toggle'])
 /** UniqueID를 갖는 블록 노드 */
-export const BLOCK_TYPES = ['paragraph', 'heading', 'blockquote', 'callout', 'codeBlock', 'horizontalRule', 'video', ...LIST_TYPES]
+export const BLOCK_TYPES = ['paragraph', 'heading', 'blockquote', 'callout', 'codeBlock', 'horizontalRule', 'video', 'pageLink', 'appEmbed', 'todaySummary', ...LIST_TYPES]
 
 export interface BlockData {
   type: string
@@ -119,6 +119,7 @@ export function blocksToMarkdown(blocks: StoredBlock[]): string {
       else if (n.type === 'codeBlock') lines.push(`${pad}\`\`\``, ...t.split('\n').map(l => pad + l), `${pad}\`\`\``)
       else if (n.type === 'horizontalRule') lines.push(`${pad}---`)
       else if (n.type === 'video') lines.push(`${pad}${String(a.src ?? '')}`)
+      else if (n.type === 'pageLink' || n.type === 'appEmbed' || n.type === 'todaySummary') lines.push(`${pad}[${String(a.refType ?? n.type)}: ${String(a.pageId ?? a.refId ?? a.date ?? '')}]`)
       else lines.push(`${pad}${t}`)
     }
   }

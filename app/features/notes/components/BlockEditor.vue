@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Editor as CoreEditor } from '@tiptap/core'
 import type { SuggestionOptions } from '@tiptap/suggestion'
+import type { LinkBlock } from '../extensions/link-card'
 import type { SlashItem } from '../extensions/slash'
 import type { SaveStatus } from '../sync/writer'
 import { computePosition, flip, offset, shift } from '@floating-ui/dom'
@@ -20,6 +21,8 @@ import { fromBlocks, toBlocks } from '../sync/serialize'
 import { createSaveQueue, firestoreCommitter } from '../sync/writer'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
+import LinkCardView from './LinkCardView.vue'
+import LinkPicker from './LinkPicker.vue'
 import QuotePicker from './QuotePicker.vue'
 import SlashMenu from './SlashMenu.vue'
 
@@ -70,7 +73,18 @@ function insertQuote(text: string) {
   quoteEditor?.chain().focus().insertContent([{ type: 'blockquote', content: [{ type: 'text', text }] }, { type: 'paragraph' }]).run()
 }
 
+const linkOpen = ref(false)
+let linkEditor: CoreEditor | undefined
+function insertLink(block: LinkBlock) {
+  linkEditor?.chain().focus().insertContent([block, { type: 'paragraph' }]).run()
+}
+
 function onSlashItem(key: string, e: CoreEditor) {
+  if (key === 'link') {
+    linkEditor = e
+    linkOpen.value = true
+    return true
+  }
   if (key === 'quote') {
     quoteEditor = e
     quoteOpen.value = true
@@ -91,7 +105,7 @@ onMounted(async () => {
     const blocks = await loadBlocks($firestore, props.spaceId, props.pageId)
     emit('loaded', blocks.length)
     const e = new Editor({
-      extensions: noteExtensions({ placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem, exclude: props.bookKey ? [] : ['quote'] } }),
+      extensions: noteExtensions({ placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem, exclude: props.bookKey ? [] : ['quote'] }, link: { sid: props.spaceId, view: LinkCardView } }),
       content: fromBlocks(blocks),
       editable: props.editable,
       editorProps: { attributes: { class: 'note-editor focus:outline-none' } },
@@ -218,7 +232,7 @@ function turnHovered(item: SlashItem) {
   if (!onSlashItem(item.key, e)) item.run(e)
   e.commands.focus()
 }
-const turnItems = SLASH_ITEMS.filter(i => !['horizontalRule', 'video', 'quote'].includes(i.key))
+const turnItems = SLASH_ITEMS.filter(i => !['horizontalRule', 'video', 'quote', 'link'].includes(i.key))
 
 defineExpose({ flush, focus: () => editor.value?.commands.focus('start') })
 </script>
@@ -275,6 +289,7 @@ defineExpose({ flush, focus: () => editor.value?.commands.focus('start') })
         </div>
       </div>
 
+      <LinkPicker v-model:open="linkOpen" :sid="spaceId" :page-id="pageId" @pick="insertLink" />
       <QuotePicker v-if="bookKey" v-model:open="quoteOpen" :sid="spaceId" :book-key="bookKey" @pick="insertQuote" />
 
       <EditorContent :editor="editor" />
