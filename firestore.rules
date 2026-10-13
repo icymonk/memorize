@@ -236,6 +236,24 @@ service cloud.firestore {
         allow delete: if false;
       }
 
+      // CMN-20·22 댓글: 대상(지금은 페이지)을 읽을 수 있는 사람이 읽고 쓴다. 수정은 작성자, 삭제는 작성자·매니저. 피드백(kind: feedback)은 서버
+      match /comments/{id} {
+        function target(c) { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(c.targetId)).data; }
+        function readsTarget(c) { return c.targetType == 'page' && (target(c).ownerId == uid() || seesPage(target(c))); }
+        function validComment(c) {
+          return c.targetType == 'page' && isText(c.targetId, 1, 128) && c.kind == 'comment' && isText(c.body, 1, 2000)
+            && c.mentions is list && c.mentions.size() <= 20;
+        }
+        allow read: if isMember(sid) && readsTarget(resource.data);
+        allow create: if isMember(sid) && request.resource.data.uid == uid() && validComment(request.resource.data)
+          && readsTarget(request.resource.data) && request.resource.data.createdAt == request.time
+          && request.resource.data.keys().hasOnly(['targetType', 'targetId', 'uid', 'kind', 'body', 'mentions', 'createdAt']);
+        allow update: if isMember(sid) && resource.data.uid == uid() && validComment(request.resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body', 'mentions', 'editedAt'])
+          && request.resource.data.editedAt == request.time;
+        allow delete: if isMember(sid) && (resource.data.uid == uid() || isManager(sid)) && resource.data.kind == 'comment';
+      }
+
       // NOTE-21 즐겨찾기·최근 본 페이지: 나만 읽고 쓴다
       match /userPrefs/{userId} {
         allow read: if isMember(sid) && userId == uid();
