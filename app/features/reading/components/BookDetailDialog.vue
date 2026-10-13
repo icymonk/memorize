@@ -1,13 +1,16 @@
 <script setup lang="ts">
+import type { ReadingLog } from '../services/logs'
 import type { ShelfItem } from '../services/shelf'
+import { logUnit } from '#shared/schemas/book'
 import { StarIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
+import { askFinish, listBookLogs, recordReading } from '../services/logs'
 import { updateShelf } from '../services/shelf'
 
 /** READ-11: 책별 내 정보 — 현재 위치, 시작일, 완독일, 별점 */
-const props = defineProps<{ sid: string, book: ShelfItem | null }>()
+const props = defineProps<{ sid: string, book: ShelfItem | null, today: string }>()
 const emit = defineEmits<{ saved: [] }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -20,6 +23,16 @@ const startedAt = ref('')
 const finishedAt = ref('')
 const rating = ref<number | null>(null)
 const pending = ref(false)
+const auth = useAuthStore()
+const L = t.log
+const logs = ref<ReadingLog[]>([])
+const logDate = ref('')
+const logTo = ref<number | null>(null)
+const logMinutes = ref<number | null>(null)
+const logMemo = ref('')
+const logging = ref(false)
+const unit = computed(() => logUnit(props.book?.format ?? 'paper'))
+const num = (v: string | number | null | undefined) => v === '' || v == null ? null : Number(v)
 
 const key = computed(() => props.book?.format === 'audio' ? 'minutes' : props.book?.format === 'ebook' ? 'percent' : 'page')
 const total = computed(() => key.value === 'percent' ? 100 : key.value === 'minutes' ? props.book?.total.minutes : props.book?.total.pages)
@@ -32,7 +45,42 @@ watch(open, (v) => {
   startedAt.value = b.startedAt ?? ''
   finishedAt.value = b.finishedAt ?? ''
   rating.value = b.rating ?? null
+  logDate.value = props.today
+  logTo.value = null
+  logMinutes.value = null
+  logMemo.value = ''
+  logs.value = []
+  listBookLogs($firestore, props.sid, auth.user!.uid, b.bookKey).then(l => logs.value = l).catch(() => {})
 })
+
+/** READ-20·24 */
+async function addLog() {
+  const b = props.book
+  if (!b || logTo.value == null) return
+  logging.value = true
+  try {
+    const input = { bookKey: b.bookKey, date: logDate.value || props.today, unit: unit.value, from: pos.value, to: logTo.value, minutes: Math.max(0, Math.min(1440, Math.round(logMinutes.value ?? 0))), memo: logMemo.value.trim().slice(0, 200) }
+    Object.assign(b, await recordReading($firestore, props.sid, auth.user!.uid, b, input))
+    pos.value = logTo.value
+    toast.success(L.saved)
+    const done = await askFinish($firestore, props.sid, b, input, L.finishAsk)
+    if (done) {
+      Object.assign(b, done)
+      toast.success(L.finished)
+    }
+    logTo.value = null
+    logMinutes.value = null
+    logMemo.value = ''
+    logs.value = await listBookLogs($firestore, props.sid, auth.user!.uid, b.bookKey)
+    emit('saved')
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+  finally {
+    logging.value = false
+  }
+}
 
 async function save() {
   if (!props.book) return
@@ -95,6 +143,32 @@ async function save() {
           {{ d.save }}
         </Button>
       </DialogFooter>
+      <section class="flex flex-col gap-3 border-t pt-4">
+        <h3 class="text-sm font-medium">
+          {{ L.title }}
+        </h3>
+        <form class="grid grid-cols-2 gap-2" @submit.prevent="addLog">
+          <Input v-model="logDate" type="date" :aria-label="L.date" />
+          <Input type="number" min="0" :placeholder="L.to(L.units[unit] ?? '')" :aria-label="L.to(L.units[unit] ?? '')" :model-value="logTo ?? undefined" @update:model-value="v => logTo = num(v)" />
+          <Input type="number" min="0" max="1440" :placeholder="L.minutes" :aria-label="L.minutes" :model-value="logMinutes ?? undefined" @update:model-value="v => logMinutes = num(v)" />
+          <Input v-model="logMemo" maxlength="200" :placeholder="L.memo" :aria-label="L.memo" />
+          <Button type="submit" variant="outline" class="col-span-2" :disabled="logging || logTo == null">
+            {{ L.save }}
+          </Button>
+        </form>
+        <h3 class="text-sm font-medium">
+          {{ L.timeline }}
+        </h3>
+        <p v-if="!logs.length" class="text-muted-foreground text-xs">
+          {{ L.none }}
+        </p>
+        <ol v-else class="flex max-h-48 flex-col gap-1 overflow-y-auto text-xs">
+          <li v-for="l in logs" :key="l.id" class="flex gap-2">
+            <span class="text-muted-foreground shrink-0 tabular-nums">{{ l.date }}</span>
+            <span>{{ l.from != null ? `${l.from} → ` : '' }}{{ l.to }}{{ L.units[l.unit] }}<template v-if="l.minutes"> · {{ l.minutes }}분</template><template v-if="l.memo"> · {{ l.memo }}</template></span>
+          </li>
+        </ol>
+      </section>
     </DialogContent>
   </Dialog>
 </template>

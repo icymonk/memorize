@@ -2,12 +2,13 @@
 import type { ShelfStatus } from '#shared/schemas/book'
 import type { BookGroup, ShelfItem } from '~/features/reading/services/shelf'
 import type { Member } from '~/features/space/services/invites'
-import { SHELF_STATUS } from '#shared/schemas/book'
-import { PlusIcon, Trash2Icon } from '@lucide/vue'
+import { logUnit, positionKey, SHELF_STATUS } from '#shared/schemas/book'
+import { PencilLineIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { dateKey } from '#shared/dates'
 import AddBookDialog from '~/features/reading/components/AddBookDialog.vue'
 import BookDetailDialog from '~/features/reading/components/BookDetailDialog.vue'
+import { askFinish, recordReading } from '~/features/reading/services/logs'
 import { joinBook, listBooks, listMyShelf, removeFromShelf, statusPatch, updateShelf } from '~/features/reading/services/shelf'
 import { listMembers } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
@@ -71,6 +72,32 @@ async function changeStatus(b: ShelfItem, status: ShelfStatus) {
 function openDetail(b: ShelfItem) {
   detail.value = b
   detailOpen.value = true
+}
+
+/** READ-21: 빠른 기록 */
+async function quickLog(b: ShelfItem) {
+  const unit = logUnit(b.format)
+  const cur = b.position?.[positionKey(unit)] ?? null
+  const v = await promptDialog(t.log.quickPrompt(t.log.units[unit] ?? ''), cur != null ? String(cur) : '')
+  if (v == null) return
+  const to = Number.parseInt(v, 10)
+  if (!Number.isFinite(to) || to < 0) {
+    toast.error(t.invalid)
+    return
+  }
+  const input = { bookKey: b.bookKey, date: today, unit, from: cur, to, minutes: 0, memo: '' }
+  try {
+    Object.assign(b, await recordReading($firestore, sid.value, auth.user!.uid, b, input))
+    toast.success(t.log.saved)
+    const done = await askFinish($firestore, sid.value, b, input, t.log.finishAsk)
+    if (done) {
+      Object.assign(b, done)
+      toast.success(t.log.finished)
+    }
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
 }
 
 async function join(g: BookGroup) {
@@ -159,6 +186,9 @@ async function remove(b: ShelfItem) {
               {{ t.statuses[s] }}
             </option>
           </select>
+          <Button variant="ghost" size="icon" class="size-8" :aria-label="t.log.quick" :title="t.log.quick" @click="quickLog(b)">
+            <PencilLineIcon />
+          </Button>
           <Button variant="ghost" size="icon" class="size-8" :aria-label="t.remove" @click="remove(b)">
             <Trash2Icon />
           </Button>
@@ -167,6 +197,6 @@ async function remove(b: ShelfItem) {
     </ul>
 
     <AddBookDialog v-model:open="addOpen" :sid="sid" @saved="load" />
-    <BookDetailDialog v-model:open="detailOpen" :sid="sid" :book="detail" @saved="load" />
+    <BookDetailDialog v-model:open="detailOpen" :sid="sid" :book="detail" :today="today" @saved="load" />
   </div>
 </template>

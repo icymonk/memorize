@@ -1,5 +1,6 @@
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
-import { onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { addActivity } from './activity'
 
 /** READ-03·13: 워크스페이스 책장 묶음 `books/{bookKey}`는 멤버 책장에서 다시 계산한다. 내 공간은 건너뛴다 */
 export const onShelfWritten = onDocumentWritten('spaces/{sid}/shelf/{id}', async (event) => {
@@ -27,4 +28,22 @@ export const onShelfWritten = onDocumentWritten('spaces/{sid}/shelf/{id}', async
     avgRating: rated.length ? Math.round(rated.reduce((a, b) => a + b, 0) / rated.length * 10) / 10 : null,
     lastActivityAt: FieldValue.serverTimestamp(),
   }, { merge: true })
+})
+
+/** READ-20·CMN-10: 독서 기록을 피드 활동(작은 활동)으로. 진도를 숨긴 멤버면 본인만 본다 */
+export const onReadingLogCreated = onDocumentCreated('spaces/{sid}/readingLogs/{id}', async (event) => {
+  const l = event.data?.data()
+  if (!l || typeof l.uid !== 'string') return
+  const { sid } = event.params
+  const member = await getFirestore().doc(`spaces/${sid}/members/${l.uid}`).get()
+  await addActivity(sid, {
+    uid: l.uid,
+    module: 'reading',
+    type: 'readingLog',
+    size: 'minor',
+    refType: 'book',
+    refId: typeof l.bookKey === 'string' ? l.bookKey : null,
+    data: { title: l.title ?? '', unit: l.unit ?? 'page', to: l.to ?? null, minutes: l.minutes ?? 0 },
+    visibility: member.get('hideProgress') === true ? 'private' : 'space',
+  })
 })

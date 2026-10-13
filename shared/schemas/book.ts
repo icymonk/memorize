@@ -74,3 +74,27 @@ export function statusPatch(b: { startedAt?: string | null, finishedAt?: string 
   if (status === 'done') patch.finishedAt = b.finishedAt ?? today
   return patch
 }
+
+/** READ-20: 독서 기록 */
+export const LOG_UNITS = ['page', 'percent', 'minute'] as const
+export type LogUnit = typeof LOG_UNITS[number]
+export const logUnit = (f: BookFormat): LogUnit => f === 'audio' ? 'minute' : f === 'ebook' ? 'percent' : 'page'
+export const positionKey = (u: LogUnit) => u === 'minute' ? 'minutes' : u
+
+const spot = z.number().int().min(0).max(100000).nullable().default(null)
+export const readingLogInput = z.object({
+  bookKey: z.string().min(3).max(80),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  unit: z.enum(LOG_UNITS),
+  from: spot,
+  to: spot,
+  minutes: z.number().int().min(0).max(1440).default(0),
+  memo: z.string().trim().max(200).default(''),
+})
+export type ReadingLogInput = z.infer<typeof readingLogInput>
+
+/** READ-24: 끝에 닿았는지 (전체 분량을 모르면 false) */
+export function reachedEnd(unit: LogUnit, to: number | null, total: { pages: number | null, minutes: number | null }) {
+  const end = unit === 'percent' ? 100 : unit === 'minute' ? total.minutes : total.pages
+  return !!end && to != null && to >= end
+}
