@@ -44,7 +44,7 @@ const icon = ref('')
 const color = ref<SpaceColor>('blue')
 const description = ref('')
 const modules = ref<Modules>({} as Modules)
-const settings = ref<SpaceSettings>({ ...DEFAULT_SPACE_SETTINGS })
+const settings = ref<SpaceSettings>({ ...DEFAULT_SPACE_SETTINGS, feedback: { ...DEFAULT_SPACE_SETTINGS.feedback } })
 const confirmName = ref('')
 const saving = ref<string | null>(null)
 
@@ -57,7 +57,7 @@ function resetForm() {
   description.value = s.description ?? ''
   modules.value = { ...s.modules }
   const { ranking: _ranking, ...rest } = s.settings ?? {}
-  settings.value = { ...DEFAULT_SPACE_SETTINGS, ...rest }
+  settings.value = { ...DEFAULT_SPACE_SETTINGS, ...rest, feedback: { ...DEFAULT_SPACE_SETTINGS.feedback, ...(rest as Partial<SpaceSettings>).feedback } }
 }
 watch(() => space.current?.id, resetForm, { immediate: true })
 
@@ -225,6 +225,19 @@ async function leave() {
             <div v-for="(label, value) in t.journalVisibilityOptions" :key="value" class="flex items-center gap-2">
               <RadioGroupItem :id="`journal-${value}`" :value="value" />
               <Label :for="`journal-${value}`" class="font-normal">{{ label }}</Label>
+            </div>
+          </RadioGroup>
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label>{{ t.feedbackScore }}</Label>
+          <label class="flex items-center gap-2 text-sm">
+            <input v-model="settings.feedback.scoreEnabled" type="checkbox" :disabled="!canManage">
+            {{ t.feedbackScoreEnable }}
+          </label>
+          <RadioGroup v-if="settings.feedback.scoreEnabled" v-model="settings.feedback.scoreFormat" :disabled="!canManage" class="flex flex-wrap gap-4">
+            <div v-for="(label, value) in t.feedbackScoreOptions" :key="value" class="flex items-center gap-2">
+              <RadioGroupItem :id="`score-${value}`" :value="value" />
+              <Label :for="`score-${value}`" class="font-normal">{{ label }}</Label>
             </div>
           </RadioGroup>
         </div>

@@ -1,6 +1,6 @@
 import type { Functions } from 'firebase/functions'
 import type { Firestore } from 'firebase/firestore'
-import type { Stamp } from '#shared/schemas/feedback'
+import type { FeedbackScore, Stamp } from '#shared/schemas/feedback'
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { callFn } from '~/lib/functions'
 
@@ -15,6 +15,6 @@ export function requestRewrite(fns: Functions, spaceId: string, pageId: string, 
 }
 
 /** CMN-24 */
-export function leaveFeedback(fns: Functions, spaceId: string, pageId: string, stamp: Stamp, body: string) {
-  return callFn(fns, 'leaveFeedback', { spaceId, pageId, stamp, body })
+export function leaveFeedback(fns: Functions, spaceId: string, pageId: string, stamp: Stamp, body: string, score: FeedbackScore | null = null) {
+  return callFn(fns, 'leaveFeedback', { spaceId, pageId, stamp, body, score })
 }

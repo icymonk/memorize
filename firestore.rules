@@ -24,13 +24,15 @@ service cloud.firestore {
         && m.tests is bool && m.math is bool && m.courses is bool && m.wrongNotes is bool;
     }
     function validSettings(s) {
-      return s.keys().hasOnly(['joinPolicy', 'whoCanInvite', 'whoCanCreate', 'whoCanHost', 'progressSharing', 'ranking', 'journalVisibility'])
+      return s.keys().hasOnly(['joinPolicy', 'whoCanInvite', 'whoCanCreate', 'whoCanHost', 'progressSharing', 'ranking', 'journalVisibility', 'feedback'])
         && s.joinPolicy in ['link', 'approval']
         && s.whoCanInvite in ['everyone', 'managers']
         && s.whoCanCreate in ['everyone', 'managers']
         && s.whoCanHost in ['everyone', 'managers']
         && s.progressSharing in ['everyone', 'self']
         && s.get('journalVisibility', 'space') in ['space', 'private']
+        && (!('feedback' in s) || (s.feedback.keys().hasOnly(['scoreEnabled', 'scoreFormat'])
+          && s.feedback.scoreEnabled is bool && s.feedback.scoreFormat in ['100', 'grade', 'stars']))
         && s.ranking == resource.data.settings.ranking;
     }
 
