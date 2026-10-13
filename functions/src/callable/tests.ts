@@ -1,10 +1,11 @@
-import type { CheckAnswerOutput, OpenTestOutput, PaperItem, StartAttemptOutput, SubmitAttemptOutput } from '../../../shared/schemas/test'
+import type { CheckAnswerOutput, GradeAttemptOutput, OpenTestOutput, PaperItem, StartAttemptOutput, SubmitAttemptOutput } from '../../../shared/schemas/test'
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
 import { gradeAnswer } from '../../../shared/schemas/question'
-import { attemptDeadline, attemptRefInput, canStart, checkAnswerInput, maxScoreOf, openTestInput, startAttemptInput, SUBMIT_GRACE_MS, testTakers } from '../../../shared/schemas/test'
+import { applyGrades, attemptDeadline, attemptRefInput, canStart, checkAnswerInput, gradeAttemptInput, maxScoreOf, openTestInput, startAttemptInput, SUBMIT_GRACE_MS, testTakers } from '../../../shared/schemas/test'
 import { shuffle } from '../../../shared/study'
 import { authedCallable } from '../lib/callable'
+import { notifyMembers } from '../lib/notify'
 
 /**
  * TST-10·16 시험 열기: 진행자가 고른 문제를 시험지 사본(paper)과 서버 전용 정답 사본(secret)으로 굳히고 대상자를 정한다.
@@ -158,4 +159,32 @@ export const checkAnswer = authedCallable(checkAnswerInput, async ({ uid, data }
   if (!it || !k) throw new HttpsError('not-found', 'question not found')
   const given = (attempt.get('answers') ?? {})[data.questionId]
   return { score: gradeAnswer(it.type, k, given, it.points), points: it.points, answer: k.answer, explanation: k.explanation }
+})
+
+/** TST-31·33 진행자 채점: 서술형·부분 점수와 코멘트. 채점이 끝나면 응시자에게 알림 */
+export const gradeAttempt = authedCallable(gradeAttemptInput, async ({ uid, data }): Promise<GradeAttemptOutput> => {
+  const { testRef, test } = await loadTest(uid, data.spaceId, data.testId)
+  if (!(test.get('hostIds') ?? []).includes(uid)) throw new HttpsError('permission-denied', 'host only')
+  const db = getFirestore()
+  const resultRef = testRef.collection('results').doc(data.attemptId)
+  const res = await db.runTransaction(async (tx) => {
+    const r = await tx.get(resultRef)
+    if (!r.exists) throw new HttpsError('not-found', 'result not found')
+    const before: number = r.get('score') ?? 0
+    const wasDone = r.get('gradingStatus') === 'done'
+    const next = applyGrades(r.get('items') ?? {}, data.scores)
+    const comments = { ...(r.get('comments') ?? {}), ...data.comments }
+    tx.update(resultRef, { items: next.items, score: next.score, gradingStatus: next.gradingStatus, comments, gradedBy: uid, gradedAt: FieldValue.serverTimestamp() })
+    tx.update(testRef.collection('attempts').doc(data.attemptId), { gradingStatus: next.gradingStatus })
+    if (!r.get('isPractice') && next.score !== before) tx.update(testRef, { 'stats.scoreSum': FieldValue.increment(next.score - before) })
+    return { ...next, maxScore: r.get('maxScore') as number, taker: r.get('uid') as string, justDone: !wasDone && next.gradingStatus === 'done' }
+  })
+  if (res.justDone) {
+    await notifyMembers(data.spaceId, [{
+      uid: res.taker, type: 'test', actorId: uid, refPath: `/s/${data.spaceId}/tests/${data.testId}/attempts/${data.attemptId}`,
+      title: `'${test.get('title') ?? ''}' 채점이 끝났어요`,
+      body: ['instant', 'scoreOnly'].includes(test.get('settings.resultRelease')) ? `${res.score} / ${res.maxScore}점` : '',
+    }])
+  }
+  return { score: res.score, gradingStatus: res.gradingStatus }
 })

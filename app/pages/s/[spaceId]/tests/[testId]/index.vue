@@ -3,14 +3,16 @@ import type { TestInput } from '#shared/schemas/test'
 import type { Group } from '~/features/space/services/groups'
 import type { Member } from '~/features/space/services/invites'
 import type { Question } from '~/features/tests/services/questions'
+import type { HostedResult } from '~/features/tests/services/attempts'
 import type { Test } from '~/features/tests/services/tests'
-import { MAX_TEST_QUESTIONS, maxScoreOf, RESULT_RELEASE, testInput } from '#shared/schemas/test'
+import { finalScores, MAX_TEST_QUESTIONS, maxScoreOf, RESULT_RELEASE, testInput } from '#shared/schemas/test'
 import { QUESTION_DIFFICULTY } from '#shared/schemas/question'
 import { shuffle } from '#shared/study'
 import { ArrowLeftIcon, Trash2Icon, TriangleAlertIcon, XIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { listGroups } from '~/features/space/services/groups'
 import { listMembers } from '~/features/space/services/invites'
+import { listResults } from '~/features/tests/services/attempts'
 import { listQuestions } from '~/features/tests/services/questions'
 import { createTest, deleteTest, getTest, setTestStatus, updateTest } from '~/features/tests/services/tests'
 import { callFn } from '~/lib/functions'
@@ -39,6 +41,7 @@ const test = ref<Test | null>(null)
 const questions = ref<Question[]>([])
 const members = ref<Member[]>([])
 const groups = ref<Group[]>([])
+const results = ref<HostedResult[]>([])
 const loading = ref(true)
 const busy = ref(false)
 
@@ -57,6 +60,13 @@ const picked = computed(() => new Set(form.value.questionRefs.map(r => r.questio
 const total = computed(() => maxScoreOf(form.value.questionRefs))
 const tags = computed(() => [...new Set(questions.value.flatMap(q => q.tags))].sort())
 const revealed = computed(() => !form.value.settings.practice && form.value.questionRefs.some(r => byId.value.get(r.questionId)?.answerVisibility === 'space'))
+const nameOf = (u: string) => members.value.find(m => m.uid === u)?.displayName ?? auth.user?.displayName ?? ''
+const finals = computed(() => finalScores(results.value, test.value?.settings.scoring ?? 'best'))
+const avg = computed(() => {
+  const xs = [...finals.value.values()]
+  return xs.length ? (xs.reduce((n, r) => n + r.score, 0) / xs.length).toFixed(1) : null
+})
+const pendingCount = computed(() => results.value.filter(r => r.gradingStatus === 'pending').length)
 const others = computed(() => members.value.filter(m => m.status === 'active' && m.uid !== uid.value))
 
 const toLocal = (ms: number | null) => {
@@ -90,6 +100,7 @@ onMounted(async () => {
       timeLimit.value = settings.timeLimitMin ?? ''
       openAt.value = toLocal(settings.openAt)
       closeAt.value = toLocal(settings.closeAt)
+      if (tst.status !== 'draft' && tst.hostIds.includes(uid.value)) results.value = await listResults($firestore, sid.value, tst.id, uid.value).catch(() => [])
     }
   }
   catch {
@@ -235,6 +246,25 @@ async function remove() {
         <NuxtLink :to="`/s/${sid}/tests/${test.id}/take`">{{ test.hostIds.includes(uid) ? t.take.hostPreview : (test.settings.practice ? t.take.practice : t.take.start) }}</NuxtLink>
       </Button>
       <Button v-if="test.status === 'open' && test.hostIds.includes(uid)" variant="outline" class="self-start" @click="close">{{ t.close }}</Button>
+      <section v-if="test.status !== 'draft' && test.hostIds.includes(uid)" class="flex flex-col gap-2">
+        <div class="flex flex-wrap items-center gap-2">
+          <h2 class="text-sm font-medium">{{ t.grade.results }}</h2>
+          <Badge v-if="pendingCount" variant="secondary">{{ t.grade.needsGrading(pendingCount) }}</Badge>
+          <span v-if="avg" class="text-muted-foreground ml-auto text-xs">{{ t.grade.finalBy(test.settings.scoring) }} · {{ t.grade.avg(avg) }}</span>
+        </div>
+        <p v-if="!results.length" class="text-muted-foreground text-sm">{{ t.grade.noResults }}</p>
+        <ul v-else class="divide-y rounded-md border text-sm">
+          <li v-for="r in results" :key="r.id">
+            <NuxtLink :to="`/s/${sid}/tests/${test.id}/attempts/${r.id}`" class="hover:bg-muted/50 flex items-center gap-2 p-2">
+              <span class="min-w-0 flex-1 truncate">{{ nameOf(r.uid) }}</span>
+              <Badge v-if="r.isPractice" variant="outline">{{ t.grade.practice }}</Badge>
+              <Badge v-if="r.gradingStatus === 'pending'" variant="secondary">{{ t.take.pending }}</Badge>
+              <span class="tabular-nums">{{ t.take.graded(r.score, r.maxScore) }}</span>
+              <span class="text-muted-foreground text-xs">{{ r.submittedAtMs ? fmt(r.submittedAtMs) : '' }}</span>
+            </NuxtLink>
+          </li>
+        </ul>
+      </section>
     </template>
 
     <form v-else class="flex flex-col gap-5" @submit.prevent="save">

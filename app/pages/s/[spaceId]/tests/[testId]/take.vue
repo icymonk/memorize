@@ -210,9 +210,9 @@ async function submit(auto = false) {
         <ul class="flex flex-col divide-y rounded-md border text-sm">
           <li v-for="a in history.filter(x => x.submittedAt)" :key="a.id" class="flex items-center justify-between gap-2 p-2">
             <span>{{ a.submittedAt!.toDate().toLocaleString('ko-KR') }}<template v-if="a.isPractice"> · {{ k.practice }}</template></span>
-            <span v-if="results[a.id]" class="font-medium">
+            <NuxtLink v-if="results[a.id]" :to="`/s/${sid}/tests/${tid}/attempts/${a.id}`" class="font-medium hover:underline">
               {{ k.graded(results[a.id]!.score, results[a.id]!.maxScore) }}<template v-if="results[a.id]!.gradingStatus === 'pending'"> · {{ k.pending }}</template>
-            </span>
+            </NuxtLink>
             <span v-else class="text-muted-foreground">{{ k.hidden }}</span>
           </li>
         </ul>

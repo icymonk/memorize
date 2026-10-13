@@ -149,6 +149,13 @@
         }
       },
       {
+        "source": "/fn/gradeAttempt",
+        "function": {
+          "functionId": "gradeAttempt",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/openTest",
         "function": {
           "functionId": "openTest",

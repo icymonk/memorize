@@ -1131,7 +1131,7 @@ describe('tests (3-B1, TST-10~16)', () => {
     await assertFails(updateDoc(tRef('alice', 't1'), { title: '남의 것' }))
   })
 
-  it('open tests: takers read the test and paper, nobody reads the key, hosts only close', async () => {
+  it('open tests: takers read the test and paper, only hosts read the key, hosts only close', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const d = ctx.firestore()
       await setDoc(doc(d, 'spaces', SID, 'tests', 'o1'), t('bob', { status: 'open', participantIds: ['alice'] }))
@@ -1146,7 +1146,7 @@ describe('tests (3-B1, TST-10~16)', () => {
     await assertSucceeds(getDoc(doc(db('alice'), 'spaces', SID, 'tests', 'o1', 'paper', 'main')))
     await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'tests', 'o2', 'paper', 'main')))
     await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o2', 'paper', 'main')))
-    await assertFails(getDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o1', 'secret', 'key')))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o1', 'secret', 'key')))
     await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o1', 'paper', 'main'), { items: [], hostIds: ['bob'] }))
     await assertFails(updateDoc(tRef('bob', 'o1'), { title: '열린 뒤 고침' }))
     await assertFails(updateDoc(tRef('bob', 'o1'), { status: 'draft' }))
@@ -1180,6 +1180,13 @@ describe('attempts and results (3-B2, TST-21~23)', () => {
     await assertFails(updateDoc(aRef('alice', 'done'), { answers: { q1: [1] } }))
     await assertFails(updateDoc(aRef('bob', 'a1'), { answers: { q1: [1] } }))
     await assertFails(setDoc(aRef('alice', 'new'), { uid: 'alice' }))
+  })
+
+  it('only hosts read the answer key; results are server-written', async () => {
+    await env.withSecurityRulesDisabled(async ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'tests', 'x1', 'secret', 'key'), { items: {} }))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'tests', 'x1', 'secret', 'key')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'tests', 'x1', 'secret', 'key')))
+    await assertFails(updateDoc(rRef('bob', 'done'), { score: 10 }))
   })
 
   it('results follow the release setting; hosts always read', async () => {

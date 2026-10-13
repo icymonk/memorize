@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.7 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.8 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -48,6 +48,7 @@
 | `openTest` | 시험 열기: 진행자 확인, 문제를 시험지 사본(`paper/main`)과 정답 사본(`secret/key`)으로 굳히고 대상자(`participantIds`)·총점 확정 | TST-10·16 | 3 |
 | `startAttempt` / `submitAttempt` | 응시 시작(대상·기간·횟수 확인, 섞기, 서버 기준 마감 시각) / 제출과 객관식·OX·단답 자동 채점, 서술형은 채점 대기 | TST-21~23·30 | 3 |
 | `checkAnswer` | 연습 모드에서 문제 하나의 정답·해설 확인 | TST-17 | 3 |
+| `gradeAttempt` | 진행자 채점: 문제별 점수(부분 점수, 배점 안으로 자름)·코멘트, 총점·채점 상태 다시 계산, 끝나면 응시자에게 `test` 알림 | TST-31·33 | 3 |
 
 #### 2-1. 초대 메일 발송 방식 (Firebase·무료 서비스 우선)
 | 순위 | 방식 | 비용 | 한계 |
@@ -148,3 +149,4 @@
 - v2.5: `onFileFinalized`·`onFileDeleted` 대신 callable `registerUpload`·`deleteUpload`
 - v2.6: callable `openTest` (3-B1, TST-10·16)
 - v2.7: callable `startAttempt`·`submitAttempt`·`checkAnswer` (3-B2)
+- v2.8: callable `gradeAttempt`, 알림 종류 `test` (3-B3)

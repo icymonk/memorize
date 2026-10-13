@@ -56,3 +56,38 @@ export async function getResult(db: Firestore, sid: string, tid: string, aid: st
     return null
   }
 }
+
+export interface HostedResult extends AttemptResult { submittedAtMs: number }
+
+/** 진행자: 시험의 모든 결과 (rules가 hostIds를 보므로 같은 조건으로 조회) */
+export async function listResults(db: Firestore, sid: string, tid: string, uid: string): Promise<HostedResult[]> {
+  const s = await getDocs(query(collection(db, 'spaces', sid, 'tests', tid, 'results'), where('hostIds', 'array-contains', uid)))
+  return s.docs.map(d => ({ id: d.id, ...d.data(), submittedAtMs: d.get('submittedAt')?.toMillis?.() ?? 0 }) as HostedResult)
+    .sort((a, b) => b.submittedAtMs - a.submittedAtMs)
+}
+
+export async function getAttempt(db: Firestore, sid: string, tid: string, aid: string): Promise<Attempt | null> {
+  const s = await getDoc(doc(attemptsOf(db, sid, tid), aid))
+  return s.exists() ? ({ id: s.id, ...s.data() }) as Attempt : null
+}
+
+export interface KeyItem { answer: (number | boolean | string)[], explanation: string, rubric: string }
+/** 진행자만 읽을 수 있다. 아니면 null */
+export async function getAnswerKey(db: Firestore, sid: string, tid: string): Promise<Record<string, KeyItem> | null> {
+  try {
+    const s = await getDoc(doc(db, 'spaces', sid, 'tests', tid, 'secret', 'key'))
+    return s.exists() ? (s.get('items') as Record<string, KeyItem>) : null
+  }
+  catch {
+    return null
+  }
+}
+
+/** CMN-06: 내가 진행하는 시험별 채점 대기 수 */
+export async function listGradingQueue(db: Firestore, sid: string, uid: string): Promise<{ id: string, title: string, pending: number }[]> {
+  const { listTests } = await import('./tests')
+  const { hosting } = await listTests(db, sid, uid)
+  const open = hosting.filter(t => t.status !== 'draft')
+  const counts = await Promise.all(open.map(t => listResults(db, sid, t.id, uid).then(rs => rs.filter(r => r.gradingStatus === 'pending').length).catch(() => 0)))
+  return open.map((t, i) => ({ id: t.id, title: t.title, pending: counts[i]! })).filter(x => x.pending > 0)
+}

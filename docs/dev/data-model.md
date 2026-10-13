@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.19 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.20 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -349,6 +349,8 @@ spaces/{sid}/tests/{testId}/attempts/{attemptId}
 
 spaces/{sid}/tests/{testId}/results/{attemptId}   # 서버만 씀. 진행자, 또는 결과 공개 설정에 맞을 때 응시자 읽기 (TST-15·32)
   uid, isPractice, score, maxScore, gradingStatus, items: { [questionId]: { score|null, points } }, comments: map, hostIds[]
+  gradedBy?, gradedAt?                    # 진행자 채점(gradeAttempt, TST-31). 부분 점수는 배점 안에서, 다 채점되면 'done'
+  # secret/key는 서버와 진행자만 읽는다 (채점 기준 보기)
 
 spaces/{sid}/problemSets/{setId}           # MATH-10·13
   title, grade?, unit: { curriculumCode?, custom? }, questionIds[]
@@ -444,3 +446,4 @@ users/{uid}/avatar/{fileName}
 - v2.17: 문제 media·copiedFrom 형태 (3-A2, TST-01·40)
 - v2.18: 시험 status·participantIds, 시험지·정답 사본 (3-B1, TST-10~16)
 - v2.19: 응시 choiceOrder, 결과 문서 `results` 분리 (3-B2, TST-21~23·30)
+- v2.20: 결과 gradedBy·gradedAt, 진행자의 secret/key 읽기 (3-B3, TST-31)

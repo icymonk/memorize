@@ -317,6 +317,11 @@ service cloud.firestore {
               && (tst().settings.openAt == null || request.time.toMillis() >= tst().settings.openAt)));
       }
 
+      // 3-B3 정답 사본: 진행자만 읽는다 (채점 기준 보기)
+      match /tests/{testId}/secret/{docId} {
+        allow read: if isMember(sid) && uid() in get(/databases/$(database)/documents/spaces/$(sid)/tests/$(testId)).data.hostIds;
+      }
+
       // 3-B2 응시 (TST-21~23). 시작·제출·채점은 서버 함수, 응시자는 마감 전 답만 저장
       match /tests/{testId}/attempts/{attemptId} {
         allow read: if isMember(sid) && (resource.data.uid == uid() || uid() in resource.data.hostIds);

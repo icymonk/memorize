@@ -4,7 +4,7 @@ import { collection, deleteDoc, doc, limit, onSnapshot, orderBy, query, updateDo
 export interface AppNotification {
   id: string
   spaceId: string
-  type: 'mention' | 'comment' | 'feedbackRequest' | 'feedback' | 'mission' | 'missionReview' | 'group' | 'join'
+  type: 'mention' | 'comment' | 'feedbackRequest' | 'feedback' | 'mission' | 'missionReview' | 'group' | 'join' | 'test'
   actorId: string
   refPath: string
   title: string

@@ -90,3 +90,40 @@ export function canStart(t: { status: string, settings: Pick<TestSettings, 'open
   if (!t.settings.practice && t.settings.maxAttempts > 0 && used >= t.settings.maxAttempts) return 'noAttempts'
   return 'ok'
 }
+
+/** TST-31 직접 채점: 문제별 점수(부분 점수 포함)와 코멘트 */
+export const gradeAttemptInput = attemptRefInput.extend({
+  scores: z.record(id, z.number().min(0).max(100)),
+  comments: z.record(id, z.string().max(1000)).default({}),
+})
+export type GradeAttemptInput = z.infer<typeof gradeAttemptInput>
+export interface GradeAttemptOutput { score: number, gradingStatus: 'done' | 'pending' }
+
+/** 채점 반영: 진행자 점수를 덮어쓰고 총점과 채점 상태를 다시 계산 */
+export function applyGrades(
+  items: Record<string, { score: number | null, points: number }>,
+  scores: Record<string, number>,
+): { items: Record<string, { score: number | null, points: number }>, score: number, gradingStatus: 'done' | 'pending' } {
+  const out: Record<string, { score: number | null, points: number }> = {}
+  let score = 0
+  let pending = false
+  for (const [qid, it] of Object.entries(items)) {
+    const given = scores[qid]
+    const s = given == null ? it.score : Math.min(Math.max(0, given), it.points)
+    out[qid] = { score: s, points: it.points }
+    if (s == null) pending = true
+    else score += s
+  }
+  return { items: out, score, gradingStatus: pending ? 'pending' : 'done' }
+}
+
+/** TST-14 점수 기준: 응시자별 최고 또는 마지막 (연습 제외, 채점 대기 포함) */
+export function finalScores<T extends { uid: string, isPractice: boolean, score: number, submittedAtMs: number }>(results: readonly T[], scoring: 'best' | 'last'): Map<string, T> {
+  const out = new Map<string, T>()
+  for (const r of results) {
+    if (r.isPractice) continue
+    const cur = out.get(r.uid)
+    if (!cur || (scoring === 'best' ? r.score > cur.score : r.submittedAtMs > cur.submittedAtMs)) out.set(r.uid, r)
+  }
+  return out
+}
