@@ -5,6 +5,7 @@ import type { CopyContentInput, CopyContentOutput } from './copy'
 import type { CollectionRefInput } from './collection'
 import type { LeaveFeedbackInput, RequestRewriteInput } from './feedback'
 import type { MovePageInput, PageOpOutput, PageRefInput } from './page'
+import type { DeleteUploadInput, RegisterUploadInput, RegisterUploadOutput } from './upload'
 import { z } from 'zod'
 
 export const personalSpaceId = (uid: string) => `p_${uid}`
@@ -52,4 +53,6 @@ export interface Callables {
   leaveFeedback: { input: LeaveFeedbackInput, output: { ok: true } }
   requestRewrite: { input: RequestRewriteInput, output: { ok: true } }
   searchBooks: { input: BookSearchInput, output: BookSearchOutput }
+  registerUpload: { input: RegisterUploadInput, output: RegisterUploadOutput }
+  deleteUpload: { input: DeleteUploadInput, output: { ok: true } }
 }

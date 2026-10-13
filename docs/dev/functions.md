@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.4 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.5 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -121,7 +121,7 @@
 | `onMissionWritten` · `onTestWritten` · `onQuestionWritten` | 역할 목록 변경 시 하위 문서 복사본(`reviewerUids`, `hostIds`, `authorIds`) 동기화, 원본 수정 시 복사본 주인에게 알림(TST-08) | 2 / 3 |
 | `onMemberWritten` | 멤버 수, 그룹 멤버 수, 사용자 `spaceIds` 동기화, 나간 멤버의 노트 `ownerStatus` | 0 |
 | `onGroupDeleted` | 알림, 복원 기간 기록 | 2 |
-| `onFileFinalized` · `onFileDeleted` (Storage) | 업로드 용량 집계(CMN-61·62), 이미지 축소본, 80% 알림 | 1 |
+| `registerUpload` · `deleteUpload` (callable) | 업로드 등록·용량 집계·계정 총량 확인, 내 파일 지우기(CMN-61·62). 버킷 위치와 상관없이 동작하도록 Storage 트리거 대신 callable. 사진 축소는 클라이언트 | 2 |
 
 ## 4. 스케줄
 | 이름 | 주기 | 하는 일 | 단계 |
@@ -142,3 +142,4 @@
 - v2.2: `createInvite`·`getInvite` 추가(코드 유일성·비멤버 미리보기), `decideJoinRequest`를 0단계로
 - v2.1: 확정 — 초대 메일은 Firebase Auth 이메일 링크 우선, 필요 시 Trigger Email + 무료 SMTP (2-1)
 - v2.0: 확정 기능명세 기준으로 새로 작성
+- v2.5: `onFileFinalized`·`onFileDeleted` 대신 callable `registerUpload`·`deleteUpload`

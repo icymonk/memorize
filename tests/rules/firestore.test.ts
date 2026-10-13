@@ -737,6 +737,16 @@ describe('reactions (CMN-21)', () => {
   })
 })
 
+describe('uploads (CMN-62)', () => {
+  it('only the owner reads their upload list; clients never write it', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/bob/uploads/f1'), { size: 1 }))
+    await assertSucceeds(getDoc(doc(db('bob'), 'users/bob/uploads/f1')))
+    await assertFails(getDoc(doc(db('alice'), 'users/bob/uploads/f1')))
+    await assertFails(setDoc(doc(db('bob'), 'users/bob/uploads/f2'), { size: 1 }))
+    await assertFails(updateDoc(doc(db('bob'), 'users/bob/uploads/f1'), { size: 0 }))
+  })
+})
+
 describe('notifications (CMN-30)', () => {
   it('only the recipient reads, marks read, deletes; clients cannot create', async () => {
     await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia/notifications/n1'), {

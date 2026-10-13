@@ -52,6 +52,10 @@ service cloud.firestore {
         && request.resource.data.notifications is map
         && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group']);
       // CMN-30 알림함: 서버가 만들고, 본인은 읽기·읽음 표시·삭제만
+      // CMN-62 내 업로드 목록: 서버(registerUpload·deleteUpload)만 쓴다
+      match /uploads/{fileId} {
+        allow read: if signedIn() && userId == uid();
+      }
       match /notifications/{id} {
         allow read, delete: if signedIn() && userId == uid();
         allow update: if signedIn() && userId == uid()
@@ -288,6 +292,7 @@ service cloud.firestore {
         function validSub(x, mi) {
           return x.uid == uid() && subId == uid() + '_' + x.periodKey && x.periodKey is string
             && isText(x.content, 0, 5000) && (x.pageId == null || x.pageId is string)
+            && x.get('attachments', []) is list && x.get('attachments', []).size() <= 10
             && x.late is bool && (!x.late || mi.allowLate)
             && x.reviewerUids is list && x.reviewerUids.toSet() == checkers(mi).toSet()
             && x.status == (mi.type == 'check' || checkers(mi).size() == 0 ? 'done' : 'submitted');
@@ -299,7 +304,7 @@ service cloud.firestore {
         allow update: if isMember(sid) && resource.data.uid == uid() && ms().closedAt == null
           && resource.data.status in ['submitted', 'rejected'] && validSub(request.resource.data, ms())
           && request.resource.data.periodKey == resource.data.periodKey
-          && onlyChanges(['content', 'pageId', 'late', 'status', 'reviewerUids', 'submittedAt', 'reason']);
+          && onlyChanges(['content', 'pageId', 'attachments', 'late', 'status', 'reviewerUids', 'submittedAt', 'reason']);
         // MIS-31: 검토자는 검토 대기 제출을 승인·반려(사유 선택)
         allow update: if isMember(sid) && resource.data.status == 'submitted' && uid() in resource.data.reviewerUids
           && request.resource.data.status in ['approved', 'rejected']
