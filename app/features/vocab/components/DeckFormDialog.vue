@@ -11,6 +11,8 @@ import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
 import { createDeck, updateDeck } from '../services/decks'
+import type { Group } from '~/features/space/services/groups'
+import { listGroups } from '~/features/space/services/groups'
 
 /** VOC-01·02: 단어장 만들기·설정 */
 const props = defineProps<{ deck?: Deck | null, folders: DeckFolder[], members: Member[] }>()
@@ -23,6 +25,12 @@ const auth = useAuthStore()
 const { $firestore } = useNuxtApp()
 
 const form = ref<DeckInput>(deckInput.parse({ title: '-' }))
+/** WS-32: 그룹 공개 */
+const groups = ref<Group[]>([])
+onMounted(() => {
+  const s = useSpaceStore().current
+  if (s?.kind === 'workspace') listGroups(useNuxtApp().$firestore, s.id).then(g => groups.value = g).catch(() => {})
+})
 const tagsText = ref('')
 const spaceTags = useTags()
 const pending = ref(false)
@@ -178,13 +186,19 @@ async function submit() {
             <Label>{{ t.fields.visibility }}</Label>
             <RadioGroup v-model="form.visibility" :disabled="!isAuthor" class="flex flex-wrap gap-4">
               <div v-for="(label, value) in t.visibility" :key="value" class="flex items-center gap-2">
-                <RadioGroupItem :id="`deck-vis-${value}`" :value="value" :disabled="value === 'group'" />
+                <RadioGroupItem :id="`deck-vis-${value}`" :value="value" />
                 <Label :for="`deck-vis-${value}`" class="font-normal">{{ label }}</Label>
               </div>
             </RadioGroup>
-            <p class="text-muted-foreground text-xs">
-              {{ t.groupComingSoon }}
-            </p>
+            <div v-if="form.visibility === 'group'" class="flex flex-wrap gap-x-4 gap-y-1 rounded-md border p-2">
+              <p v-if="!groups.length" class="text-muted-foreground text-xs">
+                {{ t.noGroups }}
+              </p>
+              <label v-for="g in groups" :key="g.id" class="flex items-center gap-2 text-sm">
+                <input type="checkbox" class="size-4" :disabled="!isAuthor" :checked="form.groupIds.includes(g.id)" @change="form.groupIds = form.groupIds.includes(g.id) ? form.groupIds.filter(x => x !== g.id) : [...form.groupIds, g.id]">
+                {{ g.name }}
+              </label>
+            </div>
           </div>
 
           <div class="flex flex-col gap-2">

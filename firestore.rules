@@ -102,8 +102,9 @@ service cloud.firestore {
         function d() { return resource.data; }
         function nd() { return request.resource.data; }
         function canSee() {
-          return d().visibility == 'space' || d().createdBy == uid()
-            || (d().visibility == 'group' && get(memberPath(sid)).data.get('groupIds', []).hasAny(d().groupIds));
+          return d().visibility == 'space'
+            || (d().visibility == 'group' && d().groupIds.hasAny(get(memberPath(sid)).data.get('groupIds', [])))
+            || d().createdBy == uid();
         }
         function canEdit() {
           return d().createdBy == uid()
@@ -253,6 +254,7 @@ service cloud.firestore {
             && x.allowLate is bool && x.includeSelf is bool && x.joinable is bool && x.isPersonal is bool
             && x.notifyOnComplete in ['feed', 'all', 'none']
             && x.assignees.all is bool && x.assignees.uids is list && x.assignees.uids.size() <= 200
+            && x.assignees.get('groupIds', []) is list && x.assignees.get('groupIds', []).size() <= 20
             && x.participantIds is list && x.participantIds.size() <= 500
             && x.hostIds is list && x.hostIds.size() >= 1 && x.hostIds.size() <= 11
             && x.reviewerIds is list && x.reviewerIds.size() <= 20
@@ -305,7 +307,8 @@ service cloud.firestore {
       // NOTE-01·10 노트 페이지와 블록 (docs/dev/editor.md). 공개 범위 세분화·공동 편집자 지정·잠금은 1-C4
       // NOTE-50·54·60: 공개 범위(나만·지정한 사람·공간 전체), 공동 편집자, 공유 페이지 편집 정책, 편집 잠금(90초)
       function seesPage(p) {
-        return p.deletedAt == null && p.get('ownerStatus', 'active') == 'active' && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds || uid() in p.get('reviewerIds', []));
+        return p.deletedAt == null && p.get('ownerStatus', 'active') == 'active' && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds || uid() in p.get('reviewerIds', [])
+          || (p.visibility == 'group' && p.groupIds.hasAny(get(memberPath(sid)).data.get('groupIds', []))));
       }
       function editsPage(p) {
         return p.ownerId == uid() || uid() in p.editorIds || (p.root == 'shared' && p.get('editPolicy', 'everyone') == 'everyone');
@@ -323,7 +326,8 @@ service cloud.firestore {
             && (x.type != 'bookReview' || (x.book is map && isText(x.book.bookKey, 3, 80) && isText(x.book.title, 1, 200)))
             && x.get('props', {}) is map && x.get('props', {}).size() <= 20 && isText(x.title, 0, 200) && isText(x.icon, 0, 16)
             && x.root in ['private', 'shared'] && (x.parentId == null || x.parentId is string) && isText(x.order, 1, 256)
-            && x.visibility in ['private', 'people', 'space'] && x.editorIds is list && x.editorIds.size() <= 50
+            && x.visibility in ['private', 'people', 'group', 'space'] && x.editorIds is list && x.editorIds.size() <= 50
+            && x.get('groupIds', []) is list && x.get('groupIds', []).size() <= 20
             && x.get('sharedWith', []) is list && x.get('sharedWith', []).size() <= 50
             && x.get('reviewerIds', []) is list && x.get('reviewerIds', []).size() <= 50
             && x.get('editPolicy', 'everyone') in ['everyone', 'editors']

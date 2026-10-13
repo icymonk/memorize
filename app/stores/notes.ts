@@ -42,7 +42,7 @@ export const useNotesStore = defineStore('notes', () => {
     loaded.value = false
     prefs.value = { favoritePageIds: [], recentPageIds: [] }
     if (!next || !auth.user) return
-    unsub = watchPages($firestore, next, uid(), (list) => { pages.value = list; loaded.value = true }, () => { loaded.value = true })
+    unsub = watchPages($firestore, next, uid(), (list) => { pages.value = list; loaded.value = true }, () => { loaded.value = true }, space.membership?.groupIds ?? [])
     unsubCols = watchCollections($firestore, next, uid(), (list) => { collections.value = list.toSorted((a, b) => a.name.localeCompare(b.name, 'ko')) }, () => {})
     getPrefs($firestore, next, uid()).then((p) => { if (sid === next) prefs.value = p }).catch(() => {})
   }

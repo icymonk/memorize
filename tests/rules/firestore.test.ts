@@ -76,6 +76,23 @@ describe('groups (2-F1, WS-30~33)', () => {
   })
 })
 
+describe('group visibility (2-F1, WS-32)', () => {
+  it('group decks and pages are visible to members of those groups only', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      await updateDoc(doc(d, 'spaces', SID, 'members', 'bob'), { groupIds: ['g1'] })
+      await setDoc(doc(d, 'spaces', SID, 'decks', 'gd'), { title: '그룹 단어장', visibility: 'group', groupIds: ['g1'], createdBy: 'alice' })
+      await setDoc(doc(d, 'spaces', SID, 'pages', 'gp'), { title: '그룹 노트', visibility: 'group', groupIds: ['g1'], ownerId: 'alice', deletedAt: null, ownerStatus: 'active', editorIds: [] })
+    })
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'decks', 'gd')))
+    await assertFails(getDoc(doc(db('mia'), 'spaces', SID, 'decks', 'gd')))
+    await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'decks'), and(where('visibility', '==', 'group'), where('groupIds', 'array-contains-any', ['g1'])))))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'pages', 'gp')))
+    await assertFails(getDoc(doc(db('mia'), 'spaces', SID, 'pages', 'gp')))
+    await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'pages'), and(where('deletedAt', '==', null), where('visibility', '==', 'group'), where('groupIds', 'array-contains-any', ['g1']), where('ownerStatus', '==', 'active')))))
+  })
+})
+
 describe('users', () => {
   it('only the user reads their own doc', async () => {
     await assertSucceeds(getDoc(doc(db('alice'), 'users/alice')))
@@ -401,7 +418,7 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertSucceeds(setDoc(pageRef('bob', 'p1'), page()))
     await assertFails(setDoc(pageRef('bob', 'p2'), page({ ownerId: 'alice' })))
     await assertFails(setDoc(pageRef('bob', 'p3'), page({ blockCount: 3 })))
-    await assertFails(setDoc(pageRef('bob', 'p4'), page({ visibility: 'group' })))
+    await assertFails(setDoc(pageRef('bob', 'p4'), page({ visibility: 'groups' })))
     await assertFails(setDoc(pageRef('pat', 'p5'), page({ ownerId: 'pat' })))
     await assertSucceeds(setDoc(pageRef('alice', 'mine', 'p_alice'), page({ ownerId: 'alice', root: 'private', visibility: 'private' })))
     await assertFails(setDoc(pageRef('alice', 'open', 'p_alice'), page({ ownerId: 'alice' })))

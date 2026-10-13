@@ -26,26 +26,26 @@ export async function getMission(db: Firestore, sid: string, id: string): Promis
   return snap.exists() ? { id: snap.id, ...snap.data() } as Mission : null
 }
 
-function toDoc(input: MissionInput, host: string, activeMembers: string[]) {
+function toDoc(input: MissionInput, host: string, activeMembers: string[], memberGroups: Record<string, string[]>) {
   const { coHostIds, ...rest } = input
   return {
     ...rest,
     reviewerIds: input.isPersonal ? [] : input.reviewerIds,
     hostIds: input.isPersonal ? [host] : [...new Set([host, ...coHostIds])],
-    participantIds: participantsOf(input, host, activeMembers),
+    participantIds: participantsOf(input, host, activeMembers, memberGroups),
   }
 }
 
-export async function createMission(db: Firestore, sid: string, uid: string, input: MissionInput, activeMembers: string[]) {
+export async function createMission(db: Firestore, sid: string, uid: string, input: MissionInput, activeMembers: string[], memberGroups: Record<string, string[]> = {}) {
   const now = serverTimestamp()
-  const ref = await addDoc(missionsOf(db, sid), { ...toDoc(input, uid, activeMembers), createdBy: uid, closedAt: null, createdAt: now, updatedAt: now })
+  const ref = await addDoc(missionsOf(db, sid), { ...toDoc(input, uid, activeMembers, memberGroups), createdBy: uid, closedAt: null, createdAt: now, updatedAt: now })
   return ref.id
 }
 
 /** MIS-34: 수정. 참여자는 대상 설정으로 다시 계산하되, 이미 합류한 사람(열린 미션)은 남긴다 */
-export async function updateMission(db: Firestore, sid: string, m: Mission, input: MissionInput, activeMembers: string[]) {
-  const next = toDoc(input, m.createdBy, activeMembers)
-  const joined = m.participantIds.filter(u => !participantsOf(m, m.createdBy, activeMembers).includes(u))
+export async function updateMission(db: Firestore, sid: string, m: Mission, input: MissionInput, activeMembers: string[], memberGroups: Record<string, string[]> = {}) {
+  const next = toDoc(input, m.createdBy, activeMembers, memberGroups)
+  const joined = m.participantIds.filter(u => !participantsOf(m, m.createdBy, activeMembers, memberGroups).includes(u))
   await updateDoc(doc(missionsOf(db, sid), m.id), {
     ...next,
     hostIds: m.isPersonal ? [m.createdBy] : [...new Set([m.createdBy, ...input.coHostIds])],

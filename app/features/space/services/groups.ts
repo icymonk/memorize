@@ -1,6 +1,6 @@
 import type { SpaceColor } from '#shared/schemas/space'
 import type { Firestore, Timestamp } from 'firebase/firestore'
-import { addDoc, arrayRemove, arrayUnion, collection, doc, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { addDoc, arrayRemove, arrayUnion, collection, doc, getDocs, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
 
 /** WS-30~33 그룹 — docs/dev/data-model.md 2절 */
 export interface Group {
@@ -37,3 +37,9 @@ export const setGroupDeleted = (db: Firestore, sid: string, uid: string, id: str
 /** WS-31 */
 export const setInGroup = (db: Firestore, sid: string, memberUid: string, gid: string, inGroup: boolean) =>
   updateDoc(doc(db, 'spaces', sid, 'members', memberUid), { groupIds: inGroup ? arrayUnion(gid) : arrayRemove(gid) })
+
+/** WS-32: 대상·공개 범위에 고를 수 있는 그룹 (삭제한 것 빼고) */
+export async function listGroups(db: Firestore, sid: string): Promise<Group[]> {
+  const snap = await getDocs(groupsOf(db, sid))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as Group).filter(g => !g.deletedAt).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+}
