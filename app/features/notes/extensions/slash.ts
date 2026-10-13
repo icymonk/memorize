@@ -27,6 +27,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { key: 'codeBlock', keywords: ['code', '코드'], run: e => turnInto(e, 'codeBlock') },
   { key: 'horizontalRule', keywords: ['divider', 'hr', 'line', '구분선'], run: e => insertBlock(e, 'horizontalRule') },
   { key: 'video', keywords: ['youtube', 'video', '유튜브', '영상'], run: () => false },
+  { key: 'link', keywords: ['link', 'page', 'deck', 'book', 'mission', 'summary', '연결', '페이지', '단어장', '책', '미션', '요약'], run: () => false },
   { key: 'quote', keywords: ['quote', 'phrase', '구절', '인용'], run: () => false },
 ]
 

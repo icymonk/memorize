@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core'
+import type { LinkCardOptions } from './link-card'
 import type { SlashCommandOptions } from './slash'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
@@ -8,12 +9,13 @@ import { Placeholder } from '@tiptap/extensions'
 import StarterKit from '@tiptap/starter-kit'
 import { BLOCK_TYPES } from '../sync/serialize'
 import { Callout, Quote, Video } from './blocks'
+import { AppEmbed, PageLink, TodaySummary } from './link-card'
 import { BlockKeymap, BulletItem, ItemLine, NumberedItem, TodoItem, Toggle } from './flat-list'
 import { SlashCommand } from './slash'
 
 export const newBlockId = () => crypto.randomUUID()
 
-export function noteExtensions(opts: { placeholder?: string, slash?: Partial<SlashCommandOptions> } = {}) {
+export function noteExtensions(opts: { placeholder?: string, slash?: Partial<SlashCommandOptions>, link?: Partial<LinkCardOptions> } = {}) {
   return [
     StarterKit.configure({
       bulletList: false,
@@ -32,6 +34,7 @@ export function noteExtensions(opts: { placeholder?: string, slash?: Partial<Sla
     Quote,
     Callout,
     Video,
+    ...[PageLink, AppEmbed, TodaySummary].map(n => n.configure(opts.link ?? {})),
     BlockKeymap,
     TextStyle,
     Color,
