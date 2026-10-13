@@ -1,4 +1,15 @@
 export const ko = {
+  memberProfile: {
+    back: '멤버',
+    summary: (decks: number, notes: number) => `단어장 ${decks}개 · 공개 노트 ${notes}개`,
+    activity: '최근 활동',
+    hiddenProgress: '진도를 숨긴 멤버라 학습 기록은 보이지 않아요.',
+    notes: '공개 노트',
+    decks: '만든 단어장',
+    untitled: '제목 없음',
+    empty: '아직 없어요',
+    notFound: '멤버를 찾을 수 없어요',
+  },
   spaceWelcome: {
     title: (name: string) => `'${name}'에 오신 걸 환영해요`,
     modulesLine: (list: string) => `이 워크스페이스에서는 ${list}을(를) 함께 써요.`,

@@ -183,7 +183,7 @@ const initial = (name: string) => name.slice(0, 1).toUpperCase()
             <AvatarFallback>{{ initial(m.displayName) }}</AvatarFallback>
           </Avatar>
           <span class="flex-1 truncate text-sm">
-            {{ m.displayName }}
+            <NuxtLink :to="`/s/${$route.params.spaceId}/members/${m.uid}`" class="hover:underline">{{ m.displayName }}</NuxtLink>
             <span v-if="m.uid === uid" class="text-muted-foreground">({{ t.me }})</span>
           </span>
           <span v-for="g in groupsOf(m)" :key="g.id" :class="['rounded-full px-2 py-0.5 text-xs', SPACE_COLOR_CLASS[g.color]]">{{ g.name }}</span>
