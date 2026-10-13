@@ -43,7 +43,7 @@ const cardOpen = ref(false)
 const editingCard = ref<Card | null>(null)
 const pasteOpen = ref(false)
 const tableMode = ref(false)
-const draft = ref<{ id: string, front: string, back: string, removed: boolean, isNew?: boolean }[]>([])
+const draft = ref<{ id: string, front: string, reading: string, back: string, removed: boolean, isNew?: boolean }[]>([])
 const saving = ref(false)
 const speech = useSpeech()
 const states = ref(new Map<string, CardState>())
@@ -115,14 +115,17 @@ function openCard(card: Card | null) {
   cardOpen.value = true
 }
 
+/** 일본어 단어장이거나 읽는 법이 있는 카드가 있으면 표에 읽는 법 칸을 보여 준다 */
+const showReading = computed(() => deck.value?.langFrom === 'ja' || cards.value.some(c => c.reading))
+
 function startTable() {
-  draft.value = cards.value.map(c => ({ id: c.id, front: c.front, back: c.back.join('; '), removed: false }))
+  draft.value = cards.value.map(c => ({ id: c.id, front: c.front, reading: c.reading ?? '', back: c.back.join('; '), removed: false }))
   tableMode.value = true
 }
 
 /** 표에서 바로 새 단어를 넣는다 */
 function addRow() {
-  draft.value = [...draft.value, { id: newCardId($firestore, sid.value, deckId.value), front: '', back: '', removed: false, isNew: true }]
+  draft.value = [...draft.value, { id: newCardId($firestore, sid.value, deckId.value), front: '', reading: '', back: '', removed: false, isNew: true }]
   nextTick(() => document.querySelector<HTMLInputElement>(`#row-front-${draft.value.length - 1}`)?.focus())
 }
 
@@ -146,12 +149,13 @@ async function saveTable() {
   for (const [i, row] of rows.entries()) {
     const back = row.back.split(';').map(s => s.trim()).filter(Boolean)
     const front = row.front.trim()
+    const reading = row.reading.trim()
     if (!front || !back.length) {
       toast.error(ko.errors.invalidInput)
       return
     }
     if (row.isNew) {
-      const input = cardInput.safeParse({ front, back, ...(deck.value?.fields.includes('audio') ? { audio: { tts: true } } : {}) })
+      const input = cardInput.safeParse({ front, back, ...(reading ? { reading } : {}), ...(deck.value?.fields.includes('audio') ? { audio: { tts: true } } : {}) })
       if (!input.success) {
         toast.error(ko.errors.invalidInput)
         return
@@ -160,8 +164,10 @@ async function saveTable() {
       continue
     }
     const card = byId.get(row.id)!
-    if (front !== card.front || back.join('\n') !== card.back.join('\n') || i !== card.order)
-      changed.push({ ...card, front, back, order: i })
+    if (front !== card.front || reading !== (card.reading ?? '') || back.join('\n') !== card.back.join('\n') || i !== card.order) {
+      const { reading: _old, ...rest } = card
+      changed.push({ ...rest, front, back, order: i, ...(reading ? { reading } : {}) })
+    }
   }
   saving.value = true
   try {
@@ -351,6 +357,9 @@ async function remove() {
                   <th class="px-2 py-2">
                     {{ t.cards.front }}
                   </th>
+                  <th v-if="showReading" class="px-2 py-2">
+                    {{ ko.vocab.cardFields.reading }}
+                  </th>
                   <th class="px-2 py-2">
                     {{ t.cards.back }}
                   </th>
@@ -364,6 +373,9 @@ async function remove() {
                   </td>
                   <td class="px-1 py-1">
                     <Input :id="`row-front-${i}`" v-model="row.front" :disabled="row.removed" maxlength="200" class="h-8" />
+                  </td>
+                  <td v-if="showReading" class="px-1 py-1">
+                    <Input v-model="row.reading" :disabled="row.removed" maxlength="100" lang="ja" class="h-8" :aria-label="ko.vocab.cardFields.reading" />
                   </td>
                   <td class="px-1 py-1">
                     <Input v-model="row.back" :disabled="row.removed" class="h-8" @keydown.enter.prevent="i === draft.length - 1 && addRow()" />
@@ -411,7 +423,7 @@ async function remove() {
               <Button variant="ghost" size="icon" class="size-8" :aria-label="states.get(card.id)?.starred ? t.progress.unstar : t.progress.star" :aria-pressed="!!states.get(card.id)?.starred" @click="toggleStar(card)">
                 <StarIcon :class="states.get(card.id)?.starred ? 'fill-amber-400 text-amber-400' : ''" />
               </Button>
-              <Button v-if="speech.supported" variant="ghost" size="icon" class="size-8" :aria-label="t.cards.speak" @click="speech.speak(card.front, deck.langFrom)">
+              <Button v-if="speech.supported" variant="ghost" size="icon" class="size-8" :aria-label="t.cards.speak" @click="speech.speak(card.reading || card.front, deck.langFrom)">
                 <Volume2Icon />
               </Button>
               <template v-if="canEdit">

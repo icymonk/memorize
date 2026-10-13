@@ -279,6 +279,7 @@ export const ko = {
     },
     pasteDialog: {
       description: '엑셀·메모장에서 단어와 뜻을 복사해 붙여 넣으세요. 뜻이 여러 개면 / 로 구분해요.',
+      jaReadingHint: '단어 뒤 괄호에 히라가나를 쓰면(예: 勉強(べんきょう)) 읽는 법으로 들어가요.',
       placeholder: 'apple\t사과\nbanana\t바나나 / 반하나',
       termSep: '단어와 뜻 구분',
       cardSep: '카드 구분',

@@ -134,7 +134,7 @@ async function submit() {
           <Label for="card-front">{{ t.front }}</Label>
           <div class="flex gap-2">
             <Input id="card-front" v-model="form.front" required maxlength="200" autofocus />
-            <Button v-if="speech.supported" type="button" variant="outline" size="icon" :aria-label="t.speak" @click="speech.speak(form.front, deck.langFrom)">
+            <Button v-if="speech.supported" type="button" variant="outline" size="icon" :aria-label="t.speak" @click="speech.speak(form.reading.trim() || form.front, deck.langFrom)">
               <Volume2Icon />
             </Button>
           </div>
