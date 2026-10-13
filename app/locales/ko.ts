@@ -414,6 +414,14 @@ export const ko = {
       editPolicy: '공유 페이지 편집',
       policies: { everyone: '모든 멤버가 편집', editors: '나와 공동 편집자만 편집' } as Record<string, string>,
     },
+    copy: {
+      button: '다른 공간으로 복사',
+      pageTitle: '페이지 복사',
+      pageDescription: '하위 페이지까지 다른 공간의 "내 페이지"로 복사해요. 댓글, 공유 설정, 공동 편집자는 복사되지 않아요.',
+      collectionTitle: '모음 복사',
+      collectionDescription: '모음 설정·보기와 안의 페이지를 다른 공간으로 복사해요. 내 공간으로 가져가면 내 모음이 돼요. 댓글과 공동 편집자는 복사되지 않아요.',
+      from: (name: string) => `${name || '다른 공간'}에서 복사함`,
+    },
     icon: {
       add: '아이콘 추가',
       change: '아이콘 바꾸기',

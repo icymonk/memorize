@@ -2,8 +2,9 @@
 import type { PropDef, PropValue, ViewDef, ViewType } from '#shared/schemas/collection'
 import type { Page } from '~/features/notes/services/pages'
 import { coerceProp, compareProp, MAX_VIEWS, matchesFilter, newPropKey, VIEW_TYPES, viewDef } from '#shared/schemas/collection'
-import { ArrowDownIcon, ArrowUpIcon, ChevronLeftIcon, ChevronRightIcon, FileTextIcon, PlusIcon, Settings2Icon, XIcon } from '@lucide/vue'
+import { ArrowDownIcon, ArrowUpIcon, ChevronLeftIcon, ChevronRightIcon, FileTextIcon, PlusIcon, Settings2Icon, XIcon, CopyIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
+import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PropCell from '~/features/notes/components/PropCell.vue'
 import { canManageCollection, saveCollectionMeta } from '~/features/notes/services/collections'
@@ -30,6 +31,7 @@ const cid = computed(() => route.params.collectionId as string)
 const col = computed(() => notes.collections.find(c => c.id === cid.value) ?? null)
 const views = computed(() => (col.value?.views ?? []) as ViewDef[])
 const settingsOpen = ref(false)
+const copyOpen = ref(false)
 const creating = ref(false)
 
 // 지금 보기 설정. 저장한 보기를 고르면 그 설정을 불러온다
@@ -202,6 +204,9 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
           <span class="truncate">{{ col.name }}</span>
         </h1>
         <div class="flex items-center gap-2">
+          <Button variant="ghost" size="icon" :aria-label="ko.notes.copy.button" :title="ko.notes.copy.button" @click="copyOpen = true">
+            <CopyIcon />
+          </Button>
           <Button v-if="canManage" variant="ghost" size="icon" :aria-label="t.settings" @click="settingsOpen = true">
             <Settings2Icon />
           </Button>
@@ -378,6 +383,7 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
         </section>
       </template>
     </template>
+    <CopyDeckDialog v-if="col" v-model:open="copyOpen" kind="collection" :from-space-id="sid" :content-id="col.id" />
     <CollectionFormDialog v-if="col" v-model:open="settingsOpen" :collection="col" :items="notes.itemsOf(col.id)" @deleted="onDeleted" />
   </div>
 </template>
