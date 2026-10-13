@@ -37,6 +37,7 @@ const { onDeckCreated } = await import('./deck')
 const { onPageCreated, onPageReviewersChanged } = await import('./page')
 const { onStudySessionCreated } = await import('./studySession')
 const { onCommentWritten } = await import('./comment')
+const { onMissionCreated, onSubmissionWritten } = await import('./mission')
 
 const createdEvent = (params: Record<string, string>, data: any) => ({ params, data: { data: () => data } }) as any
 
@@ -139,5 +140,34 @@ describe('feedback notifications (CMN-23·24)', () => {
     await onCommentWritten.run({ params: { sid: 's1', id: 'fb' }, data: { before: { exists: false }, after: { exists: true, data: () => fb } } } as any)
     expect(updated).toEqual([{ path: 'spaces/s1/pages/p1', data: { feedbackCount: { increment: 1 } } }])
     expect(created.map(n => [n.path.split('/')[1], n.data.type, n.data.body])).toEqual([['u2', 'feedback', '💮 참 잘했어요 · 좋아요']])
+  })
+})
+
+describe('mission notifications (MIS-40)', () => {
+  const subEvent = (before: any, after: any) => ({
+    params: { sid: 's1', mid: 'm1', subId: 'u2_once' },
+    data: { before: { data: () => before }, after: { data: () => after } },
+  }) as any
+  const sub = { uid: 'u2', periodKey: 'once', content: '다 읽었어요', reviewerUids: ['u1', 'u3'] }
+
+  it('new shared missions notify participants except the host; personal goals notify nobody', async () => {
+    await onMissionCreated.run(createdEvent({ sid: 's1', mid: 'm1' }, { title: '독후감', createdBy: 'u1', isPersonal: false, participantIds: ['u1', 'u2'] }))
+    await onMissionCreated.run(createdEvent({ sid: 's1', mid: 'm2' }, { title: '나만', createdBy: 'u2', isPersonal: true, participantIds: ['u2'] }))
+    expect(created.map(n => [n.path.split('/')[1], n.data.type, n.data.title, n.data.refPath])).toEqual([['u2', 'mission', "민수님이 미션 '독후감'에 나를 넣었어요", '/s/s1/missions/m1']])
+  })
+
+  it('a submission notifies reviewers; a verdict notifies the submitter once', async () => {
+    store.set('spaces/s1/missions/m1', { title: '독후감' })
+    await onSubmissionWritten.run(subEvent(undefined, { ...sub, status: 'submitted' }))
+    expect(created.map(n => [n.path.split('/')[1], n.data.type, n.data.body])).toEqual([['u1', 'missionReview', '다 읽었어요'], ['u3', 'missionReview', '다 읽었어요']])
+    created.length = 0
+    await onSubmissionWritten.run(subEvent({ ...sub, status: 'submitted' }, { ...sub, status: 'rejected', reviewedBy: 'u1', reason: '더 써 주세요' }))
+    await onSubmissionWritten.run(subEvent({ ...sub, status: 'rejected' }, { ...sub, status: 'rejected', reviewedBy: 'u1', reason: '더 써 주세요' }))
+    expect(created.map(n => [n.path.split('/')[1], n.data.type, n.data.title, n.data.body])).toEqual([['u2', 'mission', "'독후감' 제출이 반려됐어요", '더 써 주세요']])
+  })
+
+  it('check-offs (done) send nothing', async () => {
+    await onSubmissionWritten.run(subEvent(undefined, { ...sub, status: 'done' }))
+    expect(created).toEqual([])
   })
 })
