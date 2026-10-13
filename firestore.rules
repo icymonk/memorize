@@ -74,10 +74,14 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isMember(sid);
-        // WS-31: 그룹 소속은 모든 멤버가 바꾼다. 다른 항목은 서버
-        allow update: if isMember(sid) && space(sid).kind == 'workspace'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['groupIds'])
-          && request.resource.data.groupIds is list && request.resource.data.groupIds.size() <= 20;
+        // WS-31: 그룹 소속은 모든 멤버가 바꾼다. ACC-11·22: 내 표시 이름과 진도 숨기기는 본인이. 다른 항목은 서버
+        allow update: if isMember(sid) && space(sid).kind == 'workspace' && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['groupIds'])
+            && request.resource.data.groupIds is list && request.resource.data.groupIds.size() <= 20)
+          || (memberId == uid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'hideProgress'])
+            && isText(request.resource.data.displayName, 1, 40)
+            && request.resource.data.get('hideProgress', false) is bool));
       }
 
       // WS-30~33 그룹: 모든 멤버가 만들고 고치고 지운다(휴지통처럼 deletedAt, 30일 뒤 서버가 완전 삭제)

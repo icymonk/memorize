@@ -74,6 +74,14 @@ describe('groups (2-F1, WS-30~33)', () => {
     await assertFails(updateDoc(mem('bob', 'bob'), { groupIds: ['g1'], hideProgress: true }))
     await assertFails(updateDoc(mem('lee', 'bob'), { groupIds: ['g1'] }))
   })
+
+  it('a member changes only their own display name and progress hiding', async () => {
+    await assertSucceeds(updateDoc(mem('bob', 'bob'), { displayName: '밥', hideProgress: true }))
+    await assertFails(updateDoc(mem('bob', 'alice'), { displayName: '앨리스' }))
+    await assertFails(updateDoc(mem('bob', 'bob'), { displayName: '' }))
+    await assertFails(updateDoc(mem('bob', 'bob'), { hideProgress: 'yes' }))
+    await assertFails(updateDoc(mem('bob', 'bob'), { displayName: '밥', access: 'manager' }))
+  })
 })
 
 describe('group visibility (2-F1, WS-32)', () => {
