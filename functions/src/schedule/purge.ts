@@ -1,4 +1,4 @@
-import { getFirestore, Timestamp } from 'firebase-admin/firestore'
+import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { logger } from 'firebase-functions/v2'
 import { onSchedule } from 'firebase-functions/v2/scheduler'
 import { LIMITS } from '../../../shared/limits'
@@ -27,6 +27,21 @@ export async function purgeTrash(now = Date.now()) {
   }
 }
 
+/** WS-33: 삭제한 지 30일 지난 그룹을 지우고 멤버의 소속에서도 뺀다 */
+export async function purgeGroups(now = Date.now()) {
+  const db = getFirestore()
+  const cutoff = Timestamp.fromMillis(now - LIMITS.groupRestoreDays * DAY)
+  const snap = await db.collectionGroup('groups').where('deletedAt', '<', cutoff).get()
+  for (const g of snap.docs) {
+    const members = await g.ref.parent.parent!.collection('members').where('groupIds', 'array-contains', g.id).get()
+    const writer = db.bulkWriter()
+    for (const m of members.docs) writer.update(m.ref, { groupIds: FieldValue.arrayRemove(g.id) })
+    writer.delete(g.ref)
+    await writer.close()
+  }
+  return snap.size
+}
+
 /** WS-07: 유예 기간이 끝난 워크스페이스를 하위 데이터째 삭제 */
 export async function purgeSpaces(now = Date.now()) {
   const db = getFirestore()
@@ -39,7 +54,7 @@ export async function purgeSpaces(now = Date.now()) {
 }
 
 export const cronPurgeTrash = onSchedule(daily, async () => {
-  logger.info('purged trash pages', { count: await purgeTrash() })
+  logger.info('purged trash pages', { count: await purgeTrash(), groups: await purgeGroups() })
 })
 
 export const cronSpaceDeletion = onSchedule(daily, async () => {

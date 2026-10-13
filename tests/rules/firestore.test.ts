@@ -45,6 +45,37 @@ beforeEach(async () => {
   })
 })
 
+describe('groups (2-F1, WS-30~33)', () => {
+  const g = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'groups', id)
+  const group = (by: string, over: object = {}) => ({ name: '1반', color: 'blue', joinable: true, createdBy: by, deletedAt: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
+  const mem = (uid: string, who: string) => doc(db(uid), 'spaces', SID, 'members', who)
+
+  it('any member creates, renames, deletes and restores groups; outsiders cannot', async () => {
+    await assertSucceeds(setDoc(g('bob', 'g1'), group('bob')))
+    await assertFails(setDoc(g('bob', 'g2'), group('alice')))
+    await assertFails(setDoc(g('bob', 'g3'), group('bob', { name: '' })))
+    await assertFails(setDoc(g('bob', 'g4'), group('bob', { extra: 1 })))
+    await assertFails(setDoc(g('lee', 'g5'), group('lee')))
+    await assertFails(setDoc(doc(db('alice'), 'spaces/p_alice/groups/g6'), group('alice')))
+    await assertSucceeds(getDoc(g('mia', 'g1')))
+    await assertFails(getDoc(g('eve', 'g1')))
+    await assertSucceeds(updateDoc(g('mia', 'g1'), { name: '2반', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(g('mia', 'g1'), { createdBy: 'mia', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(g('mia', 'g1'), { deletedAt: serverTimestamp(), deletedBy: 'bob', updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(g('mia', 'g1'), { deletedAt: serverTimestamp(), deletedBy: 'mia', updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(g('bob', 'g1'), { deletedAt: null, updatedAt: serverTimestamp() }))
+    await assertFails(deleteDoc(g('bob', 'g1')))
+  })
+
+  it('any member changes group membership, nothing else on member docs', async () => {
+    await assertSucceeds(updateDoc(mem('bob', 'alice'), { groupIds: ['g1'] }))
+    await assertSucceeds(updateDoc(mem('bob', 'bob'), { groupIds: [] }))
+    await assertFails(updateDoc(mem('bob', 'alice'), { access: 'member' }))
+    await assertFails(updateDoc(mem('bob', 'bob'), { groupIds: ['g1'], hideProgress: true }))
+    await assertFails(updateDoc(mem('lee', 'bob'), { groupIds: ['g1'] }))
+  })
+})
+
 describe('users', () => {
   it('only the user reads their own doc', async () => {
     await assertSucceeds(getDoc(doc(db('alice'), 'users/alice')))
