@@ -5,8 +5,10 @@ import type { Member } from '~/features/space/services/invites'
 import { SHELF_STATUS } from '#shared/schemas/book'
 import { PlusIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
+import { dateKey } from '#shared/dates'
 import AddBookDialog from '~/features/reading/components/AddBookDialog.vue'
-import { listBooks, listMyShelf, removeFromShelf, setShelfStatus } from '~/features/reading/services/shelf'
+import BookDetailDialog from '~/features/reading/components/BookDetailDialog.vue'
+import { joinBook, listBooks, listMyShelf, removeFromShelf, statusPatch, updateShelf } from '~/features/reading/services/shelf'
 import { listMembers } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
@@ -29,6 +31,10 @@ const members = ref<Member[]>([])
 const loading = ref(true)
 const tab = ref<'all' | ShelfStatus | 'space'>('all')
 const addOpen = ref(false)
+const detail = ref<ShelfItem | null>(null)
+const detailOpen = ref(false)
+const today = dateKey(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone)
+const mineKeys = computed(() => new Set(mine.value.map(b => b.bookKey)))
 
 const shown = computed(() => (tab.value === 'all' ? mine.value : mine.value.filter(b => b.status === tab.value))
   .slice().sort((a, b) => (b.updatedAt?.toMillis() ?? 0) - (a.updatedAt?.toMillis() ?? 0)))
@@ -57,8 +63,25 @@ onMounted(load)
 watch(sid, load)
 
 async function changeStatus(b: ShelfItem, status: ShelfStatus) {
-  await setShelfStatus($firestore, sid.value, b.id, status)
-  b.status = status
+  const patch = statusPatch(b, status, today)
+  await updateShelf($firestore, sid.value, b.id, patch)
+  Object.assign(b, patch)
+}
+
+function openDetail(b: ShelfItem) {
+  detail.value = b
+  detailOpen.value = true
+}
+
+async function join(g: BookGroup) {
+  try {
+    await joinBook($firestore, sid.value, auth.user!.uid, g)
+    toast.success(t.joined)
+    await load()
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
 }
 
 async function remove(b: ShelfItem) {
@@ -109,6 +132,10 @@ async function remove(b: ShelfItem) {
           </div>
           <span class="truncate text-sm font-medium">{{ b.title }}</span>
           <span class="text-muted-foreground truncate text-xs" :title="b.readerUids.map(name).join(', ')">{{ t.readers(b.readerUids.length, b.readerUids.slice(0, 2).map(name)) }}</span>
+          <span v-if="mineKeys.has(b.bookKey)" class="text-muted-foreground text-xs">{{ t.onShelf }}</span>
+          <Button v-else size="sm" variant="outline" @click="join(b)">
+            {{ t.join }}
+          </Button>
         </li>
       </ul>
     </template>
@@ -117,11 +144,14 @@ async function remove(b: ShelfItem) {
     </p>
     <ul v-else class="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <li v-for="b in shown" :key="b.id" class="group flex flex-col gap-1">
-        <img v-if="b.cover" :src="b.cover" alt="" class="aspect-[2/3] w-full rounded-md border object-cover">
-        <div v-else class="bg-muted flex aspect-[2/3] w-full items-center justify-center rounded-md border p-2 text-center text-sm">
-          {{ b.title }}
-        </div>
-        <span class="truncate text-sm font-medium">{{ b.title }}</span>
+        <button type="button" class="flex flex-col gap-1 text-left" @click="openDetail(b)">
+          <img v-if="b.cover" :src="b.cover" alt="" class="aspect-[2/3] w-full rounded-md border object-cover">
+          <div v-else class="bg-muted flex aspect-[2/3] w-full items-center justify-center rounded-md border p-2 text-center text-sm">
+            {{ b.title }}
+          </div>
+          <span class="truncate text-sm font-medium">{{ b.title }}</span>
+          <span v-if="b.rating" class="text-xs text-amber-500">{{ '★'.repeat(b.rating) }}</span>
+        </button>
         <span class="text-muted-foreground truncate text-xs">{{ [b.authors.join(', '), t.formats[b.format]].filter(Boolean).join(' · ') }}</span>
         <div class="flex items-center gap-1">
           <select :value="b.status" :aria-label="t.fields.status" class="border-input h-8 flex-1 rounded-md border bg-transparent px-1 text-xs" @change="changeStatus(b, ($event.target as HTMLSelectElement).value as ShelfStatus)">
@@ -137,5 +167,6 @@ async function remove(b: ShelfItem) {
     </ul>
 
     <AddBookDialog v-model:open="addOpen" :sid="sid" @saved="load" />
+    <BookDetailDialog v-model:open="detailOpen" :sid="sid" :book="detail" @saved="load" />
   </div>
 </template>

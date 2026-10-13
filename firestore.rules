@@ -176,7 +176,10 @@ service cloud.firestore {
             && isText(x.title, 1, 200) && x.authors is list && x.authors.size() <= 10
             && isText(x.publisher, 0, 100) && isText(x.cover, 0, 500) && (x.cover == '' || x.cover.matches('https://.*'))
             && x.format in ['paper', 'ebook', 'audio'] && x.status in ['want', 'reading', 'done', 'dropped']
-            && (!('rating' in x) || x.rating == null || (x.rating is int && x.rating >= 1 && x.rating <= 5));
+            && (!('rating' in x) || x.rating == null || (x.rating is int && x.rating >= 1 && x.rating <= 5))
+            && (!('startedAt' in x) || x.startedAt == null || isText(x.startedAt, 10, 10))
+            && (!('finishedAt' in x) || x.finishedAt == null || isText(x.finishedAt, 10, 10))
+            && (!('position' in x) || x.position is map);
         }
         allow read: if isMember(sid);
         allow create: if isMember(sid) && validShelf(request.resource.data);
