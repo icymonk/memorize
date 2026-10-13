@@ -1,4 +1,5 @@
 import type { Firestore, Timestamp } from 'firebase/firestore'
+import type { Stamp } from '#shared/schemas/feedback'
 import { addDoc, collection, deleteDoc, doc, onSnapshot, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 
 /** CMN-20·22 댓글 — docs/dev/data-model.md `spaces/{sid}/comments` */
@@ -9,6 +10,7 @@ export interface Comment {
   uid: string
   kind: 'comment' | 'feedback'
   body: string
+  stamp?: Stamp
   mentions: string[]
   createdAt?: Timestamp
   editedAt?: Timestamp

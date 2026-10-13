@@ -2,6 +2,7 @@ import type { CreateInviteInput, CreateInviteOutput, DecideJoinRequestInput, Inv
 import type { CancelSpaceDeletionInput, CreateWorkspaceInput, CreateWorkspaceOutput, MemberTargetInput, RespondOwnershipInput, ScheduleSpaceDeletionInput, SetManagerInput, TransferOwnershipInput } from './space'
 import type { CopyContentInput, CopyContentOutput } from './copy'
 import type { CollectionRefInput } from './collection'
+import type { LeaveFeedbackInput } from './feedback'
 import type { MovePageInput, PageOpOutput, PageRefInput } from './page'
 import { z } from 'zod'
 
@@ -47,4 +48,5 @@ export interface Callables {
   trashPage: { input: PageRefInput, output: PageOpOutput }
   restorePage: { input: PageRefInput, output: PageOpOutput }
   deleteCollection: { input: CollectionRefInput, output: PageOpOutput }
+  leaveFeedback: { input: LeaveFeedbackInput, output: { ok: true } }
 }

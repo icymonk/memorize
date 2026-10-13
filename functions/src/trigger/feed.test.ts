@@ -34,7 +34,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }))
 
 const { onDeckCreated } = await import('./deck')
-const { onPageCreated } = await import('./page')
+const { onPageCreated, onPageReviewersChanged } = await import('./page')
 const { onStudySessionCreated } = await import('./studySession')
 const { onCommentWritten } = await import('./comment')
 
@@ -116,5 +116,28 @@ describe('comment notifications (CMN-22·30)', () => {
     await onCommentWritten.run(written(c, { ...c, body: 'edited' }))
     expect(updated).toEqual([{ path: 'spaces/s1/pages/p1', data: { commentCount: { increment: -1 } } }])
     expect(created).toHaveLength(0)
+  })
+})
+
+describe('feedback notifications (CMN-23·24)', () => {
+  const updatedEvent = (before: any, after: any) => ({
+    params: { sid: 's1', pageId: 'p1' },
+    data: { before: { get: (k: string) => before[k] }, after: { data: () => after } },
+  }) as any
+
+  it('notifies only newly requested reviewers, not the owner or muted members', async () => {
+    store.set('users/u3', { displayName: '하나', notifications: { feedbackRequest: { inApp: false } } })
+    store.set('users/u4', {})
+    store.set('spaces/s1/members/u4', { status: 'active' })
+    await onPageReviewersChanged.run(updatedEvent({ reviewerIds: ['u2'] }, { title: '일지', ownerId: 'u1', reviewerIds: ['u1', 'u2', 'u3', 'u4'] }))
+    expect(created.map(n => [n.path.split('/')[1], n.data.type, n.data.title])).toEqual([['u4', 'feedbackRequest', "민수님이 '일지'에 피드백을 요청했어요"]])
+  })
+
+  it('new feedback counts as feedback and notifies the page owner with the stamp', async () => {
+    store.set('spaces/s1/pages/p1', { title: '노트', ownerId: 'u2' })
+    const fb = { targetType: 'page', targetId: 'p1', uid: 'u1', kind: 'feedback', stamp: 'great', body: '좋아요', mentions: [] }
+    await onCommentWritten.run({ params: { sid: 's1', id: 'fb' }, data: { before: { exists: false }, after: { exists: true, data: () => fb } } } as any)
+    expect(updated).toEqual([{ path: 'spaces/s1/pages/p1', data: { feedbackCount: { increment: 1 } } }])
+    expect(created.map(n => [n.path.split('/')[1], n.data.type, n.data.body])).toEqual([['u2', 'feedback', '💮 참 잘했어요 · 좋아요']])
   })
 })

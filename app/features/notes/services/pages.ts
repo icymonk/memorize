@@ -22,6 +22,7 @@ export interface Page {
   visibility: PageVisibility
   editorIds: string[]
   sharedWith?: string[]
+  reviewerIds?: string[]
   editPolicy?: 'everyone' | 'editors'
   lock?: { uid: string, name: string, at: Timestamp } | null
   collectionId?: string
