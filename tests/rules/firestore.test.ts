@@ -620,6 +620,16 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertFails(getDoc(pageRef('alice', 'r1')))
   })
 
+  it('book review publish: only the author sets publishedAt and opens it to the space (REV-10)', async () => {
+    const book = { bookKey: 'isbn:9788936434120', title: '소년이 온다', authors: ['한강'], cover: '' }
+    await seed('pages/rv', page({ type: 'bookReview', collectionId: 'bookReview', editPolicy: 'editors', visibility: 'private', book }))
+    await assertFails(getDoc(pageRef('alice', 'rv')))
+    await assertFails(updateDoc(pageRef('alice', 'rv'), { visibility: 'space', publishedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(pageRef('bob', 'rv'), { visibility: 'space', publishedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await assertSucceeds(getDoc(pageRef('alice', 'rv')))
+    await assertFails(updateDoc(pageRef('alice', 'rv'), { publishedAt: null, visibility: 'private', updatedAt: serverTimestamp() }))
+  })
+
   it('my journals across spaces: collectionGroup read of my own pages only (NOTE-39)', async () => {
     await seed('pages/mine', page({ type: 'journal', collectionId: 'journal', editPolicy: 'editors', ownerId: 'bob' }))
     await assertSucceeds(getDocs(query(collectionGroup(db('bob'), 'pages'), where('ownerId', '==', 'bob'), where('type', '==', 'journal'))))
