@@ -50,7 +50,7 @@ export const useNotesStore = defineStore('notes', () => {
   function childrenOf(parentId: string | null, root?: Root): Page[] {
     return sortPages(pages.value.filter((p) => {
       const parent = p.parentId && byId.value.has(p.parentId) ? p.parentId : null
-      return p.type !== 'item' && parent === parentId && (!root || p.root === root)
+      return p.type === 'page' && parent === parentId && (!root || p.root === root)
     }))
   }
   const ancestors = (p: Page) => (p.ancestorIds ?? []).map(id => byId.value.get(id)).filter((x): x is Page => !!x)
@@ -103,10 +103,10 @@ export const useNotesStore = defineStore('notes', () => {
   }
 
   /** NOTE-47: 모음 안의 페이지 (최신순) */
-  const itemsOf = (collectionId: string) => pages.value.filter(p => p.type === 'item' && p.collectionId === collectionId)
+  const itemsOf = (collectionId: string) => pages.value.filter(p => p.type !== 'page' && p.collectionId === collectionId)
     .sort((a, b) => (b.createdAt?.toMillis() ?? Date.now()) - (a.createdAt?.toMillis() ?? Date.now()))
   async function createItem(col: Collection, props?: Record<string, PropValue>) {
-    const id = await createPage($firestore, sid!, uid(), { root: col.scope, collection: { id: col.id, scope: col.scope }, after: null, props })
+    const id = await createPage($firestore, sid!, uid(), { root: col.scope, collection: { id: col.id, scope: col.scope }, after: null, props, journal: col.kind === 'system' && col.systemType === 'journal' })
     const template = col.templateIds?.[0] ? byId.value.get(col.templateIds[0]) : null
     if (template && !template.deletedAt) await copyBlocks($firestore, sid!, uid(), template, id)
     return id

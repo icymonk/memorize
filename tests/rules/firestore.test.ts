@@ -519,4 +519,19 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertSucceeds(updateDoc(pageRef('mia', 'i1'), { 'props.p1': 'b', updatedAt: serverTimestamp() }))
     await assertFails(updateDoc(pageRef('alice', 'i1'), { collectionId: 'pv', updatedAt: serverTimestamp() }))
   })
+
+  it('journal: any member writes their own, others cannot edit (NOTE-30·31)', async () => {
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID), { 'settings.whoCanCreate': 'managers' }))
+    const sys = { kind: 'system', systemType: 'journal', name: '학습일지', icon: '', ownerId: 'bob', scope: 'shared', schema: [], views: [], templateIds: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
+    const colDoc = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'collections', id)
+    await assertFails(setDoc(colDoc('bob', 'other'), sys))
+    await assertFails(setDoc(colDoc('bob', 'journal'), { ...sys, scope: 'private' }))
+    await assertSucceeds(setDoc(colDoc('bob', 'journal'), sys))
+    const j = (o: object) => page({ type: 'journal', collectionId: 'journal', editPolicy: 'editors', props: { date: '2026-10-12' }, ...o })
+    await assertSucceeds(setDoc(pageRef('bob', 'j1'), j({})))
+    await assertFails(setDoc(pageRef('bob', 'j2'), j({ editPolicy: 'everyone' })))
+    await assertFails(setDoc(pageRef('bob', 'j3'), page({ type: 'journal', collectionId: 'sh', editPolicy: 'editors' })))
+    await assertFails(setDoc(pageRef('bob', 'j4'), page({ type: 'item', collectionId: 'journal' })))
+    await assertFails(updateDoc(pageRef('mia', 'j1'), { title: 'x', updatedAt: serverTimestamp() }))
+  })
 })

@@ -414,6 +414,7 @@ export const ko = {
       editPolicy: '공유 페이지 편집',
       policies: { everyone: '모든 멤버가 편집', editors: '나와 공동 편집자만 편집' } as Record<string, string>,
     },
+    journal: { nav: '학습일지' },
     copy: {
       button: '다른 공간으로 복사',
       pageTitle: '페이지 복사',

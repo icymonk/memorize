@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpenIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, PlusIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, NotebookPenIcon, PlusIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
 import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
@@ -71,6 +71,14 @@ watch(() => auth.account, (account) => {
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.notes !== false">
+            <SidebarMenuButton as-child :tooltip="ko.notes.journal.nav" :is-active="route.path === `/s/${currentSpace.id}/collections/journal`">
+              <NuxtLink :to="`/s/${currentSpace.id}/journal`">
+                <NotebookPenIcon />
+                <span>{{ ko.notes.journal.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem v-if="currentWorkspace">
             <SidebarMenuButton as-child :tooltip="ko.members.nav" :is-active="route.path === `/s/${currentWorkspace.id}/members`">
               <NuxtLink :to="`/s/${currentWorkspace.id}/members`">
@@ -112,7 +120,7 @@ watch(() => auth.account, (account) => {
             <PlusIcon />
           </SidebarGroupAction>
           <SidebarMenu>
-            <SidebarMenuItem v-for="c in notes.collections" :key="c.id">
+            <SidebarMenuItem v-for="c in notes.collections.filter(c => c.kind !== 'system')" :key="c.id">
               <SidebarMenuButton as-child size="sm" :is-active="route.path === `/s/${currentSpace.id}/collections/${c.id}`">
                 <NuxtLink :to="`/s/${currentSpace.id}/collections/${c.id}`">
                   <span v-if="c.icon" class="w-4 text-center">{{ c.icon }}</span>
