@@ -661,3 +661,19 @@ describe('notification settings (ACC-20)', () => {
     await assertFails(updateDoc(ref('mia'), { notifications: { other: { inApp: false } } }))
   })
 })
+
+describe('activities (CMN-10)', () => {
+  it('members read public activities, private only by owner, nobody writes', async () => {
+    const seed = (id: string, data: object) => env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'activities', id), data))
+    await seed('a1', { uid: 'bob', visibility: 'space', type: 'session' })
+    await seed('a2', { uid: 'bob', visibility: 'private', type: 'session' })
+    const ref = (uid: string | undefined, id: string) => doc(db(uid), 'spaces', SID, 'activities', id)
+    await assertSucceeds(getDoc(ref('mia', 'a1')))
+    await assertFails(getDoc(ref('mia', 'a2')))
+    await assertSucceeds(getDoc(ref('bob', 'a2')))
+    await assertFails(getDoc(ref(undefined, 'a1')))
+    await assertSucceeds(getDocs(query(collection(db('mia'), 'spaces', SID, 'activities'), where('visibility', '==', 'space'))))
+    await assertFails(getDocs(collection(db('mia'), 'spaces', SID, 'activities')))
+    await assertFails(setDoc(ref('mia', 'a3'), { uid: 'mia', visibility: 'space' }))
+  })
+})
