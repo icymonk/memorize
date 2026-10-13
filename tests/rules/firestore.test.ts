@@ -850,6 +850,8 @@ describe('shelf (2-C1, READ-01~03·10)', () => {
     await assertFails(updateDoc(ref('alice', 'bob_isbn:9788936434120'), { status: 'done' }))
     await assertSucceeds(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { status: 'done', rating: 5 }))
     await assertFails(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { rating: 6 }))
+    await assertSucceeds(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { position: { page: 120 }, startedAt: '2026-10-01', finishedAt: '2026-10-12' }))
+    await assertFails(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { startedAt: 'yesterday' }))
     await assertFails(deleteDoc(ref('alice', 'bob_isbn:9788936434120')))
     await assertSucceeds(deleteDoc(ref('bob', 'bob_isbn:9788936434120')))
   })
@@ -857,6 +859,23 @@ describe('shelf (2-C1, READ-01~03·10)', () => {
   it('book groups are server-only', async () => {
     await assertSucceeds(getDocs(collection(db('bob'), 'spaces', SID, 'books')))
     await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'books', 'isbn:9788936434120'), { title: 'x' }))
+  })
+})
+
+describe('reading logs (2-C3, READ-20·23)', () => {
+  const log = (uid: string, over: object = {}) => ({ uid, bookKey: 'isbn:9788936434120', title: '소년이 온다', date: '2026-10-12', unit: 'page', from: 10, to: 40, minutes: 30, memo: '', ...over })
+  const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'readingLogs', id)
+
+  it('members log only as themselves and only they read their logs', async () => {
+    await assertSucceeds(setDoc(ref('bob', 'l1'), log('bob')))
+    await assertFails(setDoc(ref('bob', 'l2'), log('alice')))
+    await assertFails(setDoc(ref('bob', 'l3'), log('bob', { unit: 'chapter' })))
+    await assertFails(setDoc(ref('lee', 'l4'), log('lee')))
+    await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'readingLogs'), where('uid', '==', 'bob'), where('bookKey', '==', 'isbn:9788936434120'))))
+    await assertFails(getDoc(ref('alice', 'l1')))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'readingLogs')))
+    await assertFails(deleteDoc(ref('alice', 'l1')))
+    await assertSucceeds(deleteDoc(ref('bob', 'l1')))
   })
 })
 

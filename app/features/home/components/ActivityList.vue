@@ -15,6 +15,7 @@ function link(a: Activity) {
   if (a.refType === 'deck') return `/s/${props.sid}/decks/${a.refId}`
   if (a.refType === 'page') return `/s/${props.sid}/notes/${a.refId}`
   if (a.refType === 'mission') return `/s/${props.sid}/missions/${a.refId}`
+  if (a.refType === 'book') return `/s/${props.sid}/reading`
   return null
 }
 
@@ -22,14 +23,17 @@ function part(list: Activity[]) {
   const cards: Record<string, number> = {}
   let journals = 0
   const missions = new Set<string>()
+  const books = new Set<string>()
   for (const a of list) {
     if (a.type === 'session') cards[a.data.mode] = (cards[a.data.mode] ?? 0) + (a.data.cards ?? 0)
     else if (a.type === 'journal') journals++
     else if (a.type === 'missionDone') missions.add(a.data.title ?? '')
+    else if (a.type === 'readingLog') books.add(a.data.title ?? '')
   }
   const parts = Object.entries(cards).map(([mode, n]) => t.cards(n, ko.vocab.study.modes[mode] ?? ''))
   if (journals) parts.push(t.journalPart)
   if (missions.size) parts.push(t.missionPart([...missions]))
+  if (books.size) parts.push(t.readingPart([...books]))
   return parts.join(', ')
 }
 

@@ -23,7 +23,7 @@ async function syncSessionVisibility(sid: string, uid: string, before: unknown, 
   if (after === undefined || (before === true) === (after === true)) return
   const visibility = after === true ? 'private' : 'space'
   const db = getFirestore()
-  const list = await db.collection(`spaces/${sid}/activities`).where('uid', '==', uid).where('type', '==', 'session').get()
+  const list = await db.collection(`spaces/${sid}/activities`).where('uid', '==', uid).where('type', 'in', ['session', 'readingLog']).get()
   const writer = db.bulkWriter()
   for (const a of list.docs) {
     if (a.get('visibility') !== visibility) writer.update(a.ref, { visibility })

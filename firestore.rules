@@ -176,7 +176,10 @@ service cloud.firestore {
             && isText(x.title, 1, 200) && x.authors is list && x.authors.size() <= 10
             && isText(x.publisher, 0, 100) && isText(x.cover, 0, 500) && (x.cover == '' || x.cover.matches('https://.*'))
             && x.format in ['paper', 'ebook', 'audio'] && x.status in ['want', 'reading', 'done', 'dropped']
-            && (!('rating' in x) || x.rating == null || (x.rating is int && x.rating >= 1 && x.rating <= 5));
+            && (!('rating' in x) || x.rating == null || (x.rating is int && x.rating >= 1 && x.rating <= 5))
+            && (!('startedAt' in x) || x.startedAt == null || isText(x.startedAt, 10, 10))
+            && (!('finishedAt' in x) || x.finishedAt == null || isText(x.finishedAt, 10, 10))
+            && (!('position' in x) || x.position is map);
         }
         allow read: if isMember(sid);
         allow create: if isMember(sid) && validShelf(request.resource.data);
@@ -186,6 +189,18 @@ service cloud.firestore {
       }
       match /books/{key} {
         allow read: if isMember(sid);
+      }
+      // 2-C3 독서 기록 (READ-20·21·23). 기록은 본인만 본다 (피드에는 서버가 올린다)
+      match /readingLogs/{id} {
+        function validLog(x) {
+          return x.uid == uid() && isText(x.bookKey, 3, 80) && isText(x.title, 1, 200) && isText(x.date, 10, 10)
+            && x.unit in ['page', 'percent', 'minute'] && x.minutes is int && x.minutes >= 0 && x.minutes <= 1440
+            && isText(x.memo, 0, 200);
+        }
+        allow read: if isMember(sid) && resource.data.uid == uid();
+        allow create: if isMember(sid) && validLog(request.resource.data);
+        allow update: if isMember(sid) && resource.data.uid == uid() && validLog(request.resource.data);
+        allow delete: if isMember(sid) && resource.data.uid == uid();
       }
 
       // 2-E1 미션 (MIS-01·02·10~12·14·34). 개인 목표는 만든 사람만 보고, 내 공간에서는 개인 목표만 만든다

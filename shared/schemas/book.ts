@@ -66,3 +66,35 @@ export const shelfInput = z.object({
   status: z.enum(SHELF_STATUS).default('want'),
 })
 export type ShelfInput = z.infer<typeof shelfInput>
+
+/** READ-11: 상태를 바꾸면 처음 읽기 시작한 날·다 읽은 날을 채운다 */
+export function statusPatch(b: { startedAt?: string | null, finishedAt?: string | null }, status: ShelfStatus, today: string) {
+  const patch: { status: ShelfStatus, startedAt?: string, finishedAt?: string } = { status }
+  if ((status === 'reading' || status === 'done') && !b.startedAt) patch.startedAt = today
+  if (status === 'done') patch.finishedAt = b.finishedAt ?? today
+  return patch
+}
+
+/** READ-20: 독서 기록 */
+export const LOG_UNITS = ['page', 'percent', 'minute'] as const
+export type LogUnit = typeof LOG_UNITS[number]
+export const logUnit = (f: BookFormat): LogUnit => f === 'audio' ? 'minute' : f === 'ebook' ? 'percent' : 'page'
+export const positionKey = (u: LogUnit) => u === 'minute' ? 'minutes' : u
+
+const spot = z.number().int().min(0).max(100000).nullable().default(null)
+export const readingLogInput = z.object({
+  bookKey: z.string().min(3).max(80),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  unit: z.enum(LOG_UNITS),
+  from: spot,
+  to: spot,
+  minutes: z.number().int().min(0).max(1440).default(0),
+  memo: z.string().trim().max(200).default(''),
+})
+export type ReadingLogInput = z.infer<typeof readingLogInput>
+
+/** READ-24: 끝에 닿았는지 (전체 분량을 모르면 false) */
+export function reachedEnd(unit: LogUnit, to: number | null, total: { pages: number | null, minutes: number | null }) {
+  const end = unit === 'percent' ? 100 : unit === 'minute' ? total.minutes : total.pages
+  return !!end && to != null && to >= end
+}

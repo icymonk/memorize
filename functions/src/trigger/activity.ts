@@ -2,7 +2,7 @@ import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 
 export interface ActivityInput {
   uid: string
-  module: 'vocab' | 'notes' | 'missions'
+  module: 'vocab' | 'notes' | 'missions' | 'reading'
   type: string
   size: 'major' | 'minor'
   refType: string
