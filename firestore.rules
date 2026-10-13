@@ -169,6 +169,35 @@ service cloud.firestore {
         allow delete: if isMember(sid) && (resource.data.ownerId == uid() || isManager(sid));
       }
 
+      // 2-E1 미션 (MIS-01·02·10~12·14·34). 개인 목표는 만든 사람만 보고, 내 공간에서는 개인 목표만 만든다
+      match /missions/{missionId} {
+        function canHost() {
+          return space(sid).kind == 'workspace'
+            && (isManager(sid) || space(sid).get('settings', {}).get('whoCanHost', 'everyone') == 'everyone');
+        }
+        function validMission(x) {
+          return isText(x.title, 1, 80) && isText(x.description, 0, 2000)
+            && x.type in ['check', 'submission']
+            && x.recurrence.kind in ['once', 'daily', 'weekly'] && x.recurrence.weekdays is list && x.recurrence.weekdays.size() <= 7
+            && x.startDate is string && (x.endDate == null || (x.endDate is string && x.endDate >= x.startDate))
+            && x.allowLate is bool && x.includeSelf is bool && x.joinable is bool && x.isPersonal is bool
+            && x.notifyOnComplete in ['feed', 'all', 'none']
+            && x.assignees.all is bool && x.assignees.uids is list && x.assignees.uids.size() <= 200
+            && x.participantIds is list && x.participantIds.size() <= 500
+            && x.hostIds is list && x.hostIds.size() >= 1 && x.hostIds.size() <= 11
+            && x.reviewerIds is list && x.reviewerIds.size() <= 20
+            && (!x.isPersonal || (x.participantIds == [x.createdBy] && x.hostIds == [x.createdBy] && x.reviewerIds.size() == 0));
+        }
+        allow read: if isMember(sid) && (!resource.data.isPersonal || resource.data.createdBy == uid());
+        allow create: if isMember(sid) && request.resource.data.createdBy == uid() && uid() in request.resource.data.hostIds
+          && request.resource.data.closedAt == null && validMission(request.resource.data)
+          && (request.resource.data.isPersonal || canHost());
+        allow update: if isMember(sid) && uid() in resource.data.hostIds && uid() in request.resource.data.hostIds
+          && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.isPersonal == resource.data.isPersonal
+          && validMission(request.resource.data);
+        allow delete: if isMember(sid) && resource.data.isPersonal && resource.data.createdBy == uid();
+      }
+
       // NOTE-01·10 노트 페이지와 블록 (docs/dev/editor.md). 공개 범위 세분화·공동 편집자 지정·잠금은 1-C4
       // NOTE-50·54·60: 공개 범위(나만·지정한 사람·공간 전체), 공동 편집자, 공유 페이지 편집 정책, 편집 잠금(90초)
       function seesPage(p) {

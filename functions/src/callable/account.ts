@@ -10,7 +10,7 @@ const PERSONAL_MODULES = {
   reading: true,
   reviews: true,
   courses: false,
-  missions: false,
+  missions: true,
   tests: false,
   math: false,
   wrongNotes: false,
