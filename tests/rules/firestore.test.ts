@@ -632,3 +632,21 @@ describe('reactions (CMN-21)', () => {
     await assertSucceeds(deleteDoc(ref('mia', 'page_p1_mia')))
   })
 })
+
+describe('notifications (CMN-30)', () => {
+  it('only the recipient reads, marks read, deletes; clients cannot create', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia/notifications/n1'), {
+      spaceId: SID, type: 'mention', actorId: 'bob', refPath: '/', title: 't', body: 'b', read: false, createdAt: null,
+    }))
+    const ref = (uid: string, id = 'n1') => doc(db(uid), 'users', 'mia', 'notifications', id)
+    await assertSucceeds(getDoc(ref('mia')))
+    await assertFails(getDoc(ref('bob')))
+    await assertFails(setDoc(ref('mia', 'n2'), { type: 'mention', read: false }))
+    await assertFails(setDoc(ref('bob', 'n2'), { type: 'mention', read: false }))
+    await assertFails(updateDoc(ref('mia'), { title: 'x' }))
+    await assertFails(updateDoc(ref('bob'), { read: true }))
+    await assertSucceeds(updateDoc(ref('mia'), { read: true }))
+    await assertFails(deleteDoc(ref('bob')))
+    await assertSucceeds(deleteDoc(ref('mia')))
+  })
+})

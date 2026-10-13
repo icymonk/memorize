@@ -44,6 +44,12 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if signedIn() && userId == uid();
+      // CMN-30 알림함: 서버가 만들고, 본인은 읽기·읽음 표시·삭제만
+      match /notifications/{id} {
+        allow read, delete: if signedIn() && userId == uid();
+        allow update: if signedIn() && userId == uid()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      }
     }
 
     match /spaces/{sid} {
