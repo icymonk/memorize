@@ -30,7 +30,7 @@ async function load(tx: Transaction, spaceId: string, uid: string, targetUid?: s
 const ctxOf = (space: DocumentSnapshot, me: DocumentSnapshot) =>
   ({ kind: space.get('kind'), settings: space.get('settings'), member: { access: me.get('access'), status: me.get('status') } })
 
-/** 멤버를 내보내거나 나갈 때: 공유 콘텐츠는 남고, 노트 등은 본인만 보기 (WS-23·24, onMemberWritten에서 노트 처리 예정) */
+/** 멤버를 내보내거나 나갈 때: 공유 콘텐츠는 남고, 노트 등은 본인만 보기 (WS-23·24, 노트는 onMemberWritten이 ownerStatus로 숨긴다) */
 function deactivate(tx: Transaction, spaceRef: DocumentReference, uid: string, status: 'left' | 'removed') {
   const now = FieldValue.serverTimestamp()
   tx.update(spaceRef.collection('members').doc(uid), { status, access: 'member', leftAt: now, updatedAt: now })
