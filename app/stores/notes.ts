@@ -1,6 +1,7 @@
 import type { PropValue } from '#shared/schemas/collection'
 import type { Collection } from '~/features/notes/services/collections'
-import type { Page, UserPrefs } from '~/features/notes/services/pages'
+import type { Page, PageBook, UserPrefs } from '~/features/notes/services/pages'
+import type { FlatBlock } from '~/features/notes/sync/serialize'
 import { defineStore } from 'pinia'
 import { watchCollections } from '~/features/notes/services/collections'
 import { copyBlocks, createPage, getPrefs, movePage, restorePage, savePrefs, trashPage, watchPages, writeBlocks } from '~/features/notes/services/pages'
@@ -107,12 +108,15 @@ export const useNotesStore = defineStore('notes', () => {
   /** NOTE-47: 모음 안의 페이지 (최신순) */
   const itemsOf = (collectionId: string) => pages.value.filter(p => p.type !== 'page' && p.collectionId === collectionId)
     .sort((a, b) => (b.createdAt?.toMillis() ?? Date.now()) - (a.createdAt?.toMillis() ?? Date.now()))
-  async function createItem(col: Collection, props?: Record<string, PropValue>) {
+  /** review: 독후감은 책과 고른 템플릿(모음 템플릿 페이지 id 또는 기본 블록)으로 만들고, 발행 전까지 나만 본다 (REV-07) */
+  async function createItem(col: Collection, props?: Record<string, PropValue>, review?: { book: PageBook, templateId?: string, blocks?: FlatBlock[] }) {
     const journal = col.kind === 'system' && col.systemType === 'journal'
-    const visibility = journal ? space.current?.settings?.journalVisibility : undefined
-    const id = await createPage($firestore, sid!, uid(), { root: col.scope, collection: { id: col.id, scope: col.scope }, after: null, props, journal, visibility })
-    const template = col.templateIds?.[0] ? byId.value.get(col.templateIds[0]) : null
+    const visibility = journal ? space.current?.settings?.journalVisibility : review ? 'private' : undefined
+    const id = await createPage($firestore, sid!, uid(), { root: col.scope, collection: { id: col.id, scope: col.scope }, after: null, props, journal, book: review?.book, visibility })
+    const templateId = review ? review.templateId : col.templateIds?.[0]
+    const template = templateId ? byId.value.get(templateId) : null
     if (template && !template.deletedAt) await copyBlocks($firestore, sid!, uid(), template, id)
+    else if (review?.blocks?.length) await writeBlocks($firestore, sid!, uid(), id, review.blocks)
     else if (journal) await writeBlocks($firestore, sid!, uid(), id, journalTemplate(ko.notes.journal.template))
     return id
   }
