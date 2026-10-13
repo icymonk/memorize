@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import HomeWidgets from '~/features/home/components/HomeWidgets.vue'
+import WelcomeCard from '~/features/space/components/WelcomeCard.vue'
 import OwnershipTransferBanner from '~/features/space/components/OwnershipTransferBanner.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
 import { DAILY_LIMITS, endOfToday } from '#shared/srs'
@@ -46,6 +47,7 @@ watch(() => space.current?.ownershipTransfer, async (transfer) => {
     <p v-if="space.current.description" class="text-muted-foreground">
       {{ space.current.description }}
     </p>
+    <WelcomeCard />
     <Card v-if="space.current.modules?.vocab !== false">
       <CardHeader>
         <CardTitle>{{ ko.vocab.review.title }}</CardTitle>

@@ -1,4 +1,11 @@
 export const ko = {
+  spaceWelcome: {
+    title: (name: string) => `'${name}'에 오신 걸 환영해요`,
+    modulesLine: (list: string) => `이 워크스페이스에서는 ${list}을(를) 함께 써요.`,
+    modules: { vocab: '단어장', notes: '노트', reading: '독서', reviews: '독후감', missions: '미션' } as Record<string, string>,
+    openMissions: '지금 참여할 수 있는 미션',
+    dismiss: '확인했어요',
+  },
   notifications: {
     title: '알림',
     empty: '새 알림이 없어요.',
