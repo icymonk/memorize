@@ -12,6 +12,8 @@ export interface SrsState {
   lapses: number
   correct: number
   wrong: number
+  /** 처음 학습한 시각(ms). 하루 새 카드 상한을 날짜로 센다 (VOC-44) */
+  firstSeenAt?: number
 }
 
 export const DAY_MS = 86_400_000
@@ -34,6 +36,7 @@ function nextInterval(s: SrsState, rating: Exclude<Rating, 'again'>): number {
 }
 
 export function review(s: SrsState, rating: Rating, now: number): SrsState {
+  if (s.status === 'new') s = { ...s, firstSeenAt: now }
   if (rating === 'again') {
     return {
       ...s,
@@ -57,6 +60,19 @@ export function review(s: SrsState, rating: Rating, now: number): SrsState {
     reps: s.reps + 1,
     correct: s.correct + 1,
   }
+}
+
+/** VOC-40 학습하기·쓰기에서 답할 때: 간격은 복습만 늘린다. 여기서는 횟수를 세고, 새 카드는 학습 중으로, 틀리면 오늘 복습에 올린다 */
+export function practice(s: SrsState, correct: boolean, now: number): SrsState {
+  const seen = s.status === 'new' ? { status: 'learning' as const, firstSeenAt: now } : {}
+  return correct
+    ? { ...s, ...seen, due: s.status === 'new' ? now : s.due, correct: s.correct + 1 }
+    : { ...s, ...seen, due: Math.min(s.due, now), wrong: s.wrong + 1 }
+}
+
+/** "맞은 걸로 처리": 방금 센 오답을 정답으로 바꾼다 */
+export function fixWrong(s: SrsState): SrsState {
+  return { ...s, wrong: Math.max(0, s.wrong - 1), correct: s.correct + 1 }
 }
 
 /** 평가 버튼에 보여 줄 다음 간격 미리보기 */

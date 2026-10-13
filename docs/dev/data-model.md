@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.13 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.14 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -196,6 +196,7 @@ spaces/{sid}/decks/{deckId}/cards/{cardId}
 spaces/{sid}/deckFolders/{folderId}     name, order, ownerId
 
 spaces/{sid}/cardStates/{uid}_{cardId}  # VOC-40
+  firstSeenAt?                              # 처음 학습한 시각(ms) — 하루 새 카드 상한을 날짜로 센다 (VOC-44)
   uid, deckId, cardId
   status: 'new' | 'learning' | 'review' | 'mastered'
   ease, intervalDays, due, reps, lapses, correct, wrong
@@ -208,6 +209,7 @@ spaces/{sid}/decks/{deckId}/matchTop/top  # VOC-23 상위 10명, 서버 관리
   entries: [{ uid, ms, at }]
 
 spaces/{sid}/studySessions/{id}
+  pairs?                                    # 매칭 쌍 수 (VOC-23). 순위는 기본 6쌍 기록만
   uid, deckId?, mode, cards, correct, newlyMastered, durationSec, startedAt, endedAt
 ```
 - 전체 오늘의 복습(WS-53): `collectionGroup('cardStates')` where `uid == me` and `due <= now` orderBy `due`.
@@ -424,3 +426,4 @@ users/{uid}/avatar/{fileName}
 - v2.11: 제출 `attachments`를 파일 정보 복사본으로, 업로드 집계를 callable(`registerUpload`·`deleteUpload`)로
 - v2.12: 피드 반응(CMN-12) — reactions targetType `feed`
 - v2.13: 피드백 `score`를 `{ format, value }`로 (CMN-24)
+- v2.14: cardStates `firstSeenAt`, studySessions `pairs` (VOC-23·40·44 1단계 마무리)
