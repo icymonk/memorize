@@ -766,6 +766,7 @@ export const ko = {
     invalid: '입력한 내용을 확인해 주세요.',
     all: '전체',
     empty: '아직 담은 책이 없어요.',
+    view: { grid: '표지 격자', list: '리스트' },
     spaceShelf: '워크스페이스 책장',
     spaceEmpty: '아직 멤버들이 담은 책이 없어요.',
     someone: '알 수 없음',
