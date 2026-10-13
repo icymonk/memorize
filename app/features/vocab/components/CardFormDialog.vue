@@ -6,6 +6,9 @@ import type { Deck } from '../services/decks'
 import { cardInput, DIFFICULTY, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
 import { ChevronDownIcon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
+import TagSuggest from '~/features/space/components/TagSuggest.vue'
+import { useTags } from '~/features/space/composables/useTags'
+import { ensureTags } from '~/features/space/services/tags'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 import { useSpeech } from '../composables/useSpeech'
@@ -21,6 +24,8 @@ const label = ko.vocab.cardFields
 const space = useSpaceStore()
 const { $firestore } = useNuxtApp()
 const speech = useSpeech()
+const auth = useAuthStore()
+const spaceTags = useTags()
 
 const empty = () => ({ front: '', back: '', reading: '', pos: '', phonetic: '', examples: '', forms: '', synonyms: '', antonyms: '', collocations: '', tip: '', tags: '', difficulty: '' })
 const form = ref(empty())
@@ -100,6 +105,7 @@ async function submit() {
   pending.value = true
   try {
     const sid = space.current!.id
+    void ensureTags($firestore, sid, auth.user!.uid, data.tags ?? [], spaceTags.value)
     if (props.card) {
       await saveCard($firestore, sid, props.deck.id, { ...data, id: props.card.id, order: props.card.order, contentRev: props.card.contentRev })
       open.value = false
@@ -212,6 +218,7 @@ async function submit() {
           <div v-if="has('tags')" class="flex flex-col gap-2">
             <Label for="card-tags">{{ label.tags }}</Label>
             <Input id="card-tags" v-model="form.tags" />
+            <TagSuggest v-model="form.tags" :tags="spaceTags" />
           </div>
           <div v-if="has('difficulty')" class="flex flex-col gap-2">
             <Label for="card-difficulty">{{ label.difficulty }}</Label>

@@ -281,6 +281,19 @@ service cloud.firestore {
         allow delete: if isMember(sid) && resource.data.uid == uid();
       }
 
+      // CMN-51 공통 태그: 멤버 누구나 읽고 새로 등록한다. 이름·색 변경과 삭제는 매니저만
+      match /tags/{tagId} {
+        allow read: if isMember(sid);
+        allow create: if isMember(sid)
+          && request.resource.data.keys().hasOnly(['name', 'color', 'createdBy', 'createdAt'])
+          && isText(request.resource.data.name, 1, 30) && isText(request.resource.data.color, 1, 20)
+          && request.resource.data.createdBy == uid() && request.resource.data.createdAt == request.time;
+        allow update: if isManager(sid)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'color'])
+          && isText(request.resource.data.name, 1, 30) && isText(request.resource.data.color, 1, 20);
+        allow delete: if isManager(sid);
+      }
+
       // NOTE-21 즐겨찾기·최근 본 페이지: 나만 읽고 쓴다
       match /userPrefs/{userId} {
         allow read: if isMember(sid) && userId == uid();
