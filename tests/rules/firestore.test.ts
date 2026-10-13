@@ -617,6 +617,15 @@ describe('comments (CMN-20·22)', () => {
     await assertFails(updateDoc(ref('bob', 'c1'), { targetId: 'p9', editedAt: serverTimestamp() }))
     await assertSucceeds(deleteDoc(ref('mia', 'c1')))
   })
+  it('CMN-23·25: requested reviewers can read a private page; feedback is server-only but deletable by its author', async () => {
+    await seed('pages/p3', pageData({ root: 'private', visibility: 'private', reviewerIds: ['mia'] }))
+    await assertSucceeds(getDoc(doc(db('mia'), 'spaces', SID, 'pages', 'p3')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'pages', 'p3')))
+    await seed('comments/fb', { targetType: 'page', targetId: 'p3', uid: 'mia', kind: 'feedback', stamp: 'great', body: '', mentions: [], createdAt: new Date() })
+    await assertSucceeds(getDoc(ref('mia', 'fb')))
+    await assertFails(updateDoc(ref('mia', 'fb'), { body: 'x', editedAt: serverTimestamp() }))
+    await assertSucceeds(deleteDoc(ref('mia', 'fb')))
+  })
 })
 
 
@@ -662,6 +671,7 @@ describe('notification settings (ACC-20)', () => {
     await assertFails(updateDoc(ref('bob'), { notifications: { mention: { inApp: false } } }))
     await assertFails(updateDoc(ref('mia'), { displayName: 'X' }))
     await assertFails(updateDoc(ref('mia'), { notifications: { other: { inApp: false } } }))
+    await assertSucceeds(updateDoc(ref('mia'), { notifications: { feedbackRequest: { inApp: false }, feedback: { inApp: true } } }))
   })
 })
 

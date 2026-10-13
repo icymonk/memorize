@@ -10,9 +10,9 @@ definePageMeta({ layout: 'focus' })
 const t = ko.accountSettings
 const auth = useAuthStore()
 const { $firestore } = useNuxtApp()
-const types = ['mention', 'comment'] as const
+const types = ['mention', 'comment', 'feedbackRequest', 'feedback'] as const
 type Kind = typeof types[number]
-const enabled = ref<Record<Kind, boolean>>({ mention: true, comment: true })
+const enabled = ref<Record<Kind, boolean>>({ mention: true, comment: true, feedbackRequest: true, feedback: true })
 const loaded = ref(false)
 
 watch(() => auth.user?.uid, async (uid) => {

@@ -22,7 +22,7 @@ const pending = ref(false)
 let stop: (() => void) | undefined
 
 onMounted(async () => {
-  stop = watchPageComments($firestore, props.sid, props.pageId, (list) => { comments.value = list }, () => {})
+  stop = watchPageComments($firestore, props.sid, props.pageId, (list) => { comments.value = list.filter(c => c.kind === 'comment') }, () => {})
   try { members.value = (await listMembers($firestore, props.sid)).filter(m => m.status === 'active') }
   catch { members.value = [] }
 })

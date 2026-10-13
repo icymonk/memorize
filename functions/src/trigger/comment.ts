@@ -1,7 +1,13 @@
+import type { NotifyType } from '../lib/notify'
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { STAMP_LABELS } from '../../../shared/schemas/feedback'
+import { notifyMembers } from '../lib/notify'
 
-/** CMN-20: 페이지 댓글 수(`commentCount`)는 서버가 센다. CMN-22·30: 새 댓글이면 멘션된 사람과 페이지 작성자에게 알림 */
+/**
+ * CMN-20: 페이지 댓글 수(`commentCount`)와 피드백 수(`feedbackCount`)는 서버가 센다.
+ * CMN-22·30: 새 댓글이면 멘션된 사람과 페이지 작성자에게, 새 피드백(CMN-24)이면 작성자에게 알림
+ */
 export const onCommentWritten = onDocumentWritten('spaces/{sid}/comments/{id}', async (event) => {
   const before = event.data?.before
   const after = event.data?.after
@@ -12,33 +18,35 @@ export const onCommentWritten = onDocumentWritten('spaces/{sid}/comments/{id}', 
   const { sid } = event.params
   const page = await db.doc(`spaces/${sid}/pages/${c.targetId}`).get()
   if (!page.exists) return
-  await page.ref.update({ commentCount: FieldValue.increment(delta) })
+  const feedback = c.kind === 'feedback'
+  await page.ref.update({ [feedback ? 'feedbackCount' : 'commentCount']: FieldValue.increment(delta) })
   if (delta < 0) return
 
   const author = (await db.doc(`users/${c.uid}`).get()).get('displayName') ?? ''
   const title = page.get('title') || '제목 없음'
-  const targets = new Map<string, 'mention' | 'comment'>()
-  for (const uid of (c.mentions ?? []) as string[]) targets.set(uid, 'mention')
   const owner = page.get('ownerId') as string
-  if (!targets.has(owner)) targets.set(owner, 'comment')
-  targets.delete(c.uid)
-
-  const batch = db.batch()
-  for (const [uid, type] of targets) {
-    const member = await db.doc(`spaces/${sid}/members/${uid}`).get()
-    if (member.get('status') !== 'active') continue
-    const prefs = (await db.doc(`users/${uid}`).get()).get(`notifications.${type}.inApp`)
-    if (prefs === false) continue
-    batch.create(db.collection(`users/${uid}/notifications`).doc(), {
-      spaceId: sid,
-      type,
-      actorId: c.uid,
-      refPath: `/s/${sid}/notes/${c.targetId}`,
-      title: type === 'mention' ? `${author}님이 '${title}'에서 나를 불렀어요` : `${author}님이 '${title}'에 댓글을 남겼어요`,
-      body: String(c.body).slice(0, 140),
-      read: false,
-      createdAt: FieldValue.serverTimestamp(),
-    })
+  const targets = new Map<string, NotifyType>()
+  if (feedback) {
+    targets.set(owner, 'feedback')
   }
-  await batch.commit()
+  else {
+    for (const uid of (c.mentions ?? []) as string[]) targets.set(uid, 'mention')
+    if (!targets.has(owner)) targets.set(owner, 'comment')
+  }
+  const titles: Record<string, string> = {
+    mention: `${author}님이 '${title}'에서 나를 불렀어요`,
+    comment: `${author}님이 '${title}'에 댓글을 남겼어요`,
+    feedback: `${author}님이 '${title}'에 피드백을 남겼어요`,
+  }
+  const body = feedback
+    ? [STAMP_LABELS[c.stamp as keyof typeof STAMP_LABELS], c.body].filter(Boolean).join(' · ')
+    : String(c.body)
+  await notifyMembers(sid, [...targets].map(([uid, type]) => ({
+    uid,
+    type,
+    actorId: c.uid,
+    refPath: `/s/${sid}/notes/${c.targetId}`,
+    title: titles[type]!,
+    body: body.slice(0, 140),
+  })))
 })

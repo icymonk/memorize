@@ -49,7 +49,7 @@ service cloud.firestore {
       allow update: if signedIn() && userId == uid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notifications'])
         && request.resource.data.notifications is map
-        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment']);
+        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback']);
       // CMN-30 알림함: 서버가 만들고, 본인은 읽기·읽음 표시·삭제만
       match /notifications/{id} {
         allow read, delete: if signedIn() && userId == uid();
@@ -172,7 +172,7 @@ service cloud.firestore {
       // NOTE-01·10 노트 페이지와 블록 (docs/dev/editor.md). 공개 범위 세분화·공동 편집자 지정·잠금은 1-C4
       // NOTE-50·54·60: 공개 범위(나만·지정한 사람·공간 전체), 공동 편집자, 공유 페이지 편집 정책, 편집 잠금(90초)
       function seesPage(p) {
-        return p.deletedAt == null && p.get('ownerStatus', 'active') == 'active' && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds);
+        return p.deletedAt == null && p.get('ownerStatus', 'active') == 'active' && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds || uid() in p.get('reviewerIds', []));
       }
       function editsPage(p) {
         return p.ownerId == uid() || uid() in p.editorIds || (p.root == 'shared' && p.get('editPolicy', 'everyone') == 'everyone');
@@ -190,6 +190,7 @@ service cloud.firestore {
             && x.root in ['private', 'shared'] && (x.parentId == null || x.parentId is string) && isText(x.order, 1, 256)
             && x.visibility in ['private', 'people', 'space'] && x.editorIds is list && x.editorIds.size() <= 50
             && x.get('sharedWith', []) is list && x.get('sharedWith', []).size() <= 50
+            && x.get('reviewerIds', []) is list && x.get('reviewerIds', []).size() <= 50
             && x.get('editPolicy', 'everyone') in ['everyone', 'editors']
             && isText(x.excerpt, 0, 200) && x.blockCount is int && x.textLength is int
             && (sid.matches('p_.*') == false || x.visibility == 'private');
@@ -248,7 +249,7 @@ service cloud.firestore {
         allow delete: if false;
       }
 
-      // CMN-20·22 댓글: 대상(지금은 페이지)을 읽을 수 있는 사람이 읽고 쓴다. 수정은 작성자, 삭제는 작성자·매니저. 피드백(kind: feedback)은 서버
+      // CMN-20·22 댓글: 대상(지금은 페이지)을 읽을 수 있는 사람이 읽고 쓴다. 수정은 작성자, 삭제는 작성자·매니저. 피드백(kind: feedback)은 서버(leaveFeedback)가 쓰고, 지우기는 댓글과 같다
       match /comments/{id} {
         function target(c) { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(c.targetId)).data; }
         function readsTarget(c) { return c.targetType == 'page' && (target(c).ownerId == uid() || seesPage(target(c))); }
@@ -263,7 +264,7 @@ service cloud.firestore {
         allow update: if isMember(sid) && resource.data.uid == uid() && validComment(request.resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body', 'mentions', 'editedAt'])
           && request.resource.data.editedAt == request.time;
-        allow delete: if isMember(sid) && (resource.data.uid == uid() || isManager(sid)) && resource.data.kind == 'comment';
+        allow delete: if isMember(sid) && (resource.data.uid == uid() || isManager(sid));
       }
 
       // CMN-21 반응: 한 사람당 대상마다 하나 ({targetType}_{targetId}_{uid}). 대상(지금은 페이지)을 읽을 수 있는 사람만

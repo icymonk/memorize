@@ -12,6 +12,7 @@ import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import JournalSummary from '~/features/notes/components/JournalSummary.vue'
 import IconPicker from '~/features/notes/components/IconPicker.vue'
 import PageComments from '~/features/notes/components/PageComments.vue'
+import PageFeedback from '~/features/notes/components/PageFeedback.vue'
 import PageReactions from '~/features/notes/components/PageReactions.vue'
 import PropCell from '~/features/notes/components/PropCell.vue'
 import { useTags } from '~/features/space/composables/useTags'
@@ -272,6 +273,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         @headings="headings = $event"
       />
       <PageReactions v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
+      <PageFeedback v-if="page && !page.deletedAt && space.current?.kind !== 'personal'" :sid="sid" :page="live ?? page" @saved="page = { ...page!, ...$event }" />
       <PageComments v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
     </template>
   </div>
