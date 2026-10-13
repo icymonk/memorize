@@ -2,7 +2,7 @@ import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
-import { and, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
+import { and, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, Timestamp, where, writeBatch } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 
 // docs/dev/security.md — firestore.rules (0-8). 실행: 루트에서 `pnpm test:rules`
@@ -1151,5 +1151,44 @@ describe('tests (3-B1, TST-10~16)', () => {
     await assertFails(updateDoc(tRef('bob', 'o1'), { title: '열린 뒤 고침' }))
     await assertFails(updateDoc(tRef('bob', 'o1'), { status: 'draft' }))
     await assertSucceeds(updateDoc(tRef('bob', 'o1'), { status: 'closed' }))
+  })
+})
+
+describe('attempts and results (3-B2, TST-21~23)', () => {
+  const settings = { timeLimitMin: null, openAt: null, closeAt: null, maxAttempts: 1, scoring: 'best', shuffleQuestions: false, shuffleChoices: false, resultRelease: 'hidden', practice: false }
+  const aRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'tests', 'x1', 'attempts', id)
+  const rRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'tests', 'x1', 'results', id)
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      const base = { uid: 'alice', isPractice: false, submittedAt: null, order: ['q1'], choiceOrder: {}, answers: {}, maxScore: 10, hostIds: ['bob'], gradingStatus: null }
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1'), { title: 't', description: '', questionRefs: [], settings, assignees: { all: true, uids: [], groupIds: [] }, status: 'open', createdBy: 'bob', hostIds: ['bob'], participantIds: ['alice'], deletedAt: null })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1', 'attempts', 'a1'), { ...base, deadlineAt: Timestamp.fromMillis(Date.now() + 600_000) })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1', 'attempts', 'late'), { ...base, deadlineAt: Timestamp.fromMillis(Date.now() - 120_000) })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1', 'attempts', 'done'), { ...base, deadlineAt: null, submittedAt: Timestamp.now() })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1', 'results', 'done'), { uid: 'alice', isPractice: false, score: 5, maxScore: 10, gradingStatus: 'done', items: {}, comments: {}, hostIds: ['bob'] })
+    })
+  })
+
+  it('takers save answers before the deadline only; nobody else writes', async () => {
+    await assertSucceeds(getDoc(aRef('alice', 'a1')))
+    await assertSucceeds(getDoc(aRef('bob', 'a1')))
+    await assertFails(getDoc(aRef('mia', 'a1')))
+    await assertSucceeds(updateDoc(aRef('alice', 'a1'), { answers: { q1: [0] } }))
+    await assertFails(updateDoc(aRef('alice', 'a1'), { submittedAt: Timestamp.now() }))
+    await assertFails(updateDoc(aRef('alice', 'late'), { answers: { q1: [1] } }))
+    await assertFails(updateDoc(aRef('alice', 'done'), { answers: { q1: [1] } }))
+    await assertFails(updateDoc(aRef('bob', 'a1'), { answers: { q1: [1] } }))
+    await assertFails(setDoc(aRef('alice', 'new'), { uid: 'alice' }))
+  })
+
+  it('results follow the release setting; hosts always read', async () => {
+    await assertFails(getDoc(rRef('alice', 'done')))
+    await assertSucceeds(getDoc(rRef('bob', 'done')))
+    await assertFails(setDoc(rRef('alice', 'x'), { uid: 'alice', score: 10 }))
+    await env.withSecurityRulesDisabled(async ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'tests', 'x1'), { 'settings.resultRelease': 'afterClose' }))
+    await assertFails(getDoc(rRef('alice', 'done')))
+    await env.withSecurityRulesDisabled(async ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'tests', 'x1'), { status: 'closed' }))
+    await assertSucceeds(getDoc(rRef('alice', 'done')))
   })
 })
