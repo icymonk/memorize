@@ -3,7 +3,7 @@ import type { ShelfStatus } from '#shared/schemas/book'
 import type { BookGroup, ShelfItem } from '~/features/reading/services/shelf'
 import type { Member } from '~/features/space/services/invites'
 import { logUnit, positionKey, SHELF_STATUS } from '#shared/schemas/book'
-import { PencilLineIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { LayoutGridIcon, ListIcon, PencilLineIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { dateKey } from '#shared/dates'
 import AddBookDialog from '~/features/reading/components/AddBookDialog.vue'
@@ -37,6 +37,10 @@ const members = ref<Member[]>([])
 const loading = ref(true)
 const tab = ref<'all' | ShelfStatus | 'space' | 'quotes' | 'stats'>('all')
 const quotes = ref<Quote[] | null>(null)
+// READ-12 표지 격자 / 리스트 (기기에 저장)
+const VIEW_KEY = 'memorize:shelfView'
+const view = ref<'grid' | 'list'>(localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid')
+watch(view, v => localStorage.setItem(VIEW_KEY, v))
 const quoteMember = ref('')
 const quoteGroups = computed(() => {
   const groups = new Map<string, { title: string, items: Quote[] }>()
@@ -190,6 +194,11 @@ async function remove(b: ShelfItem) {
         </TabsTrigger>
       </TabsList>
     </Tabs>
+    <div v-if="!['space', 'quotes', 'stats'].includes(tab)" class="-mt-2 flex justify-end gap-1">
+      <Button v-for="[v, icon] in ([['grid', LayoutGridIcon], ['list', ListIcon]] as const)" :key="v" variant="ghost" size="icon" class="size-8" :class="view === v && 'bg-muted'" :aria-label="t.view[v]" :title="t.view[v]" :aria-pressed="view === v" @click="view = v">
+        <component :is="icon" />
+      </Button>
+    </div>
 
     <ReadingStats v-if="tab === 'stats'" :sid="sid" />
     <template v-else-if="tab === 'quotes'">
@@ -241,6 +250,32 @@ async function remove(b: ShelfItem) {
     <p v-else-if="!shown.length" class="text-muted-foreground py-10 text-center text-sm">
       {{ t.empty }}
     </p>
+    <ul v-else-if="view === 'list'" class="divide-y rounded-md border">
+      <li v-for="b in shown" :key="b.id" class="flex items-center gap-3 p-2">
+        <button type="button" class="flex min-w-0 flex-1 items-center gap-3 text-left" @click="openDetail(b)">
+          <img v-if="b.cover" :src="b.cover" alt="" class="aspect-[2/3] w-10 shrink-0 rounded border object-cover">
+          <div v-else class="bg-muted aspect-[2/3] w-10 shrink-0 rounded border" />
+          <div class="flex min-w-0 flex-col">
+            <span class="truncate text-sm font-medium">{{ b.title }}</span>
+            <span class="text-muted-foreground truncate text-xs">{{ [b.authors.join(', '), t.formats[b.format]].filter(Boolean).join(' · ') }}</span>
+            <span v-if="b.rating" class="text-xs text-amber-500">{{ '★'.repeat(b.rating) }}</span>
+          </div>
+        </button>
+        <div class="flex w-56 shrink-0 items-center gap-1">
+          <select :value="b.status" :aria-label="t.fields.status" class="border-input h-8 flex-1 rounded-md border bg-transparent px-1 text-xs" @change="changeStatus(b, ($event.target as HTMLSelectElement).value as ShelfStatus)">
+            <option v-for="s in SHELF_STATUS" :key="s" :value="s">
+              {{ t.statuses[s] }}
+            </option>
+          </select>
+          <Button variant="ghost" size="icon" class="size-8" :aria-label="t.log.quick" :title="t.log.quick" @click="quickLog(b)">
+            <PencilLineIcon />
+          </Button>
+          <Button variant="ghost" size="icon" class="size-8" :aria-label="t.remove" @click="remove(b)">
+            <Trash2Icon />
+          </Button>
+        </div>
+      </li>
+    </ul>
     <ul v-else class="grid grid-cols-2 gap-4 sm:grid-cols-4">
       <li v-for="b in shown" :key="b.id" class="group flex flex-col gap-1">
         <button type="button" class="flex flex-col gap-1 text-left" @click="openDetail(b)">
