@@ -83,7 +83,16 @@ export const ko = {
       someone: '알 수 없음',
       deckCreated: (name: string, title: string) => `${name}님이 새 단어장 '${title}'을 만들었어요`,
       journal: (name: string) => `${name}님이 학습일지를 썼어요`,
-      session: (name: string, title: string, cards: number, mode: string) => `${name} · ${title ? `${title} ` : ''}단어 ${cards}개 ${mode}`,
+      cards: (n: number, mode: string) => `단어 ${n}개 ${mode}`,
+      journalPart: '학습일지 작성',
+      filter: {
+        all: '전체',
+        modules: { vocab: '단어장', notes: '노트' } as Record<string, string>,
+        allMembers: '모든 멤버',
+        member: '멤버',
+        majorOnly: '큰 활동만',
+        none: '조건에 맞는 활동이 없어요.',
+      },
     },
   },
   space: {
