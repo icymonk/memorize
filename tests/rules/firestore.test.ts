@@ -650,3 +650,14 @@ describe('notifications (CMN-30)', () => {
     await assertSucceeds(deleteDoc(ref('mia')))
   })
 })
+
+describe('notification settings (ACC-20)', () => {
+  it('only the user changes only their notifications map', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia'), { displayName: 'Mia' }))
+    const ref = (uid: string) => doc(db(uid), 'users', 'mia')
+    await assertSucceeds(updateDoc(ref('mia'), { notifications: { mention: { inApp: false } } }))
+    await assertFails(updateDoc(ref('bob'), { notifications: { mention: { inApp: false } } }))
+    await assertFails(updateDoc(ref('mia'), { displayName: 'X' }))
+    await assertFails(updateDoc(ref('mia'), { notifications: { other: { inApp: false } } }))
+  })
+})
