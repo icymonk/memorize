@@ -5,6 +5,7 @@ import { dateKey } from '#shared/dates'
 import { ArrowLeftIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import MissionFormDialog from '~/features/missions/components/MissionFormDialog.vue'
+import MissionBoard from '~/features/missions/components/MissionBoard.vue'
 import MissionParticipation from '~/features/missions/components/MissionParticipation.vue'
 import { deleteMission, getMission, isFinished, setMissionClosed } from '~/features/missions/services/missions'
 import { listMembers } from '~/features/space/services/invites'
@@ -150,6 +151,8 @@ async function remove() {
         </dt>
         <dd>{{ names(mission.participantIds) || '-' }}</dd>
       </dl>
+
+      <MissionBoard v-if="mission.hostIds.includes(auth.user?.uid ?? '') || mission.reviewerIds.includes(auth.user?.uid ?? '')" :sid="sid" :mission="mission" :today="today" :name="name" />
 
       <MissionParticipation :sid="sid" :mission="mission" :today="today" @changed="load" />
 
