@@ -41,6 +41,10 @@ const qText = ref('')
 const qShare = ref(false)
 const quoting = ref(false)
 const Q = t.quotes
+/** REV-24: 이 책의 독후감 (나에게 보이는 것) */
+const notes = useNotesStore()
+const bookReviews = computed(() => notes.pages.filter(p => p.type === 'bookReview' && !p.deletedAt && p.book?.bookKey === props.book?.bookKey
+  && (p.visibility !== 'private' || p.ownerId === auth.user?.uid)))
 const num = (v: string | number | null | undefined) => v === '' || v == null ? null : Number(v)
 
 const key = computed(() => props.book?.format === 'audio' ? 'minutes' : props.book?.format === 'ebook' ? 'percent' : 'page')
@@ -156,6 +160,14 @@ async function save() {
         <DialogTitle>{{ book.title }}</DialogTitle>
         <DialogDescription>{{ [book.authors.join(', '), t.formats[book.format], t.statuses[book.status]].filter(Boolean).join(' · ') }}</DialogDescription>
       </DialogHeader>
+      <section v-if="bookReviews.length" class="flex flex-col gap-1 text-sm">
+        <h3 class="text-xs font-medium">
+          {{ ko.notes.review.bookReviews }}
+        </h3>
+        <NuxtLink v-for="r in bookReviews" :key="r.id" :to="`/s/${sid}/notes/${r.id}`" class="hover:bg-muted truncate rounded-md px-2 py-1" @click="open = false">
+          {{ r.icon || '📖' }} {{ r.title || ko.notes.untitled }}
+        </NuxtLink>
+      </section>
       <form id="book-detail" class="flex flex-col gap-3" @submit.prevent="save">
         <Label for="bd-pos">{{ d.position(d.units[book.format] ?? '') }}<template v-if="total"> / {{ total }}</template></Label>
         <Input id="bd-pos" type="number" min="0" :max="total ?? undefined" :model-value="pos ?? undefined" @update:model-value="v => pos = v === '' || v == null ? null : Number(v)" />

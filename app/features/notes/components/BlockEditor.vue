@@ -20,10 +20,11 @@ import { fromBlocks, toBlocks } from '../sync/serialize'
 import { createSaveQueue, firestoreCommitter } from '../sync/writer'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
+import QuotePicker from './QuotePicker.vue'
 import SlashMenu from './SlashMenu.vue'
 
 /** 블록 편집기: 불러오기 → 편집 → 0.8초 뒤 바뀐 블록만 저장 (docs/dev/editor.md 3·4절) */
-const props = defineProps<{ spaceId: string, pageId: string, editable: boolean }>()
+const props = defineProps<{ spaceId: string, pageId: string, editable: boolean, bookKey?: string }>()
 const emit = defineEmits<{ status: [SaveStatus], loaded: [blockCount: number], error: [unknown], headings: [{ id: string, level: number, text: string }[]] }>()
 const t = ko.notes
 
@@ -62,7 +63,19 @@ function slashRender(): ReturnType<NonNullable<SuggestionOptions<SlashItem>['ren
   }
 }
 
+/** REV-05: 독후감에서 `/구절` → 이 책의 내 구절을 인용 블록으로 */
+const quoteOpen = ref(false)
+let quoteEditor: CoreEditor | undefined
+function insertQuote(text: string) {
+  quoteEditor?.chain().focus().insertContent([{ type: 'blockquote', content: [{ type: 'text', text }] }, { type: 'paragraph' }]).run()
+}
+
 function onSlashItem(key: string, e: CoreEditor) {
+  if (key === 'quote') {
+    quoteEditor = e
+    quoteOpen.value = true
+    return true
+  }
   if (key !== 'video') return false
   void promptDialog(t.videoPrompt).then((raw) => {
     if (raw === null) return
@@ -78,7 +91,7 @@ onMounted(async () => {
     const blocks = await loadBlocks($firestore, props.spaceId, props.pageId)
     emit('loaded', blocks.length)
     const e = new Editor({
-      extensions: noteExtensions({ placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem } }),
+      extensions: noteExtensions({ placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem, exclude: props.bookKey ? [] : ['quote'] } }),
       content: fromBlocks(blocks),
       editable: props.editable,
       editorProps: { attributes: { class: 'note-editor focus:outline-none' } },
@@ -205,7 +218,7 @@ function turnHovered(item: SlashItem) {
   if (!onSlashItem(item.key, e)) item.run(e)
   e.commands.focus()
 }
-const turnItems = SLASH_ITEMS.filter(i => !['horizontalRule', 'video'].includes(i.key))
+const turnItems = SLASH_ITEMS.filter(i => !['horizontalRule', 'video', 'quote'].includes(i.key))
 
 defineExpose({ flush, focus: () => editor.value?.commands.focus('start') })
 </script>
@@ -261,6 +274,8 @@ defineExpose({ flush, focus: () => editor.value?.commands.focus('start') })
           </button>
         </div>
       </div>
+
+      <QuotePicker v-if="bookKey" v-model:open="quoteOpen" :sid="spaceId" :book-key="bookKey" @pick="insertQuote" />
 
       <EditorContent :editor="editor" />
     </template>
