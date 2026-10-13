@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.15 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.16 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -307,7 +307,7 @@ spaces/{sid}/missions/{missionId}/peerReviews/{id}
 ```
 spaces/{sid}/questions/{questionId}
   type, subject: 'language'|'math'|'general', subjectId?
-  prompt: blocks[], choices?[], media?[]
+  prompt: string, choices[], media?[]    # type: single|multi|ox|short|essay (3-A1 지문은 글자)
   tags[], unit?, difficulty, defaultPoints, hints?[]
   createdBy, collaboratorIds[]
   sharing: 'private' | 'space'            # TST-08 (기본 private)
@@ -317,7 +317,8 @@ spaces/{sid}/questions/{questionId}
   deletedAt?
 
 spaces/{sid}/questionKeys/{questionId}     # 정답 (규칙: authorIds 또는 공개 설정만 읽기)
-  answer, acceptable[], tolerance?, explanation: blocks[], rubric?
+  answer: (number|bool|string)[]         # 객관식=보기 번호, OX=[bool], 단답=허용 답, 서술형=[]
+  ignoreCase, ignoreSpaces, tolerance?, explanation, rubric
   authorIds[], answerVisibility           # 검사용 복사본
 
 spaces/{sid}/questionSets/{setId}          title, questionIds[], createdBy, sharing
@@ -428,3 +429,4 @@ users/{uid}/avatar/{fileName}
 - v2.13: 피드백 `score`를 `{ format, value }`로 (CMN-24)
 - v2.14: cardStates `firstSeenAt`, studySessions `pairs` (VOC-23·40·44 1단계 마무리)
 - v2.15: 유의어·반의어 `cardId` 자동 연결 (VOC-10)
+- v2.16: 문제·정답 문서 형태 확정 (3-A1, TST-01·02)

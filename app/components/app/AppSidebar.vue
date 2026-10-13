@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpenIcon, BookOpenTextIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, NotebookPenIcon, FlagIcon, LibraryIcon, PlusIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, FileQuestionIcon, BookOpenTextIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, NotebookPenIcon, FlagIcon, LibraryIcon, PlusIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
 import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
@@ -101,6 +101,14 @@ watch(() => auth.account, (account) => {
               <NuxtLink :to="`/s/${currentSpace.id}/missions`">
                 <FlagIcon />
                 <span>{{ ko.missions.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.tests">
+            <SidebarMenuButton as-child :tooltip="ko.tests.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/questions`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/questions`">
+                <FileQuestionIcon />
+                <span>{{ ko.tests.nav }}</span>
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>

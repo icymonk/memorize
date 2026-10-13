@@ -1055,3 +1055,45 @@ describe('former workspace records (ACC-32)', () => {
     await assertFails(getDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp')))
   })
 })
+
+describe('question bank (3-A1, TST-01·07·08)', () => {
+  const q = (uid: string, over: object = {}) => ({ type: 'short', prompt: '사과는 영어로?', choices: [], tags: [], difficulty: 'normal', defaultPoints: 10, createdBy: uid, sharing: 'private', answerVisibility: 'authors', rev: 1, deletedAt: null, ...over })
+  const k = (uid: string, over: object = {}) => ({ answer: ['apple'], ignoreCase: true, ignoreSpaces: false, explanation: '', rubric: '', authorIds: [uid], answerVisibility: 'authors', ...over })
+  const save = (uid: string, id: string, qo: object = {}, ko: object = {}) => {
+    const d = db(uid)
+    const b = writeBatch(d)
+    b.set(doc(d, 'spaces', SID, 'questions', id), q(uid, qo))
+    b.set(doc(d, 'spaces', SID, 'questionKeys', id), k(uid, ko))
+    return b.commit()
+  }
+  const qRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'questions', id)
+  const kRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'questionKeys', id)
+
+  it('private questions and hidden answers stay with the author', async () => {
+    await assertSucceeds(save('bob', 'q1'))
+    await assertSucceeds(save('bob', 'q2', { sharing: 'space' }))
+    await assertSucceeds(save('bob', 'q3', { sharing: 'space', answerVisibility: 'space' }, { answerVisibility: 'space' }))
+    await assertFails(getDoc(qRef('alice', 'q1')))
+    await assertSucceeds(getDoc(qRef('alice', 'q2')))
+    await assertFails(getDoc(kRef('alice', 'q2')))
+    await assertSucceeds(getDoc(kRef('alice', 'q3')))
+    await assertSucceeds(getDoc(kRef('bob', 'q2')))
+    await assertFails(getDoc(qRef('lee', 'q2')))
+    await assertSucceeds(getDocs(query(collection(db('alice'), 'spaces', SID, 'questions'), where('sharing', '==', 'space'))))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'questions')))
+  })
+
+  it('only the author edits; keys must match the question', async () => {
+    await assertSucceeds(save('bob', 'q4'))
+    await assertFails(save('alice', 'q4'))
+    await assertFails(updateDoc(qRef('alice', 'q4'), { prompt: '바꿈' }))
+    await assertSucceeds(updateDoc(qRef('bob', 'q4'), { prompt: '바꿈', rev: 2 }))
+    await assertFails(save('bob', 'q5', {}, { answerVisibility: 'space' }))
+    await assertFails(save('bob', 'q6', {}, { authorIds: ['bob', 'alice'] }))
+    await assertFails(save('bob', 'q7', { type: 'drawing' }))
+    await assertFails(setDoc(kRef('alice', 'q8'), k('alice')))
+    await assertFails(deleteDoc(qRef('bob', 'q4')))
+    await assertFails(save('lee', 'q9'))
+  })
+})
+
