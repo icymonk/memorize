@@ -34,7 +34,7 @@ vi.mock('firebase-admin/firestore', () => ({
 }))
 
 const { onDeckCreated } = await import('./deck')
-const { onPageCreated, onPageReviewersChanged } = await import('./page')
+const { onPageCreated, onPageReviewersChanged, onReviewPublished } = await import('./page')
 const { onStudySessionCreated } = await import('./studySession')
 const { onCommentWritten } = await import('./comment')
 const { onMissionCreated, onSubmissionWritten } = await import('./mission')
@@ -79,6 +79,20 @@ describe('activity triggers (CMN-10)', () => {
     expect(added).toHaveLength(2)
     expect(added[0]!.data).toMatchObject({ uid: 'u1', type: 'session', visibility: 'space', date: '2026-10-12', data: { cards: 20, minutes: 5, title: 'JLPT' } })
     expect(added[1]!.data).toMatchObject({ uid: 'u2', visibility: 'private' })
+  })
+})
+
+describe('book review publish (REV-10)', () => {
+  const ev = (before: any, after: any) => ({ params: { sid: 's1', pageId: 'r1' }, data: { before: { data: () => before }, after: { data: () => after } } }) as any
+  const posted = () => [...added, ...created].filter(x => x.data?.type === 'bookReview')
+
+  it('posts a major activity only when a private review gets published', async () => {
+    const draft = { type: 'bookReview', ownerId: 'u1', visibility: 'private', book: { title: '소년이 온다' } }
+    await onReviewPublished.run(ev(draft, { ...draft, visibility: 'space', publishedAt: 'now' }))
+    await onReviewPublished.run(ev(draft, { ...draft, visibility: 'space' }))
+    await onReviewPublished.run(ev({ ...draft, visibility: 'space' }, { ...draft, visibility: 'space', publishedAt: 'now', title: 'x' }))
+    await onReviewPublished.run(ev({ ...draft, type: 'journal' }, { ...draft, type: 'journal', visibility: 'space', publishedAt: 'now' }))
+    expect(posted().map(x => [x.data.size, x.data.data.title, x.data.refId])).toEqual([['major', '소년이 온다', 'r1']])
   })
 })
 

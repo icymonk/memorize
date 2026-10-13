@@ -142,6 +142,13 @@
         }
       },
       {
+        "source": "/fn/requestRewrite",
+        "function": {
+          "functionId": "requestRewrite",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/deleteCollection",
         "function": {
           "functionId": "deleteCollection",

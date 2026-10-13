@@ -21,4 +21,12 @@ export const leaveFeedbackInput = z.object({
 })
 export type LeaveFeedbackInput = z.infer<typeof leaveFeedbackInput>
 
+/** REV-14 다시 쓰기 요청: 요청받은 사람이 고칠 점을 적어 보내면 독후감이 임시저장으로 돌아간다 */
+export const requestRewriteInput = z.object({
+  spaceId: id,
+  pageId: id,
+  reason: z.string().trim().max(500).default(''),
+})
+export type RequestRewriteInput = z.input<typeof requestRewriteInput>
+
 export const feedbackId = (pageId: string, uid: string) => `fb_${pageId}_${uid}`

@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.8 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.9 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -129,7 +129,7 @@ spaces/{sid}/pages/{pageId}
   visibility: 'private' | 'people' | 'group' | 'space'                # NOTE-50
   groupIds[], sharedWith[], editorIds[], reviewerIds[]                 # NOTE-53·54
   missionIds[]                          # 제출된 미션 (서버 관리)
-  status: 'draft' | 'published'         # 독후감
+  publishedAt?, rewriteRequestedAt?, rewriteRequestedBy?   # 독후감 발행·다시 쓰기 요청 (REV-10·14). 임시저장 = visibility 'private'
   excerpt                               # 목록 미리보기 200자
   blockCount, textLength
   lock: { uid, at } | null              # NOTE-60
@@ -409,6 +409,7 @@ users/{uid}/avatar/{fileName}
 - 없음
 
 ## 16. 변경 이력
+- v2.9: 독후감 `status` 대신 `publishedAt`·`rewriteRequestedAt`(임시저장은 나만 보기)
 - v2.8: `groups`에서 `memberCount` 빼고 `deletedBy`, 소속은 `members.groupIds`
 - v2.7: 독후감 페이지의 `book`, 기본 모음 `collections/bookReview`
 - v2.6: `quotes`에 `title`·`date`·`unit`, `readingLogs`는 진도 공유 규칙으로 멤버가 읽음
