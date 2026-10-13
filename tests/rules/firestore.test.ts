@@ -850,6 +850,8 @@ describe('shelf (2-C1, READ-01~03·10)', () => {
     await assertFails(updateDoc(ref('alice', 'bob_isbn:9788936434120'), { status: 'done' }))
     await assertSucceeds(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { status: 'done', rating: 5 }))
     await assertFails(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { rating: 6 }))
+    await assertSucceeds(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { position: { page: 120 }, startedAt: '2026-10-01', finishedAt: '2026-10-12' }))
+    await assertFails(updateDoc(ref('bob', 'bob_isbn:9788936434120'), { startedAt: 'yesterday' }))
     await assertFails(deleteDoc(ref('alice', 'bob_isbn:9788936434120')))
     await assertSucceeds(deleteDoc(ref('bob', 'bob_isbn:9788936434120')))
   })
