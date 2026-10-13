@@ -426,12 +426,13 @@ service cloud.firestore {
       }
       match /reactions/{id} {
         function rTarget(r) { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(r.targetId)).data; }
-        function readsR(r) { return r.targetType == 'page' && (rTarget(r).ownerId == uid() || seesPage(rTarget(r))); }
+        // CMN-12 피드 반응(`feed`)은 멤버면 누구나. 대상은 활동 ID 또는 같은 날 묶음 키
+        function readsR(r) { return r.targetType == 'feed' || (r.targetType == 'page' && (rTarget(r).ownerId == uid() || seesPage(rTarget(r)))); }
         allow read: if isMember(sid) && readsR(resource.data);
         allow create, update: if isMember(sid) && request.resource.data.uid == uid() && readsR(request.resource.data)
           && id == request.resource.data.targetType + '_' + request.resource.data.targetId + '_' + uid()
           && request.resource.data.keys().hasOnly(['targetType', 'targetId', 'uid', 'emoji'])
-          && isText(request.resource.data.emoji, 1, 16);
+          && isText(request.resource.data.emoji, 1, 16) && isText(request.resource.data.targetId, 1, 200);
         allow delete: if isMember(sid) && resource.data.uid == uid();
       }
 

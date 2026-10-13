@@ -735,6 +735,18 @@ describe('reactions (CMN-21)', () => {
     await assertFails(deleteDoc(ref('bob', 'page_p1_mia')))
     await assertSucceeds(deleteDoc(ref('mia', 'page_p1_mia')))
   })
+
+  it('members react to feed rows and list those reactions (CMN-12)', async () => {
+    const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'reactions', id)
+    const r = (uid: string, targetId = 'd_mia_2026-10-12') => ({ targetType: 'feed', targetId, uid, emoji: '🎉' })
+    await assertSucceeds(setDoc(ref('bob', 'feed_d_mia_2026-10-12_bob'), r('bob')))
+    await assertSucceeds(setDoc(ref('mia', 'feed_a1_mia'), r('mia', 'a1')))
+    await assertFails(setDoc(ref('bob', 'feed_a1_mia'), r('mia', 'a1')))
+    await assertFails(setDoc(ref('lee', 'feed_a1_lee'), r('lee', 'a1')))
+    const list = (uid: string) => getDocs(query(collection(db(uid), 'spaces', SID, 'reactions'), where('targetType', '==', 'feed'), where('targetId', 'in', ['a1', 'd_mia_2026-10-12'])))
+    await assertSucceeds(list('mia'))
+    await assertFails(list('lee'))
+  })
 })
 
 describe('leading: pages asking me for feedback (CMN-06)', () => {

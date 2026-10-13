@@ -1,5 +1,10 @@
 <script setup lang="ts">
 import type { Activity } from '../services/activities'
+import type { Reaction } from '~/features/notes/services/reactions'
+import { SmilePlusIcon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
+import { REACTIONS, toggleFeedReaction, watchFeedReactions } from '~/features/notes/services/reactions'
+import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 
 /** CMN-10·13: 큰 활동은 카드처럼, 작은 활동은 한 줄로. 같은 사람의 같은 날 작은 활동은 한 줄로 묶는다 */
@@ -7,6 +12,8 @@ const props = defineProps<{ sid: string, items: Activity[], names: Record<string
 const t = ko.home.feed
 
 type Row = { key: string, size: 'major' | 'minor', text: string, link: string | null, at: Activity['createdAt'] }
+/** CMN-12 반응 대상: 큰 활동은 활동 ID, 같은 날 묶음은 `d_{uid}_{date}` */
+const target = (r: Row) => r.size === 'major' ? r.key : `d_${r.key}`
 
 const name = (uid: string) => props.names[uid] ?? t.someone
 
@@ -62,6 +69,31 @@ const rows = computed<Row[]>(() => {
   return out
 })
 
+const auth = useAuthStore()
+const { $firestore } = useNuxtApp()
+const reactions = ref<Record<string, Reaction[]>>({})
+const picking = ref<string | null>(null)
+const busy = ref(false)
+const targets = computed(() => rows.value.map(target).join('|'))
+watch(targets, (ids, _, onCleanup) => {
+  if (!ids) return
+  onCleanup(watchFeedReactions($firestore, props.sid, ids.split('|'), (m) => { reactions.value = m }))
+}, { immediate: true })
+
+const mineOf = (id: string) => reactions.value[id]?.find(x => x.uid === auth.user?.uid)?.emoji
+function counts(id: string) {
+  const c = new Map<string, number>()
+  for (const x of reactions.value[id] ?? []) c.set(x.emoji, (c.get(x.emoji) ?? 0) + 1)
+  return [...c]
+}
+async function react(id: string, emoji: string) {
+  picking.value = null
+  busy.value = true
+  try { await toggleFeedReaction($firestore, props.sid, auth.user!.uid, id, emoji, mineOf(id)) }
+  catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
+  finally { busy.value = false }
+}
+
 const when = (r: Row) => r.at?.toDate().toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) ?? ''
 </script>
 
@@ -77,6 +109,34 @@ const when = (r: Row) => r.at?.toDate().toLocaleString('ko-KR', { month: 'short'
         <span class="min-w-0 flex-1">{{ r.text }}</span>
         <span class="text-muted-foreground shrink-0 text-xs">{{ when(r) }}</span>
       </component>
+      <div class="flex flex-wrap items-center gap-1 px-2 pt-0.5">
+        <button
+          v-for="[e, n] in counts(target(r))"
+          :key="e"
+          type="button"
+          class="hover:bg-accent flex h-6 items-center gap-1 rounded-full border px-2 text-xs disabled:opacity-50"
+          :class="mineOf(target(r)) === e && 'border-primary bg-primary/10'"
+          :aria-pressed="mineOf(target(r)) === e"
+          :disabled="busy"
+          @click="react(target(r), e)"
+        >
+          <span>{{ e }}</span><span class="text-muted-foreground tabular-nums">{{ n }}</span>
+        </button>
+        <template v-if="picking === target(r)">
+          <button v-for="e in REACTIONS" :key="e" type="button" class="hover:bg-accent h-6 rounded-full px-1.5 text-sm" :disabled="busy" @click="react(target(r), e)">
+            {{ e }}
+          </button>
+        </template>
+        <button
+          type="button"
+          class="text-muted-foreground hover:bg-accent hover:text-foreground flex h-6 w-6 items-center justify-center rounded-full"
+          :aria-label="t.react"
+          :aria-expanded="picking === target(r)"
+          @click="picking = picking === target(r) ? null : target(r)"
+        >
+          <SmilePlusIcon class="size-3.5" />
+        </button>
+      </div>
     </li>
   </ul>
 </template>
