@@ -166,8 +166,25 @@ describe('mission notifications (MIS-40)', () => {
     expect(created.map(n => [n.path.split('/')[1], n.data.type, n.data.title, n.data.body])).toEqual([['u2', 'mission', "'독후감' 제출이 반려됐어요", '더 써 주세요']])
   })
 
-  it('check-offs (done) send nothing', async () => {
+  it('completion goes to the feed by default (MIS-17); rejections do not', async () => {
+    store.set('spaces/s1/missions/m1', { title: '독후감', participantIds: ['u1', 'u2'] })
     await onSubmissionWritten.run(subEvent(undefined, { ...sub, status: 'done' }))
-    expect(created).toEqual([])
+    await onSubmissionWritten.run(subEvent({ ...sub, status: 'submitted' }, { ...sub, status: 'rejected', reviewedBy: 'u1' }))
+    expect(added.map(a => [a.path, a.data.module, a.data.type, a.data.size, a.data.refId, a.data.data.title])).toEqual([['spaces/s1/activities', 'missions', 'missionDone', 'minor', 'm1', '독후감']])
+    expect(created.filter(n => n.data.title.includes('완료'))).toEqual([])
+  })
+
+  it("'all' also notifies other participants; 'none' and personal goals post nothing", async () => {
+    store.set('spaces/s1/missions/m1', { title: '독후감', notifyOnComplete: 'all', participantIds: ['u1', 'u2'] })
+    await onSubmissionWritten.run(subEvent({ ...sub, status: 'submitted' }, { ...sub, status: 'approved', reviewedBy: 'u1' }))
+    expect(added).toHaveLength(1)
+    expect(created.map(n => [n.path.split('/')[1], n.data.title])).toEqual([['u2', "'독후감' 제출이 승인됐어요"], ['u1', "지원님이 '독후감'을(를) 완료했어요"]])
+    added.length = 0
+    created.length = 0
+    store.set('spaces/s1/missions/m1', { title: '독후감', notifyOnComplete: 'none', participantIds: ['u1', 'u2'] })
+    await onSubmissionWritten.run(subEvent(undefined, { ...sub, status: 'done' }))
+    store.set('spaces/s1/missions/m1', { title: '나만', isPersonal: true, participantIds: ['u2'] })
+    await onSubmissionWritten.run(subEvent(undefined, { ...sub, status: 'done' }))
+    expect([added, created]).toEqual([[], []])
   })
 })

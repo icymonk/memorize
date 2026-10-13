@@ -89,9 +89,10 @@ export const ko = {
       journal: (name: string) => `${name}님이 학습일지를 썼어요`,
       cards: (n: number, mode: string) => `단어 ${n}개 ${mode}`,
       journalPart: '학습일지 작성',
+      missionPart: (titles: string[]) => `미션 ${titles.map(t => `'${t}'`).join(', ')} 완료`,
       filter: {
         all: '전체',
-        modules: { vocab: '단어장', notes: '노트' } as Record<string, string>,
+        modules: { vocab: '단어장', notes: '노트', missions: '미션' } as Record<string, string>,
         allMembers: '모든 멤버',
         member: '멤버',
         majorOnly: '큰 활동만',

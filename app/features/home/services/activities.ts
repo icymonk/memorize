@@ -4,7 +4,7 @@ import { collection, getDocs, limit, onSnapshot, orderBy, query, Timestamp as Ts
 export interface Activity {
   id: string
   uid: string
-  module: 'vocab' | 'notes'
+  module: 'vocab' | 'notes' | 'missions'
   type: 'session' | 'deckCreated' | 'journal' | string
   size: 'major' | 'minor'
   refType: string
