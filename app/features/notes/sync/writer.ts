@@ -87,6 +87,8 @@ export function createSaveQueue(opts: SaveQueueOptions) {
     /** 아직 보내지 않았거나 응답을 기다리는 쓰기가 있는지 */
     get busy() { return !!timer || pending > 0 },
     refresh: emit,
+    /** 다른 곳에서 바뀐 내용을 받아 편집기에 넣은 뒤, 그 내용을 비교 기준으로 삼는다 */
+    rebase(next: SavedMap) { saved = next },
     dispose() { clearTimeout(timer); timer = undefined },
   }
 }

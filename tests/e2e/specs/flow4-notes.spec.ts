@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 import { signUp } from './helpers'
 
-/** E2E 흐름 4: 노트 작성 → 새로고침 후 유지 → 편집 잠금 중 다른 멤버는 읽기만 (블록 끌어 옮기기는 수동 확인) */
+/** E2E 흐름 4: 노트 작성 → 새로고침 후 유지 → 편집 잠금 중 다른 멤버는 읽기만 하고 고친 내용은 바로 보임 (블록 끌어 옮기기는 수동 확인) */
 test('a note survives reload and is read-only for another member while locked', async ({ browser }) => {
   const pa = await (await browser.newContext()).newPage()
   const personal = await signUp(pa, 'hana')
@@ -44,4 +44,12 @@ test('a note survives reload and is read-only for another member while locked', 
   await expect(pb.getByText('hana님이 편집 중이에요')).toBeVisible()
   await expect(pb.locator('.ProseMirror')).toContainText('둘째 문단')
   await expect(pb.locator('.ProseMirror')).toHaveAttribute('contenteditable', 'false')
+
+  // 다른 사람이 고친 내용이 새로고침 없이 보인다
+  await pa.locator('.ProseMirror').click()
+  await pa.keyboard.press('Control+End')
+  await pa.keyboard.press('Enter')
+  await pa.keyboard.type('셋째 문단')
+  await expect(pa.getByText('저장됨')).toBeVisible()
+  await expect(pb.locator('.ProseMirror')).toContainText('셋째 문단')
 })

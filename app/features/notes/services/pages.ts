@@ -1,4 +1,4 @@
-import type { Firestore, Timestamp } from 'firebase/firestore'
+import type { Firestore, QueryDocumentSnapshot, Timestamp } from 'firebase/firestore'
 import type { StoredBlock } from '../sync/serialize'
 import type { Functions } from 'firebase/functions'
 import type { PropValue } from '#shared/schemas/collection'
@@ -135,12 +135,23 @@ export async function updatePageTitle(db: Firestore, sid: string, pageId: string
   await updateDoc(doc(pagesOf(db, sid), pageId), { title, updatedAt: serverTimestamp() })
 }
 
-export async function loadBlocks(db: Firestore, sid: string, pageId: string): Promise<StoredBlock[]> {
-  const snap = await getDocs(query(collection(db, 'spaces', sid, 'pages', pageId, 'blocks'), orderBy('order')))
-  return snap.docs.map((d) => {
+const blocksQuery = (db: Firestore, sid: string, pageId: string) =>
+  query(collection(db, 'spaces', sid, 'pages', pageId, 'blocks'), orderBy('order'))
+
+function toStored(docs: QueryDocumentSnapshot[]): StoredBlock[] {
+  return docs.map((d) => {
     const { type, parentBlockId, order, attrs, content } = d.data()
     return { id: d.id, type, parentBlockId: parentBlockId ?? null, order, attrs: attrs ?? {}, content: content ?? [] }
   })
+}
+
+export async function loadBlocks(db: Firestore, sid: string, pageId: string): Promise<StoredBlock[]> {
+  return toStored((await getDocs(blocksQuery(db, sid, pageId))).docs)
+}
+
+/** 다른 사람이 고친 내용을 새로고침 없이 받는다. 내 쓰기가 아직 서버에 가지 않은 스냅샷은 `local` */
+export function watchBlocks(db: Firestore, sid: string, pageId: string, cb: (blocks: StoredBlock[], local: boolean) => void, onError: (e: unknown) => void) {
+  return onSnapshot(blocksQuery(db, sid, pageId), snap => cb(toStored(snap.docs), snap.metadata.hasPendingWrites), onError)
 }
 
 /** NOTE-48: 템플릿 페이지의 블록과 요약을 새 페이지로 복사 */
