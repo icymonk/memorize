@@ -1,0 +1,2 @@
+# Standalone workspace: E2E deps never touch the app lockfile (docs/dev/conventions.md).
+packages: []
