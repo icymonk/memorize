@@ -1,6 +1,6 @@
 # 개발 문서
 
-> 상태: 확정 · v2.2 · 2026-10-12 — 확정된 기능명세(`docs/planning`, `docs/features`) 기준으로 새로 작성
+> 상태: 확정 · v2.3 · 2026-10-12 — 확정된 기능명세(`docs/planning`, `docs/features`) 기준으로 새로 작성
 
 기능명세가 "무엇을"이라면 이 폴더는 "어떻게"다. 기능명세와 충돌하면 **기능명세가 우선**이고, 이 문서를 고친다.
 
@@ -16,6 +16,7 @@
 | [routing.md](./routing.md) | 화면 경로, 레이아웃, 접근 제어 | 확정 |
 | [conventions.md](./conventions.md) | 개발 환경, 코드 규칙, 테스트, 배포, 모니터링 | 확정 |
 | [phase-plan.md](./phase-plan.md) | 0~1단계 작업 분해 | 확정 |
+| [phase2-plan.md](./phase2-plan.md) | 2단계 작업 분해 | 확정 |
 | [spikes.md](./spikes.md) | 기술 검증 S1~S5 결과 (`spikes/`) | 검증 |
 
 ## 개발 결정
@@ -51,6 +52,7 @@
 | D11 | DB 선택 | **Firestore 유지** (SQL Connect 검토 후). 이유: 고정비 없음(무료 최대 지원 방향), 오프라인 동기화, 실시간·트리거 중심 설계. 통계·추천이 무거워지는 3~4단계에 BigQuery 내보내기 또는 SQL Connect 부분 도입을 다시 검토. S1 검증 결과가 나쁘면 재판단 |
 
 ## 변경 이력
+- v2.3: 2단계 작업 분해(phase2-plan.md) 추가
 - v2.2: D6 브랜치 전략 `main` ← `develop` ← 기능 브랜치
 - v2.1: 리뷰 반영·확정
 - v2.0: 확정 기능명세 기준으로 새로 작성
