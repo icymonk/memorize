@@ -1113,3 +1113,43 @@ describe('question bank (3-A1, TST-01·07·08)', () => {
   })
 })
 
+
+describe('tests (3-B1, TST-10~16)', () => {
+  const settings = { timeLimitMin: null, openAt: null, closeAt: null, maxAttempts: 1, scoring: 'best', shuffleQuestions: false, shuffleChoices: false, resultRelease: 'instant', practice: false }
+  const t = (uid: string, over: object = {}) => ({ title: '1단원', description: '', questionRefs: [{ questionId: 'q1', points: 10 }], settings, assignees: { all: true, uids: [], groupIds: [] }, status: 'draft', createdBy: uid, hostIds: [uid], deletedAt: null, ...over })
+  const tRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'tests', id)
+
+  it('hosts create and edit drafts; others cannot see drafts or open them', async () => {
+    await assertSucceeds(setDoc(tRef('bob', 't1'), t('bob')))
+    await assertFails(setDoc(tRef('bob', 't2'), t('bob', { status: 'open' })))
+    await assertFails(setDoc(tRef('bob', 't3'), t('bob', { participantIds: ['bob'] })))
+    await assertFails(setDoc(tRef('pat', 't4'), t('pat')))
+    await assertFails(getDoc(tRef('alice', 't1')))
+    await assertSucceeds(updateDoc(tRef('bob', 't1'), { title: '고침' }))
+    await assertFails(updateDoc(tRef('bob', 't1'), { status: 'open' }))
+    await assertFails(updateDoc(tRef('bob', 't1'), { hostIds: ['bob', 'alice'] }))
+    await assertFails(updateDoc(tRef('alice', 't1'), { title: '남의 것' }))
+  })
+
+  it('open tests: takers read the test and paper, nobody reads the key, hosts only close', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o1'), t('bob', { status: 'open', participantIds: ['alice'] }))
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o1', 'paper', 'main'), { items: [], hostIds: ['bob'] })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o1', 'secret', 'key'), { items: {} })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o2'), t('bob', { status: 'open', participantIds: ['alice'], settings: { ...settings, openAt: Date.now() + 3600_000 } }))
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o2', 'paper', 'main'), { items: [], hostIds: ['bob'] })
+    })
+    await assertSucceeds(getDoc(tRef('alice', 'o1')))
+    await assertSucceeds(getDocs(query(collection(db('alice'), 'spaces', SID, 'tests'), where('participantIds', 'array-contains', 'alice'), where('status', 'in', ['open', 'closed']))))
+    await assertFails(getDoc(tRef('mia', 'o1')))
+    await assertSucceeds(getDoc(doc(db('alice'), 'spaces', SID, 'tests', 'o1', 'paper', 'main')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'tests', 'o2', 'paper', 'main')))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o2', 'paper', 'main')))
+    await assertFails(getDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o1', 'secret', 'key')))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o1', 'paper', 'main'), { items: [], hostIds: ['bob'] }))
+    await assertFails(updateDoc(tRef('bob', 'o1'), { title: '열린 뒤 고침' }))
+    await assertFails(updateDoc(tRef('bob', 'o1'), { status: 'draft' }))
+    await assertSucceeds(updateDoc(tRef('bob', 'o1'), { status: 'closed' }))
+  })
+})

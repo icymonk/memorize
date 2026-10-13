@@ -281,6 +281,42 @@ service cloud.firestore {
         allow update: if isMember(sid) && uid() in resource.data.authorIds && validKey(request.resource.data);
       }
 
+      // 3-B1 시험 (TST-10~16). 진행자는 임시저장 상태에서만 고치고, 여는 것(문제 사본·대상자)은 서버 함수(openTest)가 한다
+      match /tests/{testId} {
+        function canHostTest() {
+          return space(sid).kind == 'personal' || isManager(sid) || space(sid).get('settings', {}).get('whoCanHost', 'everyone') == 'everyone';
+        }
+        function validTest(x) {
+          return isText(x.title, 1, 80) && isText(x.description, 0, 2000)
+            && x.questionRefs is list && x.questionRefs.size() <= 100
+            && x.settings.maxAttempts is int && x.settings.maxAttempts >= 0 && x.settings.maxAttempts <= 10
+            && x.settings.scoring in ['best', 'last'] && x.settings.resultRelease in ['instant', 'afterClose', 'scoreOnly', 'hidden']
+            && x.settings.shuffleQuestions is bool && x.settings.shuffleChoices is bool && x.settings.practice is bool
+            && (x.settings.timeLimitMin == null || (x.settings.timeLimitMin is int && x.settings.timeLimitMin >= 1 && x.settings.timeLimitMin <= 300))
+            && x.assignees.all is bool && x.assignees.uids is list && x.assignees.uids.size() <= 200
+            && x.assignees.groupIds is list && x.assignees.groupIds.size() <= 20
+            && x.hostIds is list && x.hostIds.size() >= 1 && x.hostIds.size() <= 11;
+        }
+        allow read: if isMember(sid) && (uid() in resource.data.hostIds
+          || (resource.data.status in ['open', 'closed'] && uid() in resource.data.get('participantIds', [])));
+        allow create: if isMember(sid) && request.resource.data.createdBy == uid() && request.resource.data.hostIds == [uid()]
+          && request.resource.data.status == 'draft' && request.resource.data.deletedAt == null
+          && !('participantIds' in request.resource.data) && validTest(request.resource.data) && canHostTest();
+        allow update: if isMember(sid) && uid() in resource.data.hostIds && request.resource.data.createdBy == resource.data.createdBy
+          && ((resource.data.status == 'draft' && request.resource.data.status == 'draft'
+                && request.resource.data.hostIds == resource.data.hostIds
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'questionRefs', 'settings', 'assignees', 'deletedAt', 'updatedAt'])
+                && validTest(request.resource.data))
+            || (resource.data.status != 'draft' && request.resource.data.status in ['open', 'closed']
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deletedAt', 'updatedAt'])));
+      }
+      match /tests/{testId}/paper/{docId} {
+        function tst() { return get(/databases/$(database)/documents/spaces/$(sid)/tests/$(testId)).data; }
+        allow read: if isMember(sid) && (uid() in tst().hostIds
+          || (tst().status in ['open', 'closed'] && uid() in tst().get('participantIds', [])
+              && (tst().settings.openAt == null || request.time.toMillis() >= tst().settings.openAt)));
+      }
+
       // 2-E1 미션 (MIS-01·02·10~12·14·34). 개인 목표는 만든 사람만 보고, 내 공간에서는 개인 목표만 만든다
       match /missions/{missionId} {
         function canHost() {
