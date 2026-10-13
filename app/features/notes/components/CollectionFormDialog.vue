@@ -170,7 +170,7 @@ async function submit() {
           <Label for="col-template">{{ t.template }}</Label>
           <select id="col-template" v-model="templateId" :class="selectClass">
             <option value="">
-              {{ t.templateNone }}
+              {{ collection.systemType === 'journal' ? ko.notes.journal.defaultTemplate : t.templateNone }}
             </option>
             <option v-for="p in items ?? []" :key="p.id" :value="p.id">
               {{ p.icon }} {{ p.title || ko.notes.untitled }}

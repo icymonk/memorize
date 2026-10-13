@@ -80,6 +80,7 @@ describe('spaces update (WS-01·02·04)', () => {
     await assertSucceeds(updateDoc(spaceRef('alice'), patch({ name: '새 이름', color: 'red', description: '소개' })))
     await assertSucceeds(updateDoc(spaceRef('mia'), patch({ modules: { ...MODULES, math: true } })))
     await assertSucceeds(updateDoc(spaceRef('mia'), patch({ settings: { ...SETTINGS, whoCanInvite: 'managers' } })))
+    await assertSucceeds(updateDoc(spaceRef('mia'), patch({ settings: { ...SETTINGS, journalVisibility: 'private' } })))
   })
   it('members and outsiders cannot', async () => {
     await assertFails(updateDoc(spaceRef('bob'), patch({ name: 'x' })))
@@ -99,6 +100,7 @@ describe('spaces update (WS-01·02·04)', () => {
     await assertFails(updateDoc(spaceRef('alice'), patch({ modules: { ...MODULES, vocab: 'yes' } })))
     await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, joinPolicy: 'open' } })))
     await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, ranking: { enabled: false } } })))
+    await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, journalVisibility: 'people' } })))
   })
   it('updatedAt must be the server time', async () => {
     await assertFails(updateDoc(spaceRef('alice'), { name: 'x' }))
@@ -525,6 +527,7 @@ describe('pages and blocks (NOTE-01·10)', () => {
     const sys = { kind: 'system', systemType: 'journal', name: '학습일지', icon: '', ownerId: 'bob', scope: 'shared', schema: [], views: [], templateIds: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
     const colDoc = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'collections', id)
     await assertFails(setDoc(colDoc('bob', 'other'), sys))
+    await assertSucceeds(getDoc(colDoc('bob', 'journal')))
     await assertFails(setDoc(colDoc('bob', 'journal'), { ...sys, scope: 'private' }))
     await assertSucceeds(setDoc(colDoc('bob', 'journal'), sys))
     const j = (o: object) => page({ type: 'journal', collectionId: 'journal', editPolicy: 'editors', props: { date: '2026-10-12' }, ...o })

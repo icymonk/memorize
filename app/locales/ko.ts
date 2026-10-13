@@ -140,6 +140,8 @@ export const ko = {
       whoOptions: { everyone: '모든 멤버', managers: '소유자·매니저만' },
       progressSharing: '진도 공유',
       progressSharingOptions: { everyone: '멤버끼리 서로 보기', self: '본인만 보기' },
+      journalVisibility: '새 학습일지 공개 범위',
+      journalVisibilityOptions: { space: '워크스페이스 전체', private: '나만 보기' },
       capacity: '최대 인원',
       capacityValue: (count: number, max: number) => `${count} / ${max}명`,
       capacityHint: '무료로 쓸 수 있는 최대 인원이에요.',
@@ -496,6 +498,8 @@ export const ko = {
       noActivity: '이 날 기록된 학습이 없어요.',
       totals: (min: number, cards: number, acc: number | null) => `${min}분 · 카드 ${cards}장${acc === null ? '' : ` · 정답률 ${acc}%`}`,
       fillMinutes: (min: number) => `학습 시간을 ${min}분으로 채우기`,
+      template: ['오늘 배운 것', '어려웠던 점', '내일 할 것'],
+      defaultTemplate: '기본 템플릿 (오늘 배운 것 / 어려웠던 점 / 내일 할 것)',
     },
     copy: {
       button: '다른 공간으로 복사',

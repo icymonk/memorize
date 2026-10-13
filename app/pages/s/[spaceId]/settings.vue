@@ -203,6 +203,15 @@ async function leave() {
             </div>
           </RadioGroup>
         </div>
+        <div class="flex flex-col gap-2">
+          <Label>{{ t.journalVisibility }}</Label>
+          <RadioGroup v-model="settings.journalVisibility" :disabled="!canManage" class="flex flex-wrap gap-4">
+            <div v-for="(label, value) in t.journalVisibilityOptions" :key="value" class="flex items-center gap-2">
+              <RadioGroupItem :id="`journal-${value}`" :value="value" />
+              <Label :for="`journal-${value}`" class="font-normal">{{ label }}</Label>
+            </div>
+          </RadioGroup>
+        </div>
       </CardContent>
       <CardFooter v-if="canManage" class="justify-end">
         <Button :disabled="saving === 'settings'" @click="saveSettings">
