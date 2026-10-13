@@ -1,10 +1,11 @@
 import type { Firestore, QueryDocumentSnapshot, Timestamp } from 'firebase/firestore'
-import type { StoredBlock } from '../sync/serialize'
+import type { FlatBlock, StoredBlock } from '../sync/serialize'
 import type { Functions } from 'firebase/functions'
 import type { PropValue } from '#shared/schemas/collection'
 import { addDoc, and, collection, doc, getDoc, getDocs, onSnapshot, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 import { callFn } from '~/lib/functions'
 import { keyBetween } from '../sync/order'
+import { pageStats } from '../sync/serialize'
 
 export type PageVisibility = 'private' | 'people' | 'group' | 'space'
 
@@ -92,7 +93,7 @@ export async function getPage(db: Firestore, sid: string, pageId: string): Promi
 }
 
 /** NOTE-20: 공유 페이지(공간 전체) 또는 내 페이지(나만). 하위 페이지는 부모의 갈래·공개 범위를 따른다 */
-export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue>, journal?: boolean }): Promise<string> {
+export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue>, journal?: boolean, visibility?: 'private' | 'space' }): Promise<string> {
   const now = serverTimestamp()
   const col = opts.collection
   const parent = col ? null : opts.parent ?? null
@@ -110,7 +111,7 @@ export async function createPage(db: Firestore, sid: string, uid: string, opts: 
     order: keyBetween(opts.after ?? null, null),
     ancestorIds: parent ? [...(parent.ancestorIds ?? []), parent.id] : [],
     props: opts.props ?? {},
-    visibility: parent?.visibility ?? (root === 'private' ? 'private' : 'space'),
+    visibility: parent?.visibility ?? (root === 'private' ? 'private' : opts.visibility ?? 'space'),
     groupIds: [],
     sharedWith: [],
     editorIds: [],
@@ -164,6 +165,19 @@ export async function copyBlocks(db: Firestore, sid: string, uid: string, from: 
     batch.set(doc(db, 'spaces', sid, 'pages', toId, 'blocks', id), { ...b, rev: 1, updatedBy: uid, updatedAt: now })
   }
   batch.update(doc(pagesOf(db, sid), toId), { excerpt: from.excerpt ?? '', blockCount: Math.min(blocks.length, 450), textLength: from.textLength ?? 0, updatedAt: now })
+  await batch.commit()
+}
+
+/** 빈 새 페이지에 정해진 블록(예: 기본 템플릿)을 넣는다 */
+export async function writeBlocks(db: Firestore, sid: string, uid: string, pageId: string, blocks: FlatBlock[]) {
+  const now = serverTimestamp()
+  const batch = writeBatch(db)
+  let order: string | null = null
+  for (const { id, ...b } of blocks) {
+    order = keyBetween(order, null)
+    batch.set(doc(db, 'spaces', sid, 'pages', pageId, 'blocks', id), { ...b, order, rev: 1, updatedBy: uid, updatedAt: now })
+  }
+  batch.update(doc(pagesOf(db, sid), pageId), { ...pageStats(blocks), updatedAt: now })
   await batch.commit()
 }
 

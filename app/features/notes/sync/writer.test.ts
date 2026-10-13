@@ -51,7 +51,7 @@ describe('createSaveQueue', () => {
     expect(commit).not.toHaveBeenCalled()
     state.blocks = [b('a', 'remote!')]
     q.flush()
-    expect(commit.mock.calls[0]![0]).toEqual([expect.objectContaining({ kind: 'update', id: 'a' })])
+    expect((commit.mock.calls as unknown[][])[0]![0]).toEqual([expect.objectContaining({ kind: 'update', id: 'a' })])
   })
 
   it('flush writes immediately; nothing changed → no write', async () => {
