@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { journalStreak } from '#shared/journal'
 import type { PropDef, PropValue, ViewDef, ViewType } from '#shared/schemas/collection'
 import type { Page } from '~/features/notes/services/pages'
 import { coerceProp, compareProp, MAX_VIEWS, matchesFilter, newPropKey, VIEW_TYPES, viewDef } from '#shared/schemas/collection'
@@ -116,6 +117,10 @@ const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 const todayYmd = ymd(new Date())
 /** NOTE-30·36: 일지는 오늘 날짜로, 지난 날짜에 쓰면 '늦게 씀' */
 const isJournal = computed(() => col.value?.kind === 'system' && col.value.systemType === 'journal')
+const myUid = useAuthStore().user?.uid
+const streak = computed(() => (isJournal.value && col.value
+  ? journalStreak(notes.itemsOf(col.value.id).filter(p => p.ownerId === myUid && !p.deletedAt).map(p => p.props?.date).filter((d): d is string => typeof d === 'string'), todayYmd)
+  : 0))
 const days = computed(() => {
   const first = month.value
   const start = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay())
@@ -224,6 +229,7 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
       </div>
       <p class="text-muted-foreground -mt-2 text-xs">
         {{ t.scopes[col.scope] }}
+        <span v-if="isJournal && streak"> · {{ ko.notes.journal.streak(streak) }}</span>
       </p>
 
       <div class="flex flex-wrap items-center gap-1 border-b pb-2">
