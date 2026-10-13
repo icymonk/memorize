@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import type { Stamp } from '#shared/schemas/feedback'
+import type { FeedbackScore, Stamp } from '#shared/schemas/feedback'
 import type { Member } from '~/features/space/services/invites'
 import type { Comment } from '../services/comments'
 import type { Page } from '../services/pages'
-import { STAMP_LABELS, STAMPS } from '#shared/schemas/feedback'
+import { feedbackScore, formatScore, GRADES, STAMP_LABELS, STAMPS } from '#shared/schemas/feedback'
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
@@ -26,6 +26,10 @@ const picked = ref<string[]>([])
 const writing = ref(false)
 const stamp = ref<Stamp>('great')
 const body = ref('')
+/** CMN-24: 설정에서 켠 형식으로만 점수를 준다 (선택) */
+const scoreValue = ref<number | string | null>(null)
+const scoreFormat = computed(() => { const f = space.current?.settings?.feedback; return f?.scoreEnabled ? f.scoreFormat : null })
+const scoreChoices = computed(() => scoreFormat.value === 'grade' ? [...GRADES] : [1, 2, 3, 4, 5])
 let stop: (() => void) | undefined
 
 onMounted(async () => {
@@ -64,10 +68,17 @@ const saveReviewers = () => run(async () => {
 function startWrite() {
   stamp.value = mine.value?.stamp ?? 'great'
   body.value = mine.value?.body ?? ''
+  scoreValue.value = mine.value?.score && mine.value.score.format === scoreFormat.value ? mine.value.score.value : null
   writing.value = true
 }
 const submit = () => run(async () => {
-  await leaveFeedback($functions, props.sid, props.page.id, stamp.value, body.value.trim().slice(0, 2000))
+  let score: FeedbackScore | null = null
+  if (scoreFormat.value && scoreValue.value !== null && scoreValue.value !== '') {
+    const parsed = feedbackScore.safeParse({ format: scoreFormat.value, value: scoreValue.value })
+    if (!parsed.success) { toast.error(t.scoreInvalid); return }
+    score = parsed.data
+  }
+  await leaveFeedback($functions, props.sid, props.page.id, stamp.value, body.value.trim().slice(0, 2000), score)
   writing.value = false
   toast.success(t.sent)
 })
@@ -120,6 +131,15 @@ const remove = (c: Comment) => run(async () => {
           {{ STAMP_LABELS[s] }}
         </Button>
       </div>
+      <template v-if="scoreFormat">
+        <span class="text-sm font-medium">{{ t.score }}</span>
+        <Input v-if="scoreFormat === '100'" :model-value="scoreValue ?? ''" type="number" min="0" max="100" class="w-28" :placeholder="t.scorePlaceholder" :aria-label="t.score" @update:model-value="v => (scoreValue = v === '' ? null : Number(v))" />
+        <div v-else class="flex flex-wrap gap-1" role="radiogroup" :aria-label="t.score">
+          <Button v-for="v in scoreChoices" :key="v" type="button" size="sm" role="radio" :aria-checked="scoreValue === v" :variant="scoreValue === v ? 'default' : 'outline'" @click="scoreValue = scoreValue === v ? null : v">
+            {{ scoreFormat === 'stars' ? '★'.repeat(Number(v)) : v }}
+          </Button>
+        </div>
+      </template>
       <Textarea v-model="body" rows="3" maxlength="2000" :placeholder="t.bodyPlaceholder" :aria-label="t.bodyPlaceholder" />
       <div class="flex gap-2">
         <Button type="submit" size="sm" :disabled="pending">{{ t.submit }}</Button>
@@ -133,6 +153,7 @@ const remove = (c: Comment) => run(async () => {
         <div class="flex items-center gap-2">
           <span class="font-medium">{{ nameOf(c.uid) }}</span>
           <span v-if="c.stamp" class="rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">{{ STAMP_LABELS[c.stamp] }}</span>
+          <span v-if="c.score" class="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-900 tabular-nums dark:bg-sky-900/40 dark:text-sky-100">{{ formatScore(c.score) }}</span>
           <span v-if="c.editedAt" class="text-muted-foreground text-xs">{{ ko.notes.comments.edited }}</span>
           <Button v-if="c.uid === me || space.can('manage')" variant="ghost" size="sm" class="text-destructive ml-auto h-7 px-2 text-xs" :disabled="pending" @click="remove(c)">{{ t.remove }}</Button>
         </div>

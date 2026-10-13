@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.12 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.13 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -99,7 +99,7 @@ spaces/{sid}/feedDigests/{uid}_{date}     # 작은 활동 묶음 (CMN-13), 서�
 spaces/{sid}/comments/{id}
   targetType, targetId, blockId?, uid
   kind: 'comment' | 'feedback'
-  body, stamp?, score?                      # feedback일 때 (CMN-24)
+  body, stamp?, score?                      # feedback일 때 (CMN-24). score: { format: '100'|'grade'|'stars', value } — 남길 때의 형식을 함께 저장
   mentions[], createdAt, editedAt?
 
 spaces/{sid}/reactions/{targetType}_{targetId}_{uid}   targetType, targetId, uid, emoji   # targetType: page(CMN-21) | feed(CMN-12, targetId = 활동 ID 또는 같은 날 묶음 d_{uid}_{date})
@@ -423,3 +423,4 @@ users/{uid}/avatar/{fileName}
 - v2.0: 확정 기능명세 기준으로 새로 작성
 - v2.11: 제출 `attachments`를 파일 정보 복사본으로, 업로드 집계를 callable(`registerUpload`·`deleteUpload`)로
 - v2.12: 피드 반응(CMN-12) — reactions targetType `feed`
+- v2.13: 피드백 `score`를 `{ format, value }`로 (CMN-24)

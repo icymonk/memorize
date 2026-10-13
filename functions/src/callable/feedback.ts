@@ -8,17 +8,19 @@ import { notifyMembers } from '../lib/notify'
 export const leaveFeedback = authedCallable(leaveFeedbackInput, async ({ uid, data }) => {
   const db = getFirestore()
   const space = db.doc(`spaces/${data.spaceId}`)
-  const [member, page] = await Promise.all([space.collection('members').doc(uid).get(), space.collection('pages').doc(data.pageId).get()])
+  const [member, page, spaceDoc] = await Promise.all([space.collection('members').doc(uid).get(), space.collection('pages').doc(data.pageId).get(), space.get()])
   if (member.get('status') !== 'active' || !page.exists || page.get('deletedAt')) throw new HttpsError('not-found', 'page not found')
   if (page.get('ownerId') === uid || !((page.get('reviewerIds') ?? []) as string[]).includes(uid)) {
     throw new HttpsError('permission-denied', 'feedback not requested')
   }
+  const fb = spaceDoc.get('settings.feedback') as { scoreEnabled?: boolean, scoreFormat?: string } | undefined
+  if (data.score && (!fb?.scoreEnabled || fb.scoreFormat !== data.score.format)) throw new HttpsError('failed-precondition', 'score not enabled')
   const ref = space.collection('comments').doc(feedbackId(data.pageId, uid))
   const now = FieldValue.serverTimestamp()
   await db.runTransaction(async (tx) => {
     const cur = await tx.get(ref)
-    if (cur.exists) tx.update(ref, { stamp: data.stamp, body: data.body, editedAt: now })
-    else tx.create(ref, { targetType: 'page', targetId: data.pageId, uid, kind: 'feedback', stamp: data.stamp, body: data.body, mentions: [], createdAt: now })
+    if (cur.exists) tx.update(ref, { stamp: data.stamp, body: data.body, score: data.score ?? FieldValue.delete(), editedAt: now })
+    else tx.create(ref, { targetType: 'page', targetId: data.pageId, uid, kind: 'feedback', stamp: data.stamp, body: data.body, ...(data.score ? { score: data.score } : {}), mentions: [], createdAt: now })
   })
   return { ok: true as const }
 })

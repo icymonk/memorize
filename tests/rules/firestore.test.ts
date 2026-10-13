@@ -145,6 +145,7 @@ describe('spaces update (WS-01·02·04)', () => {
     await assertSucceeds(updateDoc(spaceRef('mia'), patch({ modules: { ...MODULES, math: true } })))
     await assertSucceeds(updateDoc(spaceRef('mia'), patch({ settings: { ...SETTINGS, whoCanInvite: 'managers' } })))
     await assertSucceeds(updateDoc(spaceRef('mia'), patch({ settings: { ...SETTINGS, journalVisibility: 'private' } })))
+    await assertSucceeds(updateDoc(spaceRef('mia'), patch({ settings: { ...SETTINGS, feedback: { scoreEnabled: true, scoreFormat: 'grade' } } })))
   })
   it('members and outsiders cannot', async () => {
     await assertFails(updateDoc(spaceRef('bob'), patch({ name: 'x' })))
@@ -165,6 +166,8 @@ describe('spaces update (WS-01·02·04)', () => {
     await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, joinPolicy: 'open' } })))
     await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, ranking: { enabled: false } } })))
     await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, journalVisibility: 'people' } })))
+    await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, feedback: { scoreEnabled: true, scoreFormat: 'percent' } } })))
+    await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, feedback: { scoreEnabled: 'yes', scoreFormat: '100' } } })))
   })
   it('updatedAt must be the server time', async () => {
     await assertFails(updateDoc(spaceRef('alice'), { name: 'x' }))

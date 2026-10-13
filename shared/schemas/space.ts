@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SCORE_FORMATS } from './feedback'
 
 /** WS-02: 공간에서 켜고 끌 수 있는 기능 */
 export const MODULE_KEYS = ['vocab', 'notes', 'reading', 'reviews', 'missions', 'tests', 'math', 'courses', 'wrongNotes'] as const
@@ -44,6 +45,8 @@ export const spaceSettingsSchema = z.object({
   progressSharing: z.enum(['everyone', 'self']),
   /** WS-06 새 학습일지의 기본 공개 범위 */
   journalVisibility: z.enum(['space', 'private']),
+  /** CMN-24 피드백 점수 (기본 꺼짐) */
+  feedback: z.object({ scoreEnabled: z.boolean(), scoreFormat: z.enum(SCORE_FORMATS) }),
 })
 export type SpaceSettings = z.infer<typeof spaceSettingsSchema>
 
@@ -55,6 +58,7 @@ export const DEFAULT_SPACE_SETTINGS: SpaceSettings = {
   whoCanHost: 'everyone',
   progressSharing: 'everyone',
   journalVisibility: 'space',
+  feedback: { scoreEnabled: false, scoreFormat: '100' },
 }
 
 /** WS-01 설정 화면의 일반 항목 (규칙에서도 같은 한도를 검사한다) */
