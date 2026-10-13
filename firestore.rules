@@ -197,9 +197,23 @@ service cloud.firestore {
             && x.unit in ['page', 'percent', 'minute'] && x.minutes is int && x.minutes >= 0 && x.minutes <= 1440
             && isText(x.memo, 0, 200);
         }
-        allow read: if isMember(sid) && resource.data.uid == uid();
+        allow read: if seesProgress(sid, resource.data.uid);
         allow create: if isMember(sid) && validLog(request.resource.data);
         allow update: if isMember(sid) && resource.data.uid == uid() && validLog(request.resource.data);
+        allow delete: if isMember(sid) && resource.data.uid == uid();
+      }
+
+      // 2-C4 구절 (READ-30·31). 공개(space)면 멤버 모두, 아니면 본인만
+      match /quotes/{id} {
+        function validQuote(x) {
+          return x.uid == uid() && isText(x.bookKey, 3, 80) && isText(x.title, 1, 200) && isText(x.date, 10, 10)
+            && isText(x.text, 1, 1000) && x.unit in ['page', 'percent', 'minute']
+            && (x.position == null || (x.position is int && x.position >= 0))
+            && x.visibility in ['private', 'space'];
+        }
+        allow read: if isMember(sid) && (resource.data.uid == uid() || resource.data.visibility == 'space');
+        allow create: if isMember(sid) && validQuote(request.resource.data);
+        allow update: if isMember(sid) && resource.data.uid == uid() && validQuote(request.resource.data);
         allow delete: if isMember(sid) && resource.data.uid == uid();
       }
 
