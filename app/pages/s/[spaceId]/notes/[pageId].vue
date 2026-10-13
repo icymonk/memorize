@@ -14,6 +14,8 @@ import IconPicker from '~/features/notes/components/IconPicker.vue'
 import PageComments from '~/features/notes/components/PageComments.vue'
 import PageReactions from '~/features/notes/components/PageReactions.vue'
 import PropCell from '~/features/notes/components/PropCell.vue'
+import { useTags } from '~/features/space/composables/useTags'
+import { ensureTags, isTagProp, tagAwareDef, withTags } from '~/features/space/services/tags'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
 import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
@@ -27,6 +29,8 @@ const route = useRoute()
 const space = useSpaceStore()
 const auth = useAuthStore()
 const { $firestore } = useNuxtApp()
+const spaceTags = useTags()
+const defs = computed(() => (collection.value?.schema ?? []).map(d => withTags(d, spaceTags.value)))
 
 const sid = computed(() => space.current!.id)
 /** 페이지마다 새로 마운트해서 편집기·잠금·자동 저장 상태가 이전 페이지와 섞이지 않게 한다 */
@@ -102,7 +106,9 @@ const copyOpen = ref(false)
 /** NOTE-46: 모음 페이지는 제목 아래에 항목 값을 보여 준다 */
 const collection = computed(() => (live.value?.collectionId ? notes.collections.find(c => c.id === live.value!.collectionId) ?? null : null))
 async function setProp(def: PropDef, v: PropValue) {
-  try { await setPageProp($firestore, sid.value, pageId.value, def.key, coerceProp(def, v)) }
+  const value = coerceProp(tagAwareDef(def, v), v)
+  if (isTagProp(def) && Array.isArray(value)) void ensureTags($firestore, sid.value, auth.user!.uid, value, spaceTags.value)
+  try { await setPageProp($firestore, sid.value, pageId.value, def.key, value) }
   catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
 }
 const status = computed<SaveStatus>(() => {
@@ -236,7 +242,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         {{ t.copy.from(live.copiedFrom.spaceName ?? '') }}
       </p>
       <dl v-if="collection?.schema.length" class="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-1 text-sm">
-        <template v-for="d in collection.schema" :key="d.key">
+        <template v-for="d in defs" :key="d.key">
           <dt class="text-muted-foreground truncate">{{ d.name }}</dt>
           <dd class="min-w-0">
             <PropCell :def="d" :value="live?.props?.[d.key]" :readonly="!editable" @update="setProp(d, $event)" />

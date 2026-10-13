@@ -513,6 +513,7 @@ export const ko = {
       remove: '아이콘 빼기',
     },
     collections: {
+      newTag: '새 태그 입력 후 Enter',
       nav: '모음',
       create: '새 모음',
       createDescription: '항목을 직접 정해서 페이지를 모아 두는 곳이에요. 예: 영어 표현 모음, 스터디 회의록',
