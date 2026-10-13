@@ -160,7 +160,7 @@ service cloud.firestore {
       // NOTE-01·10 노트 페이지와 블록 (docs/dev/editor.md). 공개 범위 세분화·공동 편집자 지정·잠금은 1-C4
       // NOTE-50·54·60: 공개 범위(나만·지정한 사람·공간 전체), 공동 편집자, 공유 페이지 편집 정책, 편집 잠금(90초)
       function seesPage(p) {
-        return p.deletedAt == null && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds);
+        return p.deletedAt == null && p.get('ownerStatus', 'active') == 'active' && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds);
       }
       function editsPage(p) {
         return p.ownerId == uid() || uid() in p.editorIds || (p.root == 'shared' && p.get('editPolicy', 'everyone') == 'everyone');

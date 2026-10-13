@@ -42,9 +42,16 @@ const pagesOf = (db: Firestore, sid: string) => collection(db, 'spaces', sid, 'p
 export const canEditPage = (p: Pick<Page, 'ownerId' | 'editorIds' | 'root' | 'editPolicy'>, uid: string) =>
   p.ownerId === uid || (p.editorIds ?? []).includes(uid) || (p.root === 'shared' && (p.editPolicy ?? 'everyone') === 'everyone')
 
-/** 규칙이 허용하는 것만 조회: 휴지통이 아닌 공간 전체 공개 + 내 페이지 (공개 범위 세분화는 1-C4) */
-const visiblePages = (db: Firestore, sid: string, uid: string) =>
-  query(pagesOf(db, sid), and(where('deletedAt', '==', null), or(where('visibility', '==', 'space'), where('ownerId', '==', uid), where('sharedWith', 'array-contains', uid), where('editorIds', 'array-contains', uid))))
+/** 규칙이 허용하는 것만 조회: 휴지통이 아닌 내 페이지 + 나간 멤버 것이 아닌 공개·공유 페이지 (WS-23) */
+const visiblePages = (db: Firestore, sid: string, uid: string) => {
+  const active = where('ownerStatus', '==', 'active')
+  return query(pagesOf(db, sid), and(where('deletedAt', '==', null), or(
+    and(where('visibility', '==', 'space'), active),
+    where('ownerId', '==', uid),
+    and(where('sharedWith', 'array-contains', uid), active),
+    and(where('editorIds', 'array-contains', uid), active),
+  )))
+}
 
 export async function listPages(db: Firestore, sid: string, uid: string): Promise<Page[]> {
   const snap = await getDocs(visiblePages(db, sid, uid))

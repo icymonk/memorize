@@ -541,3 +541,48 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertFails(getDocs(query(collectionGroup(db('bob'), 'pages'), where('ownerId', '==', 'alice'), where('type', '==', 'journal'))))
   })
 })
+
+describe('access matrix (security.md 6)', () => {
+  const seed = (path: string, data: object) => env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, path), data))
+  const ref = (uid: string | undefined, path: string) => doc(db(uid), 'spaces', SID, path)
+  const pageData = (o: object = {}) => ({ type: 'page', ownerId: 'bob', root: 'shared', visibility: 'space', sharedWith: [], editorIds: [], ownerStatus: 'active', deletedAt: null, ...o })
+
+  beforeEach(async () => {
+    await seed('decks/d1', { title: 'd', visibility: 'space', createdBy: 'bob', groupIds: [], editPolicy: 'author', collaboratorIds: [] })
+    await seed('pages/p1', pageData())
+    await seed('collections/c1', { kind: 'custom', scope: 'shared', ownerId: 'bob', name: 'c', icon: '', schema: [], views: [], templateIds: [] })
+    await seed('studySessions/s1', { uid: 'bob', mode: 'review', cards: 1, correct: 1, durationSec: 1 })
+  })
+
+  it('signed-out users, outsiders, pending and left members read nothing', async () => {
+    for (const who of [undefined, 'zed', 'pat', 'lee']) {
+      for (const path of ['decks/d1', 'pages/p1', 'collections/c1', 'studySessions/s1'])
+        await assertFails(getDoc(ref(who, path)))
+    }
+    await assertSucceeds(getDoc(ref('bob', 'decks/d1')))
+  })
+
+  it('owners and managers cannot read private notes or hidden progress', async () => {
+    await seed('pages/p2', pageData({ root: 'private', visibility: 'private' }))
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'members', 'bob'), { hideProgress: true }))
+    await assertFails(getDoc(ref('mia', 'pages/p2')))
+    await assertFails(getDoc(ref('alice', 'pages/p2')))
+    await assertFails(getDoc(ref('mia', 'studySessions/s1')))
+    await assertSucceeds(getDoc(ref('bob', 'studySessions/s1')))
+  })
+
+  it("a left member's notes are hidden from others, and the page list query must say so (WS-23)", async () => {
+    await seed('pages/p3', pageData({ ownerId: 'lee', ownerStatus: 'left' }))
+    await assertFails(getDoc(ref('bob', 'pages/p3')))
+    await assertFails(getDoc(ref('mia', 'pages/p3')))
+    await assertSucceeds(getDoc(ref('bob', 'pages/p1')))
+    const pages = collection(db('bob'), 'spaces', SID, 'pages')
+    const active = where('ownerStatus', '==', 'active')
+    await assertSucceeds(getDocs(query(pages, and(where('deletedAt', '==', null), or(
+      and(where('visibility', '==', 'space'), active),
+      where('ownerId', '==', 'bob'),
+      and(where('sharedWith', 'array-contains', 'bob'), active),
+      and(where('editorIds', 'array-contains', 'bob'), active),
+    )))))
+  })
+})
