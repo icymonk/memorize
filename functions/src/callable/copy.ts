@@ -39,6 +39,7 @@ export const copyContent = authedCallable(copyContentInput, async ({ uid, data }
   const ctx: Ctx = { uid, data, fromRef, toRef, fromSpace, fromMember, toSpace }
   if (data.kind === 'page') return copyPage(ctx)
   if (data.kind === 'collection') return copyCollection(ctx)
+  if (data.kind === 'question') return copyQuestion(ctx)
   return copyDeck(ctx)
 })
 
@@ -80,6 +81,50 @@ async function copyDeck({ uid, data, fromRef, toRef, fromSpace, fromMember }: Ct
   }
   await writer.close()
   return { id: newDeck.id }
+}
+
+/** TST-40: 문제 복사. 정답을 볼 수 없던 문제는 정답 없이 가져가고, 파일·과목은 가져가지 않는다 */
+async function copyQuestion({ uid, data, fromRef, toRef, fromSpace }: Ctx): Promise<CopyContentOutput> {
+  const [q, k] = await Promise.all([
+    fromRef.collection('questions').doc(data.id).get(),
+    fromRef.collection('questionKeys').doc(data.id).get(),
+  ])
+  const src = q.data()
+  if (!src || src.deletedAt || (src.createdBy !== uid && src.sharing !== 'space')) throw new HttpsError('not-found', 'question not found')
+  const key = k.data()
+  const seeKey = !!key && ((key.authorIds ?? []).includes(uid) || key.answerVisibility === 'space')
+  const now = FieldValue.serverTimestamp()
+  const newQ = toRef.collection('questions').doc()
+  const batch = getFirestore().batch()
+  batch.set(newQ, {
+    type: src.type,
+    prompt: src.prompt,
+    choices: src.choices ?? [],
+    tags: src.tags ?? [],
+    subjectId: null,
+    media: [],
+    difficulty: src.difficulty,
+    defaultPoints: src.defaultPoints,
+    createdBy: uid,
+    sharing: 'private',
+    answerVisibility: 'authors',
+    copiedFrom: { spaceId: data.fromSpaceId, questionId: data.id, rev: src.rev ?? 1, spaceName: fromSpace.get('name') ?? '' },
+    rev: 1,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  })
+  batch.set(toRef.collection('questionKeys').doc(newQ.id), {
+    answer: seeKey ? key.answer : [],
+    ignoreCase: key?.ignoreCase ?? true,
+    ignoreSpaces: key?.ignoreSpaces ?? false,
+    explanation: seeKey ? key.explanation ?? '' : '',
+    rubric: seeKey ? key.rubric ?? '' : '',
+    authorIds: [uid],
+    answerVisibility: 'authors',
+  })
+  await batch.commit()
+  return { id: newQ.id }
 }
 
 const canSeePage = (p: DocumentData, uid: string) =>

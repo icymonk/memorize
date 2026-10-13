@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { Member } from '~/features/space/services/invites'
 import type { Question, QuestionKey } from '~/features/tests/services/questions'
-import { PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { CopyIcon, PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
+import AttachmentList from '~/features/files/components/AttachmentList.vue'
 import { listMembers } from '~/features/space/services/invites'
 import QuestionFormDialog from '~/features/tests/components/QuestionFormDialog.vue'
 import { deleteQuestion, getQuestionKey, listQuestions } from '~/features/tests/services/questions'
+import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 
@@ -30,6 +32,11 @@ const loading = ref(true)
 const loadError = ref(false)
 const tab = ref<'mine' | 'shared'>('mine')
 const tagFilter = ref('')
+const subjectFilter = ref('')
+const subjects = computed(() => space.current?.subjects ?? [])
+const subjectName = computed(() => new Map(subjects.value.map(s => [s.id, s.name])))
+const copyOpen = ref(false)
+const copyId = ref('')
 const formOpen = ref(false)
 const editing = ref<Question | null>(null)
 const openId = ref<string | null>(null)
@@ -38,7 +45,7 @@ const keys = ref<Record<string, QuestionKey | null>>({})
 const names = computed(() => new Map(members.value.map(m => [m.uid, m.displayName])))
 const shown = computed(() => {
   const l = lists.value[tab.value]
-  return tagFilter.value ? l.filter(q => q.tags.includes(tagFilter.value)) : l
+  return l.filter(q => (!tagFilter.value || q.tags.includes(tagFilter.value)) && (!subjectFilter.value || q.subjectId === subjectFilter.value))
 })
 const tags = computed(() => [...new Set(lists.value[tab.value].flatMap(q => q.tags))].sort())
 
@@ -69,6 +76,11 @@ function answerText(q: Question, k: QuestionKey) {
   if (q.type === 'single' || q.type === 'multi') return k.answer.map(i => `${Number(i) + 1}. ${q.choices[Number(i)] ?? ''}`).join(', ')
   if (q.type === 'ox') return k.answer[0] ? 'O' : 'X'
   return k.answer.join(', ')
+}
+
+function copy(q: Question) {
+  copyId.value = q.id
+  copyOpen.value = true
 }
 
 function create() {
@@ -105,6 +117,10 @@ async function remove(q: Question) {
         <TabsTrigger v-for="k in (['mine', 'shared'] as const)" :key="k" :value="k">{{ t.tabs[k] }}</TabsTrigger>
       </TabsList>
     </Tabs>
+    <div v-if="subjects.length" class="flex flex-wrap gap-1">
+      <Button size="sm" class="h-7" :variant="!subjectFilter ? 'default' : 'outline'" @click="subjectFilter = ''">{{ t.allSubjects }}</Button>
+      <Button v-for="s in subjects" :key="s.id" size="sm" class="h-7" :variant="subjectFilter === s.id ? 'default' : 'outline'" @click="subjectFilter = s.id">{{ s.name }}</Button>
+    </div>
     <div v-if="tags.length" class="flex flex-wrap gap-1">
       <Button v-for="tg in tags" :key="tg" size="sm" class="h-7" :variant="tagFilter === tg ? 'default' : 'outline'" @click="tagFilter = tagFilter === tg ? '' : tg">
         #{{ tg }}
@@ -120,6 +136,8 @@ async function remove(q: Question) {
             <span class="line-clamp-2 text-sm whitespace-pre-line">{{ q.prompt }}</span>
             <span class="text-muted-foreground flex flex-wrap gap-x-2 text-xs">
               <span>{{ t.types[q.type] }}</span>
+              <span v-if="q.subjectId && subjectName.get(q.subjectId)">{{ subjectName.get(q.subjectId) }}</span>
+              <span v-if="q.copiedFrom">{{ t.copiedFrom(q.copiedFrom.spaceName) }}</span>
               <span>{{ t.difficulty[q.difficulty] }}</span>
               <span>{{ t.points(q.defaultPoints) }}</span>
               <span v-if="q.sharing === 'space' && tab === 'mine'">{{ t.sharedBadge }}</span>
@@ -127,6 +145,9 @@ async function remove(q: Question) {
               <span v-for="tg in q.tags" :key="tg">#{{ tg }}</span>
             </span>
           </button>
+          <Button v-if="space.spaces.length > 1" variant="ghost" size="icon" class="size-8" :aria-label="t.copy" :title="t.copy" @click="copy(q)">
+            <CopyIcon />
+          </Button>
           <template v-if="q.createdBy === uid">
             <Button variant="ghost" size="icon" class="size-8" :aria-label="t.edit" @click="edit(q)">
               <PencilIcon />
@@ -137,6 +158,7 @@ async function remove(q: Question) {
           </template>
         </div>
         <div v-if="openId === q.id" class="bg-muted/50 flex flex-col gap-1 rounded-md p-3 text-sm">
+          <AttachmentList v-if="q.media?.length" :files="q.media" />
           <ol v-if="q.choices.length" class="list-decimal pl-5">
             <li v-for="(c, i) in q.choices" :key="i">{{ c }}</li>
           </ol>
@@ -150,5 +172,6 @@ async function remove(q: Question) {
       </li>
     </ul>
     <QuestionFormDialog v-model:open="formOpen" :question="editing" @saved="load" />
+    <CopyDeckDialog v-model:open="copyOpen" kind="question" :from-space-id="sid" :content-id="copyId" />
   </div>
 </template>

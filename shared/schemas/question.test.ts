@@ -39,3 +39,14 @@ describe('gradeAnswer (TST-30)', () => {
     expect(gradeAnswer('essay', key([]), '글', 10)).toBeNull()
   })
 })
+
+describe('question media and subject', () => {
+  it('defaults to no subject and no media, caps media at 5', () => {
+    const q = questionInput.parse({ type: 'essay', prompt: '설명하시오' })
+    expect(q.subjectId).toBeNull()
+    expect(q.media).toEqual([])
+    const f = { id: 'f', name: 'a.mp3', path: 'p', contentType: 'audio/mpeg', size: 1 }
+    expect(questionInput.safeParse({ type: 'essay', prompt: 'x', media: Array.from({ length: 6 }, () => f) }).success).toBe(false)
+  })
+})
+

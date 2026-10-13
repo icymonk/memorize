@@ -5,14 +5,25 @@ export const QUESTION_TYPES = ['single', 'multi', 'ox', 'short', 'essay'] as con
 export type QuestionType = (typeof QUESTION_TYPES)[number]
 export const QUESTION_DIFFICULTY = ['easy', 'normal', 'hard'] as const
 export const CHOICES = { min: 2, max: 6 } as const
+export const MAX_MEDIA = 5
 
 const text = (max: number) => z.string().trim().max(max)
+
+const media = z.object({
+  id: z.string().min(1).max(128),
+  name: z.string().max(200),
+  path: z.string().min(1).max(500),
+  contentType: z.string().max(200),
+  size: z.number().int().min(0),
+})
 
 export const questionInput = z.object({
   type: z.enum(QUESTION_TYPES),
   prompt: text(2000).min(1),
   choices: z.array(text(300).min(1)).max(CHOICES.max).default([]),
   tags: z.array(text(20).min(1)).max(10).default([]),
+  subjectId: z.string().max(64).nullable().default(null),
+  media: z.array(media).max(MAX_MEDIA).default([]),
   difficulty: z.enum(QUESTION_DIFFICULTY).default('normal'),
   defaultPoints: z.number().int().min(1).max(100).default(10),
   sharing: z.enum(['private', 'space']).default('private'),

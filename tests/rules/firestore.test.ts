@@ -1095,5 +1095,11 @@ describe('question bank (3-A1, TST-01·07·08)', () => {
     await assertFails(deleteDoc(qRef('bob', 'q4')))
     await assertFails(save('lee', 'q9'))
   })
+
+  it('subject and up to 5 media files', async () => {
+    const f = { id: 'f1', name: 'a.png', path: `spaces/${SID}/files/bob/f1/a.png`, contentType: 'image/png', size: 10 }
+    await assertSucceeds(save('bob', 'q10', { subjectId: 's1', media: [f] }))
+    await assertFails(save('bob', 'q11', { media: Array.from({ length: 6 }, () => f) }))
+  })
 })
 

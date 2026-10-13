@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.16 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.17 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -307,13 +307,13 @@ spaces/{sid}/missions/{missionId}/peerReviews/{id}
 ```
 spaces/{sid}/questions/{questionId}
   type, subject: 'language'|'math'|'general', subjectId?
-  prompt: string, choices[], media?[]    # type: single|multi|ox|short|essay (3-A1 지문은 글자)
+  prompt: string, choices[], media[] (첨부, 최대 5)    # type: single|multi|ox|short|essay (3-A1 지문은 글자)
   tags[], unit?, difficulty, defaultPoints, hints?[]
   createdBy, collaboratorIds[]
   sharing: 'private' | 'space'            # TST-08 (기본 private)
   answerVisibility: 'authors' | 'space'   # TST-07 (기본 authors)
   setIds[]                                # 문제 묶음
-  copiedFrom?: { spaceId, questionId, rev }, rev
+  copiedFrom?: { spaceId, questionId, rev, spaceName }, rev   # 복사본은 정답을 볼 수 있던 경우만 정답 포함, 파일·과목 제외
   deletedAt?
 
 spaces/{sid}/questionKeys/{questionId}     # 정답 (규칙: authorIds 또는 공개 설정만 읽기)
@@ -430,3 +430,4 @@ users/{uid}/avatar/{fileName}
 - v2.14: cardStates `firstSeenAt`, studySessions `pairs` (VOC-23·40·44 1단계 마무리)
 - v2.15: 유의어·반의어 `cardId` 자동 연결 (VOC-10)
 - v2.16: 문제·정답 문서 형태 확정 (3-A1, TST-01·02)
+- v2.17: 문제 media·copiedFrom 형태 (3-A2, TST-01·40)
