@@ -4,12 +4,12 @@ import type { Card } from '~/features/vocab/services/cards'
 import { MATCH_PAIRS, shuffle } from '#shared/study'
 import { ko } from '~/locales/ko'
 
-const props = defineProps<{ cards: Card[] }>()
+const props = defineProps<{ cards: Card[], pairs?: number }>()
 const emit = defineEmits<{ done: [ModeResult] }>()
 const t = ko.vocab.study
 
 interface Tile { key: string, cardId: string, text: string }
-const picked = shuffle(props.cards).slice(0, MATCH_PAIRS.default)
+const picked = shuffle(props.cards).slice(0, props.pairs ?? MATCH_PAIRS.default)
 const tiles = shuffle(picked.flatMap<Tile>(c => [
   { key: `${c.id}:f`, cardId: c.id, text: c.front },
   { key: `${c.id}:b`, cardId: c.id, text: c.back[0]! },

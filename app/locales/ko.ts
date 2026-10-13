@@ -480,7 +480,7 @@ export const ko = {
       roundResult: (ok: number, n: number) => `이번 라운드 ${n}문제 중 ${ok}문제 맞혔어요.`,
       nextRound: '다음 라운드',
       result: { title: '학습 완료', cards: '카드 수', accuracy: '정답률', time: '걸린 시간', again: '다시 하기', back: '단어장으로' },
-      match: { ranking: '워크스페이스 순위', myBest: '내 최고 기록', noRanking: '아직 기록이 없어요.', newBest: '새 최고 기록이에요!', refresh: '순위 새로고침' },
+      match: { ranking: '워크스페이스 순위', myBest: '내 최고 기록', noRanking: '아직 기록이 없어요.', newBest: '새 최고 기록이에요!', refresh: '순위 새로고침', pairs: '쌍 수', rankedOnly: (n: number) => `순위에는 ${n}쌍 기록만 올라가요` },
       duration: (sec: number) => sec >= 60 ? `${Math.floor(sec / 60)}분 ${Math.round(sec % 60)}초` : `${(Math.round(sec * 10) / 10)}초`,
       saveFailed: '학습 기록을 저장하지 못했어요.',
     },

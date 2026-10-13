@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import type { ModeResult, ReviewItem } from '~/features/vocab/components/study/types'
 import { DAILY_LIMITS, endOfToday } from '#shared/srs'
+import { toast } from 'vue-sonner'
 import ReviewResult from '~/features/vocab/components/study/ReviewResult.vue'
 import ReviewSession from '~/features/vocab/components/study/ReviewSession.vue'
 import { attachCards, listAllDueStates } from '~/features/vocab/services/srs'
+import { recordSession } from '~/features/vocab/services/study'
 import { ko } from '~/locales/ko'
 
 definePageMeta({ layout: 'focus' })
@@ -14,17 +16,40 @@ const { $firestore } = useNuxtApp()
 const items = ref<ReviewItem[]>([])
 const loading = ref(true)
 const result = ref<ModeResult | null>(null)
+let startedAt = new Date()
 const home = computed(() => auth.account ? `/s/${auth.account.personalSpaceId}/decks` : '/')
 
 onMounted(async () => {
   try {
     await auth.ensureAccount()
     items.value = await attachCards($firestore, await listAllDueStates($firestore, auth.user!.uid, endOfToday(Date.now()), DAILY_LIMITS.reviewCards))
+    startedAt = new Date()
   }
   finally {
     loading.value = false
   }
 })
+
+/** VOC-32 전체 복습 결과도 공간별로 기록한다 (활동 피드·학습일지 요약) */
+async function onDone(r: ModeResult) {
+  result.value = r
+  const durationSec = (Date.now() - startedAt.getTime()) / 1000
+  const missed = new Set(r.missed ?? [])
+  const bySid = new Map<string, ReviewItem[]>()
+  for (const i of items.value) bySid.set(i.sid, [...(bySid.get(i.sid) ?? []), i])
+  try {
+    await Promise.all([...bySid].map(([sid, list]) => recordSession($firestore, sid, auth.user!.uid, {
+      mode: 'review',
+      cards: list.length,
+      correct: list.filter(i => !missed.has(i.card.id)).length,
+      durationSec: durationSec * list.length / items.value.length,
+      startedAt,
+    })))
+  }
+  catch {
+    toast.error(ko.vocab.study.saveFailed)
+  }
+}
 </script>
 
 <template>
@@ -45,5 +70,5 @@ onMounted(async () => {
       </NuxtLink>
     </Button>
   </div>
-  <ReviewSession v-else :items="items" :uid="auth.user!.uid" @done="result = $event" />
+  <ReviewSession v-else :items="items" :uid="auth.user!.uid" @done="onDone" />
 </template>

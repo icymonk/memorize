@@ -8,7 +8,7 @@ import { ko } from '~/locales/ko'
 import AnswerFeedback from './AnswerFeedback.vue'
 
 const props = defineProps<{ cards: Card[], resumeKey: string }>()
-const emit = defineEmits<{ done: [ModeResult] }>()
+const emit = defineEmits<{ done: [ModeResult], answer: [cardId: string, correct: boolean, fix?: boolean] }>()
 const t = ko.vocab.study
 
 interface State { order: string[], index: number, correct: number }
@@ -26,11 +26,13 @@ function check() {
   if (grade.value || !input.value.trim()) return
   grade.value = gradeAnswer(input.value, [card.value.front])
   if (grade.value !== 'wrong') state.value.correct++
+  emit('answer', card.value.id, grade.value !== 'wrong')
 }
 
 function override() {
   grade.value = 'exact'
   state.value.correct++
+  emit('answer', card.value.id, true, true)
 }
 
 function next() {

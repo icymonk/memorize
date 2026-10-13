@@ -36,7 +36,7 @@ function rate(rating: Rating) {
   }
   queue.value = rest
   revealed.value = false
-  if (!rest.length) emit('done', { cards: props.items.length, correct: props.items.length - missed.size })
+  if (!rest.length) emit('done', { cards: props.items.length, correct: props.items.length - missed.size, missed: [...missed] })
 }
 
 function onKey(e: KeyboardEvent) {
