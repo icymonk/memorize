@@ -616,3 +616,19 @@ describe('comments (CMN-20·22)', () => {
   })
 })
 
+
+describe('reactions (CMN-21)', () => {
+  it('one reaction per person per page, only for readers', async () => {
+    const seed = (path: string, data: object) => env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, path), data))
+    await seed('pages/p1', { type: 'page', ownerId: 'bob', root: 'shared', visibility: 'space', sharedWith: [], editorIds: [], ownerStatus: 'active', deletedAt: null })
+    await seed('pages/p2', { type: 'page', ownerId: 'bob', root: 'private', visibility: 'private', sharedWith: [], editorIds: [], ownerStatus: 'active', deletedAt: null })
+    const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'reactions', id)
+    const r = (uid: string, targetId = 'p1') => ({ targetType: 'page', targetId, uid, emoji: '👍' })
+    await assertSucceeds(setDoc(ref('mia', 'page_p1_mia'), r('mia')))
+    await assertFails(setDoc(ref('mia', 'page_p1_bob'), r('bob')))
+    await assertFails(setDoc(ref('mia', 'other'), r('mia')))
+    await assertFails(setDoc(ref('mia', 'page_p2_mia'), r('mia', 'p2')))
+    await assertFails(deleteDoc(ref('bob', 'page_p1_mia')))
+    await assertSucceeds(deleteDoc(ref('mia', 'page_p1_mia')))
+  })
+})

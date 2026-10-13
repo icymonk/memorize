@@ -254,6 +254,18 @@ service cloud.firestore {
         allow delete: if isMember(sid) && (resource.data.uid == uid() || isManager(sid)) && resource.data.kind == 'comment';
       }
 
+      // CMN-21 반응: 한 사람당 대상마다 하나 ({targetType}_{targetId}_{uid}). 대상(지금은 페이지)을 읽을 수 있는 사람만
+      match /reactions/{id} {
+        function rTarget(r) { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(r.targetId)).data; }
+        function readsR(r) { return r.targetType == 'page' && (rTarget(r).ownerId == uid() || seesPage(rTarget(r))); }
+        allow read: if isMember(sid) && readsR(resource.data);
+        allow create, update: if isMember(sid) && request.resource.data.uid == uid() && readsR(request.resource.data)
+          && id == request.resource.data.targetType + '_' + request.resource.data.targetId + '_' + uid()
+          && request.resource.data.keys().hasOnly(['targetType', 'targetId', 'uid', 'emoji'])
+          && isText(request.resource.data.emoji, 1, 16);
+        allow delete: if isMember(sid) && resource.data.uid == uid();
+      }
+
       // NOTE-21 즐겨찾기·최근 본 페이지: 나만 읽고 쓴다
       match /userPrefs/{userId} {
         allow read: if isMember(sid) && userId == uid();
