@@ -1,4 +1,17 @@
 export const ko = {
+  former: {
+    title: '이전 워크스페이스 기록',
+    hint: '나가거나 내보내진 워크스페이스에서 내가 쓴 노트·학습일지·독후감을 읽기 전용으로 보고 내려받을 수 있어요.',
+    open: '기록 보기',
+    empty: '이전 워크스페이스 기록이 없어요.',
+    noPages: '이 워크스페이스에 쓴 글이 없어요.',
+    leftAt: (date: string) => `${date}에 나옴`,
+    untitled: '제목 없음',
+    readOnly: '이전 워크스페이스의 글이라 읽기만 할 수 있어요.',
+    download: '내려받기 (.md)',
+    notFound: '글을 찾을 수 없어요.',
+    types: { page: '노트', item: '모음 항목', journal: '학습일지', bookReview: '독후감' },
+  },
   personalHome: {
     todo: '오늘 할 일',
     todoEmpty: '오늘 할 미션이 없어요',
@@ -115,6 +128,7 @@ export const ko = {
     },
     record: {
       title: '나의 기록',
+      allTitle: '나의 기록 · 모든 공간',
       summary: (streak: number, minutes: number) => `연속 학습 ${streak}일 · 이번 주 ${minutes}분`,
       grass: (weeks: number) => `최근 ${weeks}주 학습 잔디`,
       minutes: '분',

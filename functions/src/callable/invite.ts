@@ -131,7 +131,7 @@ export const joinSpace = authedCallable(inviteCodeInput, async ({ uid, data }): 
     tx.update(invite.ref, { uses: FieldValue.increment(1), updatedAt: now })
     if (!pending) {
       tx.update(spaceRef, { memberCount: FieldValue.increment(1), updatedAt: now })
-      tx.update(userRef, { spaceIds: FieldValue.arrayUnion(spaceRef.id), updatedAt: now })
+      tx.update(userRef, { spaceIds: FieldValue.arrayUnion(spaceRef.id), [`formerSpaces.${spaceRef.id}`]: FieldValue.delete(), updatedAt: now })
     }
     return { spaceId: spaceRef.id, status: pending ? 'pending' : 'active' }
   })
@@ -159,7 +159,7 @@ export const decideJoinRequest = authedCallable(decideJoinRequestInput, async ({
     const now = FieldValue.serverTimestamp()
     tx.update(targetRef, { status: 'active', joinedAt: now, updatedAt: now })
     tx.update(spaceRef, { memberCount: FieldValue.increment(1), updatedAt: now })
-    tx.update(db.doc(`users/${data.uid}`), { spaceIds: FieldValue.arrayUnion(spaceRef.id), updatedAt: now })
+    tx.update(db.doc(`users/${data.uid}`), { spaceIds: FieldValue.arrayUnion(spaceRef.id), [`formerSpaces.${spaceRef.id}`]: FieldValue.delete(), updatedAt: now })
   })
   // WS-13: 신청자에게 결과 알림 (거절이면 멤버 문서가 없으니 알림함에 바로 쓴다)
   const name = (await spaceRef.get()).get('name') ?? ''

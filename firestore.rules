@@ -6,6 +6,7 @@ service cloud.firestore {
     function uid() { return request.auth.uid; }
     function memberPath(sid) { return /databases/$(database)/documents/spaces/$(sid)/members/$(uid()); }
     function isMember(sid) { return signedIn() && exists(memberPath(sid)) && get(memberPath(sid)).data.status == 'active'; }
+    function formerMember(sid) { return signedIn() && exists(memberPath(sid)) && get(memberPath(sid)).data.status in ['left', 'removed']; }
     function isManager(sid) { return isMember(sid) && get(memberPath(sid)).data.access in ['owner', 'manager']; }
     function onlyChanges(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
     function space(sid) { return get(/databases/$(database)/documents/spaces/$(sid)).data; }
@@ -354,7 +355,9 @@ service cloud.firestore {
         }
         // 휴지통의 페이지는 작성자·버린 사람만 본다 (NOTE-22). 옮기기·휴지통은 서버(movePage·trashPage·restorePage)
         allow read: if isMember(sid) && (pg().ownerId == uid() || pg().get('deletedBy', '') == uid()
-          || seesPage(pg()));
+          || seesPage(pg()))
+          // ACC-32: 나가거나 내보내진 사람은 거기 쓴 자기 글을 읽기만 한다
+          || (formerMember(sid) && pg().ownerId == uid() && pg().deletedAt == null);
         // NOTE-30·REV-01: 학습일지·독후감은 모든 멤버가 쓰고, 남은 고칠 수 없게(editPolicy: editors) 만든다
         allow create: if isMember(sid)
           && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || np().type in ['journal', 'bookReview'])
@@ -457,7 +460,7 @@ service cloud.firestore {
           return isText(b.type, 1, 40) && (b.parentBlockId == null || b.parentBlockId is string) && isText(b.order, 1, 256)
             && b.attrs is map && b.content is list && b.rev is int && b.updatedBy == uid() && b.updatedAt == request.time;
         }
-        allow read: if isMember(sid) && seePage(page());
+        allow read: if (isMember(sid) && seePage(page())) || (formerMember(sid) && page().ownerId == uid() && page().deletedAt == null);
         allow create, update: if isMember(sid) && seePage(page()) && editPage(page()) && validBlock(request.resource.data);
         allow delete: if isMember(sid) && seePage(page()) && editPage(page());
       }

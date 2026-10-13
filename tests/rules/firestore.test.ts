@@ -989,3 +989,24 @@ describe('quotes (2-C4, READ-30·31)', () => {
   })
 })
 
+describe('former workspace records (ACC-32)', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      const page = { type: 'page', root: 'shared', visibility: 'space', deletedAt: null, editorIds: [] }
+      await setDoc(doc(d, 'spaces', SID, 'pages', 'lp'), { ...page, title: '내 노트', ownerId: 'lee', ownerStatus: 'left' })
+      await setDoc(doc(d, 'spaces', SID, 'pages', 'lp', 'blocks', 'b1'), { type: 'paragraph', order: 'a0', content: [] })
+      await setDoc(doc(d, 'spaces', SID, 'pages', 'ap'), { ...page, title: '남의 노트', ownerId: 'alice', ownerStatus: 'active' })
+    })
+  })
+
+  it('a member who left reads only their own pages there, and cannot edit them', async () => {
+    const d = db('lee')
+    await assertSucceeds(getDoc(doc(d, 'spaces', SID, 'pages', 'lp')))
+    await assertSucceeds(getDocs(collection(d, 'spaces', SID, 'pages', 'lp', 'blocks')))
+    await assertSucceeds(getDocs(query(collection(d, 'spaces', SID, 'pages'), where('ownerId', '==', 'lee'), where('deletedAt', '==', null))))
+    await assertFails(getDoc(doc(d, 'spaces', SID, 'pages', 'ap')))
+    await assertFails(updateDoc(doc(d, 'spaces', SID, 'pages', 'lp'), { title: '고침' }))
+    await assertFails(getDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp')))
+  })
+})

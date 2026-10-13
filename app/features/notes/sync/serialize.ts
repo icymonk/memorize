@@ -97,3 +97,31 @@ export function pageStats(blocks: FlatBlock[]) {
     textLength: texts.reduce((n, t) => n + t.length, 0),
   }
 }
+
+/** ACC-32 내려받기: 블록을 마크다운으로. 자식 블록은 두 칸 들여쓴다 */
+export function blocksToMarkdown(blocks: StoredBlock[]): string {
+  const lines: string[] = []
+  const text = (content?: JSONContent[]) => blockText({ content: content ?? [] })
+  const walk = (nodes: JSONContent[], depth: number) => {
+    const pad = '  '.repeat(depth)
+    for (const n of nodes) {
+      const a = (n.attrs ?? {}) as Record<string, unknown>
+      if (LIST_TYPES.has(n.type!)) {
+        const [line, ...children] = n.content ?? []
+        const mark = n.type === 'numberedItem' ? '1.' : n.type === 'todoItem' ? (a.checked ? '- [x]' : '- [ ]') : '-'
+        lines.push(`${pad}${mark} ${text(line?.content)}`)
+        walk(children, depth + 1)
+        continue
+      }
+      const t = text(n.content)
+      if (n.type === 'heading') lines.push(`${pad}${'#'.repeat(Number(a.level) || 1)} ${t}`)
+      else if (n.type === 'blockquote' || n.type === 'callout') lines.push(`${pad}> ${t}`)
+      else if (n.type === 'codeBlock') lines.push(`${pad}\`\`\``, ...t.split('\n').map(l => pad + l), `${pad}\`\`\``)
+      else if (n.type === 'horizontalRule') lines.push(`${pad}---`)
+      else if (n.type === 'video') lines.push(`${pad}${String(a.src ?? '')}`)
+      else lines.push(`${pad}${t}`)
+    }
+  }
+  walk(fromBlocks(blocks).content ?? [], 0)
+  return `${lines.join('\n').trim()}\n`
+}
