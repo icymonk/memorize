@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import type { QuestionType } from '#shared/schemas/question'
 import type { Question } from '../services/questions'
-import { CHOICES, keyFits, QUESTION_DIFFICULTY, QUESTION_TYPES, questionInput, questionKeyInput } from '#shared/schemas/question'
-import { PlusIcon, XIcon } from '@lucide/vue'
+import type { Attachment } from '#shared/schemas/upload'
+import { CHOICES, keyFits, MAX_MEDIA, QUESTION_DIFFICULTY, QUESTION_TYPES, questionInput, questionKeyInput } from '#shared/schemas/question'
+import { PaperclipIcon, PlusIcon, XIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
+import AttachmentList from '~/features/files/components/AttachmentList.vue'
+import { uploadFile } from '~/features/files/services/uploads'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 import { getQuestionKey, saveQuestion } from '../services/questions'
@@ -17,7 +20,8 @@ const t = ko.tests
 const f = t.fields
 const space = useSpaceStore()
 const auth = useAuthStore()
-const { $firestore } = useNuxtApp()
+const { $firestore, $storage, $functions } = useNuxtApp()
+const subjects = computed(() => space.current?.subjects ?? [])
 const personal = computed(() => space.current?.kind === 'personal')
 
 const empty = () => ({
@@ -32,6 +36,8 @@ const empty = () => ({
   rubric: '',
   explanation: '',
   tags: '',
+  subjectId: null as string | null,
+  media: [] as Attachment[],
   difficulty: 'normal' as (typeof QUESTION_DIFFICULTY)[number],
   points: 10,
   share: false,
@@ -61,6 +67,8 @@ watch(open, async (v) => {
     rubric: k?.rubric ?? '',
     explanation: k?.explanation ?? '',
     tags: q.tags.join(', '),
+    subjectId: q.subjectId ?? null,
+    media: [...(q.media ?? [])],
     difficulty: q.difficulty,
     points: q.defaultPoints,
     share: q.sharing === 'space',
@@ -77,6 +85,23 @@ function removeChoice(i: number) {
   form.value.choices.splice(i, 1)
   form.value.correct = form.value.correct.filter(x => x !== i).map(x => x > i ? x - 1 : x)
 }
+const uploading = ref(false)
+async function addMedia(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = [...(input.files ?? [])].slice(0, MAX_MEDIA - form.value.media.length)
+  input.value = ''
+  uploading.value = true
+  try {
+    for (const file of files) form.value.media.push(await uploadFile({ db: $firestore, storage: $storage, functions: $functions }, space.current!.id, auth.user!.uid, file))
+  }
+  catch (err) {
+    toast.error(errorMessage(err) ?? (err as Error).message ?? ko.errors.unknown)
+  }
+  finally {
+    uploading.value = false
+  }
+}
+
 const list = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
 
 async function submit() {
@@ -86,6 +111,8 @@ async function submit() {
     prompt: v.prompt,
     choices: isChoice.value ? v.choices.map(c => c.trim()) : [],
     tags: [...new Set(list(v.tags))],
+    subjectId: subjects.value.some(s => s.id === v.subjectId) ? v.subjectId : null,
+    media: v.media,
     difficulty: v.difficulty,
     defaultPoints: Number(v.points),
     sharing: !personal.value && v.share ? 'space' : 'private',
@@ -135,6 +162,14 @@ async function submit() {
         <div class="flex flex-col gap-2">
           <Label for="q-prompt">{{ f.prompt }}</Label>
           <Textarea id="q-prompt" v-model="form.prompt" rows="3" />
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label>{{ t.media }}</Label>
+          <AttachmentList :files="form.media" removable @remove="id => form.media = form.media.filter(m => m.id !== id)" />
+          <label v-if="form.media.length < MAX_MEDIA" class="hover:bg-muted/60 inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm">
+            <PaperclipIcon class="size-4" /> {{ uploading ? t.uploading : t.addMedia }}
+            <input type="file" accept="image/*,audio/*" multiple class="hidden" :disabled="uploading" @change="addMedia">
+          </label>
         </div>
         <div v-if="isChoice" class="flex flex-col gap-2">
           <Label>{{ f.choices }} · {{ f.correct }}</Label>
@@ -188,6 +223,13 @@ async function submit() {
             </div>
           </div>
         </div>
+        <div v-if="subjects.length" class="flex flex-col gap-2">
+          <Label>{{ t.subject }}</Label>
+          <div class="flex flex-wrap gap-1">
+            <Button type="button" size="sm" :variant="!form.subjectId ? 'default' : 'outline'" @click="form.subjectId = null">{{ t.noSubject }}</Button>
+            <Button v-for="s in subjects" :key="s.id" type="button" size="sm" :variant="form.subjectId === s.id ? 'default' : 'outline'" @click="form.subjectId = s.id">{{ s.name }}</Button>
+          </div>
+        </div>
         <div class="flex flex-col gap-2">
           <Label for="q-tags">{{ f.tags }}</Label>
           <Input id="q-tags" v-model="form.tags" />
@@ -203,7 +245,7 @@ async function submit() {
           </label>
         </template>
         <DialogFooter>
-          <Button type="submit" :disabled="saving">{{ ko.dialog.ok }}</Button>
+          <Button type="submit" :disabled="saving || uploading">{{ ko.dialog.ok }}</Button>
         </DialogFooter>
       </form>
     </DialogContent>

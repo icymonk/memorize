@@ -255,9 +255,10 @@ service cloud.firestore {
       // 3-A1 문제 은행 (TST-01·02·04·07·08). 정답은 questionKeys에 따로 두고 출제자(+공개 설정 시 멤버)만 읽는다
       match /questions/{qid} {
         function validQ(x) {
-          return x.keys().hasOnly(['type', 'prompt', 'choices', 'tags', 'difficulty', 'defaultPoints', 'createdBy', 'sharing', 'answerVisibility', 'rev', 'deletedAt', 'createdAt', 'updatedAt'])
+          return x.keys().hasOnly(['type', 'prompt', 'choices', 'tags', 'subjectId', 'media', 'copiedFrom', 'difficulty', 'defaultPoints', 'createdBy', 'sharing', 'answerVisibility', 'rev', 'deletedAt', 'createdAt', 'updatedAt'])
             && x.type in ['single', 'multi', 'ox', 'short', 'essay'] && isText(x.prompt, 1, 2000)
             && x.choices is list && x.choices.size() <= 6 && x.tags is list && x.tags.size() <= 10
+            && (!('media' in x) || (x.media is list && x.media.size() <= 5))
             && x.difficulty in ['easy', 'normal', 'hard'] && x.defaultPoints is int && x.defaultPoints >= 1 && x.defaultPoints <= 100
             && x.sharing in ['private', 'space'] && x.answerVisibility in ['authors', 'space'] && x.rev is int;
         }

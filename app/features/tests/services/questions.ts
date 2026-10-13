@@ -3,6 +3,7 @@ import type { Firestore, Timestamp } from 'firebase/firestore'
 import { collection, doc, getDoc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore'
 
 export interface Question extends QuestionInput {
+  copiedFrom?: { spaceId: string, questionId: string, rev: number, spaceName: string }
   id: string
   createdBy: string
   rev: number

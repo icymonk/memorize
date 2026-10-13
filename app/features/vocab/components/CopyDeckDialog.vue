@@ -6,14 +6,14 @@ import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
 
-/** VOC-04, NOTE-27, WS-60~64: 단어장·페이지·모음을 다른 공간으로 복사 */
+/** VOC-04, NOTE-27, TST-40, WS-60~64: 단어장·페이지·모음·문제를 다른 공간으로 복사 */
 const props = withDefaults(defineProps<{ fromSpaceId: string, contentId: string, kind?: CopyKind }>(), { kind: 'deck' })
 const open = defineModel<boolean>('open', { default: false })
 const t = ko.vocab.copy
 const n = ko.notes.copy
-const title = computed(() => ({ deck: t.title, page: n.pageTitle, collection: n.collectionTitle })[props.kind])
-const description = computed(() => ({ deck: t.description, page: n.pageDescription, collection: n.collectionDescription })[props.kind])
-const PATH = { deck: 'decks', page: 'notes', collection: 'collections' } as const
+const title = computed(() => ({ deck: t.title, page: n.pageTitle, collection: n.collectionTitle, question: ko.tests.copyTitle })[props.kind])
+const description = computed(() => ({ deck: t.description, page: n.pageDescription, collection: n.collectionDescription, question: ko.tests.copyDescription })[props.kind])
+const PATH = { deck: 'decks', page: 'notes', collection: 'collections', question: 'questions' } as const
 const space = useSpaceStore()
 const { $functions } = useNuxtApp()
 const targets = computed(() => space.spaces.filter(s => s.id !== props.fromSpaceId && !s.deleteScheduledAt))
@@ -31,7 +31,7 @@ async function submit() {
     const { id } = await callFn($functions, 'copyContent', { kind: props.kind, fromSpaceId: props.fromSpaceId, id: props.contentId, toSpaceId: target.value })
     toast.success(t.done)
     open.value = false
-    await navigateTo(`/s/${target.value}/${PATH[props.kind]}/${id}`)
+    await navigateTo(props.kind === 'question' ? `/s/${target.value}/questions` : `/s/${target.value}/${PATH[props.kind]}/${id}`)
   }
   catch (error) {
     toast.error(errorMessage(error) ?? ko.errors.unknown)
