@@ -5,12 +5,13 @@ import { dateKey } from '#shared/dates'
 import { ArrowLeftIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import MissionFormDialog from '~/features/missions/components/MissionFormDialog.vue'
+import MissionParticipation from '~/features/missions/components/MissionParticipation.vue'
 import { deleteMission, getMission, isFinished, setMissionClosed } from '~/features/missions/services/missions'
 import { listMembers } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 
-/** 미션 상세: 설명·일정·대상, 진행자는 수정·조기 종료 (MIS-34). 제출·현황판은 2-E2·E3 */
+/** 미션 상세: 설명·일정·대상, 진행자는 수정·조기 종료 (MIS-34). 현황판·검토는 2-E3 */
 const t = ko.missions
 const route = useRoute()
 const space = useSpaceStore()
@@ -149,6 +150,8 @@ async function remove() {
         </dt>
         <dd>{{ names(mission.participantIds) || '-' }}</dd>
       </dl>
+
+      <MissionParticipation :sid="sid" :mission="mission" :today="today" @changed="load" />
 
       <MissionFormDialog
         v-model:open="editOpen" :mission="mission" :members="members" :personal="mission.isPersonal" :today="today"

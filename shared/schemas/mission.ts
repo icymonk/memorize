@@ -60,3 +60,29 @@ export function participantsOf(m: Pick<MissionInput, 'isPersonal' | 'assignees' 
   const base = m.assignees.all ? activeMembers.filter(u => u !== host) : m.assignees.uids.filter(u => u !== host)
   return [...new Set([...base, ...(m.includeSelf ? [host] : [])])]
 }
+
+/** MIS-22: 제출 (글 + 내 노트 선택). 파일·사진 첨부는 업로드 기능과 함께 */
+export const SUBMISSION_STATUS = ['submitted', 'approved', 'rejected', 'done'] as const
+export type SubmissionStatus = typeof SUBMISSION_STATUS[number]
+
+export const submissionInput = z.object({
+  content: z.string().trim().max(5000).default(''),
+  pageId: z.string().min(1).max(128).nullable().default(null),
+})
+export type SubmissionInput = z.infer<typeof submissionInput>
+
+export const submissionId = (uid: string, period: string) => `${uid}_${period}`
+
+/** 체크형은 바로 완료. 제출형은 검토할 사람(진행자·리뷰어 − 본인)이 없으면 바로 완료 (MIS-32) */
+export function initialStatus(type: MissionInput['type'], reviewers: string[]): SubmissionStatus {
+  return type === 'check' || reviewers.length === 0 ? 'done' : 'submitted'
+}
+
+/** 진행자·리뷰어 중 본인을 뺀 검토자 */
+export const reviewersFor = (m: { hostIds: string[], reviewerIds: string[] }, uid: string) => [...new Set([...m.hostIds, ...m.reviewerIds])].filter(u => u !== uid)
+
+/** MIS-23: 회차 날짜(한 번짜리는 마감일)가 지났으면 늦음 */
+export function isLate(m: Pick<MissionInput, 'recurrence' | 'endDate'>, period: string, today: string): boolean {
+  const due = period === 'once' ? m.endDate : period
+  return !!due && today > due
+}
