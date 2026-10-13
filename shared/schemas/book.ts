@@ -66,3 +66,11 @@ export const shelfInput = z.object({
   status: z.enum(SHELF_STATUS).default('want'),
 })
 export type ShelfInput = z.infer<typeof shelfInput>
+
+/** READ-11: 상태를 바꾸면 처음 읽기 시작한 날·다 읽은 날을 채운다 */
+export function statusPatch(b: { startedAt?: string | null, finishedAt?: string | null }, status: ShelfStatus, today: string) {
+  const patch: { status: ShelfStatus, startedAt?: string, finishedAt?: string } = { status }
+  if ((status === 'reading' || status === 'done') && !b.startedAt) patch.startedAt = today
+  if (status === 'done') patch.finishedAt = b.finishedAt ?? today
+  return patch
+}

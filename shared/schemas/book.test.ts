@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bookKey, pickIsbn13, shelfInput } from './book'
+import { bookKey, pickIsbn13, shelfInput, statusPatch } from './book'
 
 describe('books (READ-01~03)', () => {
   it('picks ISBN-13 and converts ISBN-10', () => {
@@ -20,5 +20,11 @@ describe('books (READ-01~03)', () => {
     expect(shelfInput.safeParse({ title: 'a', cover: 'http://x' }).success).toBe(false)
     expect(shelfInput.safeParse({ title: 'a', total: { pages: 0, minutes: null } }).success).toBe(false)
     expect(shelfInput.parse({ title: 'a' })).toMatchObject({ format: 'paper', status: 'want', authors: [] })
+  })
+  it('fills start and finish dates when status changes (READ-11)', () => {
+    expect(statusPatch({}, 'reading', '2026-10-12')).toEqual({ status: 'reading', startedAt: '2026-10-12' })
+    expect(statusPatch({ startedAt: '2026-10-01' }, 'done', '2026-10-12')).toEqual({ status: 'done', finishedAt: '2026-10-12' })
+    expect(statusPatch({ startedAt: '2026-10-01', finishedAt: '2026-10-05' }, 'done', '2026-10-12')).toEqual({ status: 'done', finishedAt: '2026-10-05' })
+    expect(statusPatch({}, 'want', '2026-10-12')).toEqual({ status: 'want' })
   })
 })
