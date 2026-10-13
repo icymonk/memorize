@@ -28,3 +28,17 @@ describe('participants (MIS-12·14)', () => {
     expect(participantsOf({ ...base, includeSelf: true, assignees: { all: false, uids: ['b'] } }, 'h', ['h', 'a', 'b'])).toEqual(['b', 'h'])
   })
 })
+
+describe('submissions (MIS-22·23·32)', () => {
+  it('check missions and submissions without anyone to review finish at once', async () => {
+    const { initialStatus, isLate, reviewersFor, submissionId } = await import('./mission')
+    expect(reviewersFor({ hostIds: ['h', 'a'], reviewerIds: ['r', 'h'] }, 'h')).toEqual(['a', 'r'])
+    expect(initialStatus('check', ['h'])).toBe('done')
+    expect(initialStatus('submission', [])).toBe('done')
+    expect(initialStatus('submission', ['h'])).toBe('submitted')
+    expect(isLate({ ...base, endDate: '2026-10-14' }, 'once', '2026-10-15')).toBe(true)
+    expect(isLate(base, 'once', '2030-01-01')).toBe(false)
+    expect(isLate(base, '2026-10-12', '2026-10-12')).toBe(false)
+    expect(submissionId('u', 'once')).toBe('u_once')
+  })
+})

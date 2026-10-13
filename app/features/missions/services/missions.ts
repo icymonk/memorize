@@ -1,7 +1,7 @@
-import type { MissionInput } from '#shared/schemas/mission'
+import type { MissionInput, SubmissionInput, SubmissionStatus } from '#shared/schemas/mission'
 import type { Firestore, Timestamp } from 'firebase/firestore'
-import { participantsOf } from '#shared/schemas/mission'
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import { initialStatus, isLate, participantsOf, reviewersFor, submissionId } from '#shared/schemas/mission'
+import { addDoc, arrayUnion, collection, deleteDoc, deleteField, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 
 export interface Mission extends Omit<MissionInput, 'coHostIds'> {
   id: string
@@ -65,3 +65,56 @@ export async function deleteMission(db: Firestore, sid: string, id: string) {
 
 /** 마감이 지났거나 종료된 미션 */
 export const isFinished = (m: Pick<Mission, 'closedAt' | 'endDate'>, today: string) => !!m.closedAt || (!!m.endDate && m.endDate < today)
+
+export interface Submission {
+  id: string
+  uid: string
+  periodKey: string
+  status: SubmissionStatus
+  content: string
+  pageId: string | null
+  late: boolean
+  reviewerUids: string[]
+  reason?: string
+  submittedAt?: Timestamp
+}
+
+const subsOf = (db: Firestore, sid: string, mid: string) => collection(db, 'spaces', sid, 'missions', mid, 'submissions')
+
+/** 내 제출 전부 (회차별) */
+export async function listMySubmissions(db: Firestore, sid: string, mid: string, uid: string): Promise<Submission[]> {
+  const snap = await getDocs(query(subsOf(db, sid, mid), where('uid', '==', uid)))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as Submission)
+}
+
+/** MIS-01·22·23·32: 완료 체크 또는 제출. 반려된 회차는 같은 문서로 다시 제출. 노트를 내면 진행자·리뷰어가 볼 수 있게 피드백 요청자에 더한다 */
+export async function submit(db: Firestore, sid: string, m: Mission, uid: string, period: string, today: string, input: SubmissionInput = { content: '', pageId: null }) {
+  const reviewerUids = reviewersFor(m, uid)
+  const ref = doc(subsOf(db, sid, m.id), submissionId(uid, period))
+  await setDoc(ref, {
+    uid,
+    periodKey: period,
+    status: initialStatus(m.type, reviewerUids),
+    content: input.content,
+    pageId: input.pageId,
+    late: isLate(m, period, today),
+    reviewerUids,
+    submittedAt: serverTimestamp(),
+    reason: deleteField(),
+  }, { merge: true })
+  if (input.pageId && reviewerUids.length) {
+    await updateDoc(doc(db, 'spaces', sid, 'pages', input.pageId), { reviewerIds: arrayUnion(...reviewerUids), updatedAt: serverTimestamp() })
+  }
+}
+
+/** 체크 취소 / 검토 전 제출 회수 */
+export async function withdraw(db: Firestore, sid: string, mid: string, uid: string, period: string) {
+  await deleteDoc(doc(subsOf(db, sid, mid), submissionId(uid, period)))
+}
+
+/** MIS-21 참여하기 / MIS-24 그만두기 (열린 미션) */
+export async function setJoined(db: Firestore, sid: string, m: Mission, uid: string, joined: boolean) {
+  await updateDoc(doc(missionsOf(db, sid), m.id), {
+    participantIds: joined ? [...m.participantIds, uid] : m.participantIds.filter(u => u !== uid),
+  })
+}

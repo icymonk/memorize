@@ -769,3 +769,47 @@ describe('missions (2-E1, MIS-10~12·14·34)', () => {
     await assertSucceeds(getDoc(ref('alice', 'm1')))
   })
 })
+
+describe('mission join and submissions (2-E2, MIS-21~24·32)', () => {
+  const base = {
+    title: '독후감', description: '', type: 'submission', recurrence: { kind: 'once', weekdays: [] }, startDate: '2026-10-12', endDate: null,
+    allowLate: false, assignees: { all: false, uids: ['alice'] }, includeSelf: false, joinable: true, isPersonal: false, notifyOnComplete: 'feed',
+    reviewerIds: ['mia'], hostIds: ['bob'], participantIds: ['alice'], createdBy: 'bob', closedAt: null,
+  }
+  const mref = (uid: string) => doc(db(uid), 'spaces', SID, 'missions', 'm1')
+  const sref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'missions', 'm1', 'submissions', id)
+  const sub = (over: object = {}) => ({ uid: 'alice', periodKey: 'once', status: 'submitted', content: '재밌었다', pageId: null, late: false, reviewerUids: ['bob', 'mia'], submittedAt: serverTimestamp(), ...over })
+  const seed = (over: object = {}) => env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'missions', 'm1'), { ...base, ...over }))
+
+  it('members join or leave open missions only for themselves', async () => {
+    await seed()
+    await assertFails(updateDoc(mref('mia'), { participantIds: ['alice', 'bob'] }))
+    await assertFails(updateDoc(mref('mia'), { participantIds: ['alice', 'mia'], title: 'x' }))
+    await assertSucceeds(updateDoc(mref('mia'), { participantIds: ['alice', 'mia'] }))
+    await assertSucceeds(updateDoc(mref('mia'), { participantIds: ['alice'] }))
+    await seed({ joinable: false })
+    await assertFails(updateDoc(mref('mia'), { participantIds: ['alice', 'mia'] }))
+  })
+
+  it('participants submit their own period; reviewers are hosts and reviewers minus the submitter', async () => {
+    await seed()
+    await assertSucceeds(setDoc(sref('alice', 'alice_once'), sub()))
+    await assertFails(setDoc(sref('alice', 'alice_x'), sub({ periodKey: 'once' })))
+    await assertFails(setDoc(sref('mia', 'mia_once'), sub({ uid: 'mia' })))
+    await assertFails(setDoc(sref('alice', 'alice_once'), sub({ status: 'approved' })))
+    await assertFails(setDoc(sref('alice', 'alice_once'), sub({ reviewerUids: ['bob'] })))
+    await assertFails(setDoc(sref('alice', 'alice_once'), sub({ late: true })))
+    await assertSucceeds(getDoc(sref('mia', 'alice_once')))
+    await assertSucceeds(getDoc(sref('bob', 'alice_once')))
+    await assertFails(getDoc(sref('lee', 'alice_once')))
+    await assertSucceeds(deleteDoc(sref('alice', 'alice_once')))
+  })
+
+  it('check missions are done at once; nothing is submitted after the mission closes', async () => {
+    await seed({ type: 'check' })
+    await assertFails(setDoc(sref('alice', 'alice_once'), sub()))
+    await assertSucceeds(setDoc(sref('alice', 'alice_once'), sub({ status: 'done' })))
+    await seed({ closedAt: serverTimestamp() })
+    await assertFails(setDoc(sref('alice', 'alice_once'), sub()))
+  })
+})
