@@ -4,6 +4,7 @@ import CollectionFormDialog from '~/features/notes/components/CollectionFormDial
 import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
 import JoinWithCodeDialog from '~/features/space/components/JoinWithCodeDialog.vue'
+import NotificationBell from '~/features/notifications/components/NotificationBell.vue'
 import SpaceSwitcher from '~/features/space/components/SpaceSwitcher.vue'
 import { ko } from '~/locales/ko'
 
@@ -148,6 +149,7 @@ watch(() => auth.account, (account) => {
     </SidebarContent>
 
     <SidebarFooter>
+      <NotificationBell />
       <AppUserMenu />
     </SidebarFooter>
     <SidebarRail />

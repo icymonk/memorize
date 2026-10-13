@@ -1,4 +1,11 @@
 export const ko = {
+  notifications: {
+    title: '알림',
+    empty: '새 알림이 없어요.',
+    markAll: '모두 읽음',
+    remove: '삭제',
+    unread: (n: number) => `읽지 않은 알림 ${n}개`,
+  },
   app: {
     name: 'memorize',
     tagline: '함께 배우고, 만들고, 이끄는 그룹 학습 공간',
