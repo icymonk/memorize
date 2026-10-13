@@ -9,6 +9,20 @@
     ],
     "rewrites": [
       {
+        "source": "/fn/registerUpload",
+        "function": {
+          "functionId": "registerUpload",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/deleteUpload",
+        "function": {
+          "functionId": "deleteUpload",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/searchBooks",
         "function": {
           "functionId": "searchBooks",

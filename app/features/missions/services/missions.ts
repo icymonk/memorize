@@ -1,3 +1,4 @@
+import type { Attachment } from '#shared/schemas/upload'
 import type { MissionInput, SubmissionInput, SubmissionStatus } from '#shared/schemas/mission'
 import type { Firestore, Timestamp } from 'firebase/firestore'
 import { initialStatus, isLate, participantsOf, reviewersFor, submissionId } from '#shared/schemas/mission'
@@ -73,6 +74,7 @@ export interface Submission {
   status: SubmissionStatus
   content: string
   pageId: string | null
+  attachments?: Attachment[]
   late: boolean
   reviewerUids: string[]
   reason?: string
@@ -88,7 +90,7 @@ export async function listMySubmissions(db: Firestore, sid: string, mid: string,
 }
 
 /** MIS-01·22·23·32: 완료 체크 또는 제출. 반려된 회차는 같은 문서로 다시 제출. 노트를 내면 진행자·리뷰어가 볼 수 있게 피드백 요청자에 더한다 */
-export async function submit(db: Firestore, sid: string, m: Mission, uid: string, period: string, today: string, input: SubmissionInput = { content: '', pageId: null }) {
+export async function submit(db: Firestore, sid: string, m: Mission, uid: string, period: string, today: string, input: SubmissionInput & { attachments?: Attachment[] } = { content: '', pageId: null }) {
   const reviewerUids = reviewersFor(m, uid)
   const ref = doc(subsOf(db, sid, m.id), submissionId(uid, period))
   await setDoc(ref, {
@@ -97,6 +99,7 @@ export async function submit(db: Firestore, sid: string, m: Mission, uid: string
     status: initialStatus(m.type, reviewerUids),
     content: input.content,
     pageId: input.pageId,
+    attachments: input.attachments ?? [],
     late: isLate(m, period, today),
     reviewerUids,
     submittedAt: serverTimestamp(),

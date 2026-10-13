@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.10 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.11 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -291,7 +291,7 @@ spaces/{sid}/missions/{missionId}
 spaces/{sid}/missions/{missionId}/submissions/{uid}_{periodKey}
   uid, periodKey                         # 'once' | '2026-10-06' | '2026-W41'
   status: 'pending' | 'submitted' | 'approved' | 'rejected' | 'done'
-  content?, attachments: [fileId], pageId?
+  content?, attachments: [{ id, name, path, contentType, size }], pageId?   # 첨부 최대 10개 (파일 정보 복사본)
   late: bool, submittedAt?
   reviewerUids[]                         # 진행자·리뷰어 복사본 − 본인 (서버 관리)
   peerReviewerUids[]                     # 배정된 동료 검토자
@@ -370,7 +370,7 @@ spaces/{sid}/derived/{fileId}/...                # 썸네일, PDF 변환본 (서
 spaces/{sid}/pageVersions/{pageId}/{versionId}.json
 users/{uid}/avatar/{fileName}
 ```
-- 업로드 완료 시 서버 트리거가 `users/{uid}/uploads`와 `storage.usedBytes`를 갱신한다.
+- 업로드 후 클라이언트가 `registerUpload`를 부르면 서버가 `users/{uid}/uploads`와 `storage.usedBytes`를 갱신한다. 계정 총량을 넘으면 파일을 지우고 거절한다. 지우기는 `deleteUpload`.
 
 ## 13. 주요 쿼리 · 복합 인덱스
 | 용도 | 쿼리 | 인덱스 |
@@ -421,3 +421,4 @@ users/{uid}/avatar/{fileName}
 - v2.2: `invites`에 `code` 필드(컬렉션 그룹 조회용)
 - v2.1: 확정 — 내 공간에 개인 독서·독후감 추가, 최대 인원 기본 100명 확정
 - v2.0: 확정 기능명세 기준으로 새로 작성
+- v2.11: 제출 `attachments`를 파일 정보 복사본으로, 업로드 집계를 callable(`registerUpload`·`deleteUpload`)로

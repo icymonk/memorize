@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import type { StorageUsage } from '#shared/schemas/upload'
+import type { Upload } from '~/features/files/services/uploads'
+import { formatBytes, storageLevel } from '#shared/schemas/upload'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { toast } from 'vue-sonner'
+import { getStorageUsage, listMyUploads, removeUpload } from '~/features/files/services/uploads'
 import { getMembership, getSpace, getUserSpaceIds, updateMyMembership } from '~/features/space/services/spaces'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
@@ -10,7 +14,28 @@ definePageMeta({ layout: 'focus' })
 /** ACC-23 화면, ACC-11·22 워크스페이스별 설정, ACC-20 알림 설정: 종류별 알림함 켜기/끄기. 서버 트리거가 users/{uid}.notifications.{type}.inApp 을 읽는다 */
 const t = ko.accountSettings
 const auth = useAuthStore()
-const { $firestore } = useNuxtApp()
+const { $firestore, $functions } = useNuxtApp()
+
+// CMN-62 저장 공간
+const usage = ref<StorageUsage | null>(null)
+const uploads = ref<Upload[]>([])
+async function loadFiles() {
+  const uid = auth.user?.uid
+  if (!uid) return
+  const [u, list] = await Promise.all([getStorageUsage($firestore, uid), listMyUploads($firestore, uid)]).catch(() => [null, []] as [null, Upload[]])
+  usage.value = u
+  uploads.value = list
+}
+onMounted(loadFiles)
+async function removeFile(f: Upload) {
+  if (!(await confirmDialog(ko.files.removeConfirm(f.name)))) return
+  try {
+    await removeUpload($functions, f.id)
+    toast.success(ko.files.removed)
+    await loadFiles()
+  }
+  catch (e) { toast.error(errorMessage(e) ?? ko.errors.unknown) }
+}
 const types = ['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group'] as const
 type Kind = typeof types[number]
 const enabled = ref<Record<Kind, boolean>>({ mention: true, comment: true, feedbackRequest: true, feedback: true, mission: true, missionReview: true, group: true })
@@ -150,6 +175,42 @@ async function toggle(k: Kind, v: boolean) {
           </div>
         </li>
       </ul>
+    </section>
+    <section class="space-y-3">
+      <h2 class="text-lg font-medium">
+        {{ ko.files.title }}
+      </h2>
+      <p class="text-sm text-muted-foreground">
+        {{ ko.files.hint }}
+      </p>
+      <template v-if="usage">
+        <div class="bg-muted h-2 overflow-hidden rounded-full">
+          <div class="h-full" :class="storageLevel(usage.usedBytes, usage.limitBytes) === 'ok' ? 'bg-primary' : 'bg-destructive'" :style="{ width: `${Math.min(100, usage.usedBytes / usage.limitBytes * 100)}%` }" />
+        </div>
+        <p class="text-sm">
+          {{ ko.files.usage(formatBytes(usage.usedBytes), formatBytes(usage.limitBytes)) }}
+        </p>
+        <p v-if="storageLevel(usage.usedBytes, usage.limitBytes) !== 'ok'" class="text-destructive text-sm">
+          {{ ko.files.warn }}
+        </p>
+      </template>
+      <p v-if="!uploads.length" class="text-sm text-muted-foreground">
+        {{ ko.files.empty }}
+      </p>
+      <template v-else>
+        <p class="text-sm font-medium">
+          {{ ko.files.largest }}
+        </p>
+        <ul class="divide-y rounded-md border">
+          <li v-for="f in uploads.slice(0, 50)" :key="f.id" class="flex items-center gap-3 p-2">
+            <span class="min-w-0 flex-1 truncate text-sm" :title="f.name">{{ f.name }}</span>
+            <span class="text-muted-foreground text-xs">{{ formatBytes(f.size) }}</span>
+            <Button variant="ghost" size="sm" @click="removeFile(f)">
+              {{ ko.files.remove }}
+            </Button>
+          </li>
+        </ul>
+      </template>
     </section>
     <section class="space-y-3">
       <h2 class="text-lg font-medium">

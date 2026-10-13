@@ -1,5 +1,9 @@
 <script setup lang="ts">
+import type { Attachment } from '#shared/schemas/upload'
 import type { Mission, Submission } from '../services/missions'
+import { MAX_ATTACHMENTS } from '#shared/schemas/upload'
+import AttachmentList from '~/features/files/components/AttachmentList.vue'
+import { uploadFile, UploadError } from '~/features/files/services/uploads'
 import { periodKeys } from '#shared/schemas/mission'
 import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
@@ -13,7 +17,7 @@ const emit = defineEmits<{ changed: [] }>()
 const t = ko.missions
 const auth = useAuthStore()
 const notes = useNotesStore()
-const { $firestore } = useNuxtApp()
+const { $firestore, $storage, $functions } = useNuxtApp()
 
 const me = computed(() => auth.user?.uid ?? '')
 const m = computed(() => props.mission)
@@ -24,6 +28,8 @@ const busy = ref(false)
 const editing = ref<string | null>(null)
 const content = ref('')
 const pageId = ref('')
+const files = ref<Attachment[]>([])
+const uploading = ref(false)
 
 /** 반복 미션은 오늘까지의 최근 14회차, 최신이 위 */
 const periods = computed(() => {
@@ -62,11 +68,26 @@ function startSubmit(p: string) {
   const cur = subs.value.get(p)
   content.value = cur?.content ?? ''
   pageId.value = cur?.pageId ?? ''
+  files.value = [...(cur?.attachments ?? [])]
   editing.value = p
 }
 async function sendSubmit(p: string) {
-  await run(() => submit($firestore, props.sid, m.value, me.value, p, props.today, { content: content.value.trim(), pageId: pageId.value || null }), t.mine.submitted)
+  await run(() => submit($firestore, props.sid, m.value, me.value, p, props.today, { content: content.value.trim(), pageId: pageId.value || null, attachments: files.value }), t.mine.submitted)
   editing.value = null
+}
+
+/** CMN-60: 고른 파일을 하나씩 올려 첨부 목록에 더한다 */
+async function attach(e: Event) {
+  const input = e.target as HTMLInputElement
+  const picked = [...(input.files ?? [])]
+  input.value = ''
+  if (files.value.length + picked.length > MAX_ATTACHMENTS) return toast.error(ko.files.tooMany(MAX_ATTACHMENTS))
+  uploading.value = true
+  try {
+    for (const f of picked) files.value.push(await uploadFile({ db: $firestore, storage: $storage, functions: $functions }, props.sid, me.value, f, { refType: 'mission', refId: m.value.id }))
+  }
+  catch (err) { toast.error(err instanceof UploadError ? err.message : errorMessage(err) ?? ko.errors.unknown) }
+  finally { uploading.value = false }
 }
 
 async function join(v: boolean) {
@@ -129,6 +150,7 @@ async function join(v: boolean) {
         <p v-if="subs.get(p)?.content && editing !== p" class="text-muted-foreground text-sm whitespace-pre-wrap">
           {{ subs.get(p)!.content }}
         </p>
+        <AttachmentList v-if="editing !== p && subs.get(p)?.attachments?.length" :files="subs.get(p)!.attachments!" />
         <form v-if="editing === p" class="flex flex-col gap-2" @submit.prevent="sendSubmit(p)">
           <Label :for="`sub-${p}`">{{ t.mine.content }}</Label>
           <Textarea :id="`sub-${p}`" v-model="content" rows="4" maxlength="5000" />
@@ -144,8 +166,14 @@ async function join(v: boolean) {
           <p class="text-muted-foreground text-xs">
             {{ t.mine.pageHint }}
           </p>
+          <Label :for="`sub-file-${p}`">{{ ko.files.attach }}</Label>
+          <input :id="`sub-file-${p}`" type="file" multiple :disabled="uploading || busy" class="text-sm" @change="attach">
+          <p class="text-muted-foreground text-xs">
+            {{ uploading ? ko.files.uploading : ko.files.attachHint(MAX_ATTACHMENTS) }}
+          </p>
+          <AttachmentList :files="files" removable @remove="id => files = files.filter(f => f.id !== id)" />
           <div class="flex gap-2">
-            <Button type="submit" size="sm" :disabled="busy || (!content.trim() && !pageId)">
+            <Button type="submit" size="sm" :disabled="busy || uploading || (!content.trim() && !pageId && !files.length)">
               {{ t.mine.submit }}
             </Button>
             <Button type="button" size="sm" variant="ghost" @click="editing = null">

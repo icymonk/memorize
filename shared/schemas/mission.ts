@@ -63,7 +63,7 @@ export function participantsOf(m: Pick<MissionInput, 'isPersonal' | 'includeSelf
   return [...new Set([...base, ...(m.includeSelf ? [host] : [])])]
 }
 
-/** MIS-22: 제출 (글 + 내 노트 선택). 파일·사진 첨부는 업로드 기능과 함께 */
+/** MIS-22: 제출 (글 + 내 노트 선택 + 파일·사진 첨부) */
 export const SUBMISSION_STATUS = ['submitted', 'approved', 'rejected', 'done'] as const
 export type SubmissionStatus = typeof SUBMISSION_STATUS[number]
 
