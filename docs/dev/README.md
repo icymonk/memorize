@@ -16,7 +16,7 @@
 | [routing.md](./routing.md) | 화면 경로, 레이아웃, 접근 제어 | 확정 |
 | [conventions.md](./conventions.md) | 개발 환경, 코드 규칙, 테스트, 배포, 모니터링 | 확정 |
 | [phase-plan.md](./phase-plan.md) | 0~1단계 작업 분해 | 확정 |
-| [phase2-plan.md](./phase2-plan.md) | 2단계 작업 분해 | 초안 |
+| [phase2-plan.md](./phase2-plan.md) | 2단계 작업 분해 | 확정 |
 | [spikes.md](./spikes.md) | 기술 검증 S1~S5 결과 (`spikes/`) | 검증 |
 
 ## 개발 결정
