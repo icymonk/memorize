@@ -1,4 +1,14 @@
 export const ko = {
+  personalHome: {
+    todo: '오늘 할 일',
+    todoEmpty: '오늘 할 미션이 없어요',
+    journals: '내 일지 모아 보기',
+    mySpace: '내 공간',
+    recent: '최근 노트',
+    reading: '읽는 중인 책',
+    untitled: '제목 없음',
+    empty: '아직 없어요',
+  },
   memberProfile: {
     back: '멤버',
     summary: (decks: number, notes: number) => `단어장 ${decks}개 · 공개 노트 ${notes}개`,
