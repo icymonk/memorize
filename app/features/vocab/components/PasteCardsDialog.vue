@@ -2,7 +2,7 @@
 import type { CardInput } from '#shared/schemas/card'
 import type { CardSeparator, TermSeparator } from '#shared/paste'
 import type { Deck } from '../services/decks'
-import { detectTermSeparator, parsePaste } from '#shared/paste'
+import { detectTermSeparator, parsePaste, splitKanaReading } from '#shared/paste'
 import { cardInput, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
 import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
@@ -35,8 +35,9 @@ const termSep = computed<TermSeparator>(() =>
 
 const rows = computed(() => parsePaste(text.value, termSep.value, cardSep.value).map((row) => {
   if (row.error) return { ...row, card: null as CardInput | null }
-  const parsed = cardInput.safeParse({ front: row.front, back: row.back })
-  return { ...row, card: parsed.success ? parsed.data : null, error: parsed.success ? undefined : 'invalid' as const }
+  const word = props.deck.langFrom === 'ja' ? splitKanaReading(row.front) : { front: row.front }
+  const parsed = cardInput.safeParse({ ...word, back: row.back })
+  return { ...row, ...word, card: parsed.success ? parsed.data : null, error: parsed.success ? undefined : 'invalid' as const }
 }))
 const valid = computed(() => rows.value.flatMap(r => r.card ? [r.card] : []))
 
@@ -67,7 +68,11 @@ async function submit() {
     <DialogContent class="max-h-[90svh] overflow-y-auto sm:max-w-2xl">
       <DialogHeader>
         <DialogTitle>{{ ko.vocab.cards.paste }}</DialogTitle>
-        <DialogDescription>{{ t.description }}</DialogDescription>
+        <DialogDescription>
+          {{ t.description }}<template v-if="deck.langFrom === 'ja'">
+            {{ t.jaReadingHint }}
+          </template>
+        </DialogDescription>
       </DialogHeader>
 
       <div class="flex flex-col gap-4">
@@ -110,7 +115,7 @@ async function submit() {
                     {{ row.line }}
                   </td>
                   <td class="px-2 py-1.5 font-medium">
-                    {{ row.front }}
+                    {{ row.front }}<span v-if="'reading' in row && row.reading" class="text-muted-foreground ml-1 text-xs font-normal">{{ row.reading }}</span>
                   </td>
                   <td class="px-2 py-1.5">
                     <span v-if="row.error" class="text-destructive">{{ t.errors[row.error] }}</span>

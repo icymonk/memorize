@@ -115,7 +115,7 @@ const showFront = computed(() => flipped.value === state.value.swapped)
         <ArrowLeftIcon />
       </Button>
       <div class="flex gap-1">
-        <Button v-if="speech.supported" variant="ghost" size="icon" aria-label="발음" @click="speech.speak(card.front, lang)">
+        <Button v-if="speech.supported" variant="ghost" size="icon" aria-label="발음" @click="speech.speak(card.reading || card.front, lang)">
           <Volume2Icon />
         </Button>
         <Button variant="ghost" size="icon" :aria-label="t.shuffle" @click="reshuffle">

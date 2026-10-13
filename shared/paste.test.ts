@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { detectTermSeparator, parsePaste } from './paste'
+import { detectTermSeparator, parsePaste, splitKanaReading } from './paste'
 
 describe('parsePaste (VOC-11)', () => {
   it('detects tab, dash, comma', () => {
@@ -25,5 +25,16 @@ describe('parsePaste (VOC-11)', () => {
   it('marks invalid lines', () => {
     const r = parsePaste('apple\nbanana\t\n\t바나나', 'tab')
     expect(r.map(x => x.error)).toEqual(['noSeparator', 'emptyBack', 'emptyFront'])
+  })
+})
+
+describe('splitKanaReading', () => {
+  it('splits a kana reading in half- or full-width parentheses', () => {
+    expect(splitKanaReading('勉強(べんきょう)')).toEqual({ front: '勉強', reading: 'べんきょう' })
+    expect(splitKanaReading('珈琲 （コーヒー）')).toEqual({ front: '珈琲', reading: 'コーヒー' })
+  })
+  it('leaves non-kana parentheses alone', () => {
+    expect(splitKanaReading('run (verb)')).toEqual({ front: 'run (verb)' })
+    expect(splitKanaReading('勉強')).toEqual({ front: '勉強' })
   })
 })
