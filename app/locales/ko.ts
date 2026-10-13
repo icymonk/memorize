@@ -149,6 +149,7 @@ export const ko = {
       more: '더보기',
       empty: '아직 활동이 없어요.',
       someone: '알 수 없음',
+      react: '반응 남기기',
       deckCreated: (name: string, title: string) => `${name}님이 새 단어장 '${title}'을 만들었어요`,
       reviewPublished: (name: string, title: string) => `${name}님이 『${title}』 독후감을 발행했어요`,
       journal: (name: string) => `${name}님이 학습일지를 썼어요`,
