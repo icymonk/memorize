@@ -20,6 +20,12 @@ export function watchFeed(db: Firestore, sid: string, n: number, cb: (list: Acti
   return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Activity)), onError)
 }
 
+/** WS-21: 한 멤버의 공개 활동 (진도를 숨긴 멤버의 학습 기록은 공개로 쓰이지 않는다) */
+export async function listMemberActivities(db: Firestore, sid: string, uid: string, n = 30): Promise<Activity[]> {
+  const q = query(collection(db, 'spaces', sid, 'activities'), where('visibility', '==', 'space'), where('uid', '==', uid), orderBy('createdAt', 'desc'), limit(n))
+  return (await getDocs(q)).docs.map(d => ({ id: d.id, ...d.data() }) as Activity)
+}
+
 /** 기기 시간대 기준 YYYY-MM-DD */
 export function localYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
