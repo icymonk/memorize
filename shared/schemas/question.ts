@@ -47,7 +47,7 @@ export function keyFits(q: Pick<QuestionInput, 'type' | 'choices'>, k: Pick<Ques
   switch (q.type) {
     case 'single':
     case 'multi': {
-      const ok = q.choices.length >= CHOICES.min && a.length >= 1 && a.every(v => typeof v === 'number' && v < q.choices.length) && new Set(a).size === a.length
+      const ok = q.choices.length >= CHOICES.min && a.length >= 1 && a.every(v => typeof v === 'number' && v >= 0 && v < q.choices.length) && new Set(a).size === a.length
       return ok && (q.type === 'multi' || a.length === 1)
     }
     case 'ox': return q.choices.length === 0 && a.length === 1 && typeof a[0] === 'boolean'
