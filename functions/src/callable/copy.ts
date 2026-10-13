@@ -150,6 +150,7 @@ async function copyCollection({ uid, data, fromRef, toRef, fromSpace, toSpace }:
   const db = getFirestore()
   const col = await fromRef.collection('collections').doc(data.id).get()
   if (!col.exists || (col.get('scope') !== 'shared' && col.get('ownerId') !== uid)) throw new HttpsError('not-found', 'collection not found')
+  if (col.get('kind') === 'system') throw new HttpsError('failed-precondition', 'system collection')
   const items = (await fromRef.collection('pages').where('collectionId', '==', col.id).get()).docs.filter(d => canSeePage(d.data(), uid))
   if (items.length > MAX_PAGES) throw new HttpsError('failed-precondition', 'too many pages')
   const scope: 'private' | 'shared' = toSpace.get('kind') === 'personal' ? 'private' : col.get('scope')

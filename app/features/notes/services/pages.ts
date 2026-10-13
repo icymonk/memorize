@@ -85,13 +85,14 @@ export async function getPage(db: Firestore, sid: string, pageId: string): Promi
 }
 
 /** NOTE-20: 공유 페이지(공간 전체) 또는 내 페이지(나만). 하위 페이지는 부모의 갈래·공개 범위를 따른다 */
-export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue> }): Promise<string> {
+export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue>, journal?: boolean }): Promise<string> {
   const now = serverTimestamp()
   const col = opts.collection
   const parent = col ? null : opts.parent ?? null
   const root = col?.scope ?? parent?.root ?? opts.root
   const ref = await addDoc(pagesOf(db, sid), {
-    type: col ? 'item' : 'page',
+    type: col ? (opts.journal ? 'journal' : 'item') : 'page',
+    ...(opts.journal ? { editPolicy: 'editors' } : {}),
     ...(col ? { collectionId: col.id } : {}),
     title: '',
     icon: '',

@@ -1,13 +1,14 @@
 import type { Firestore, Timestamp } from 'firebase/firestore'
 import type { Functions } from 'firebase/functions'
 import type { CollectionInput, CollectionScope, PropDef, ViewDef } from '#shared/schemas/collection'
-import { addDoc, collection, doc, onSnapshot, or, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import { addDoc, collection, doc, getDoc, onSnapshot, or, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 import { callFn } from '~/lib/functions'
 
 /** NOTE-46~49 내 모음 — docs/dev/data-model.md 4절 */
 export interface Collection {
   id: string
-  kind: 'custom'
+  kind: 'custom' | 'system'
+  systemType?: 'journal'
   name: string
   icon: string
   ownerId: string
@@ -25,6 +26,38 @@ const colsOf = (db: Firestore, sid: string) => collection(db, 'spaces', sid, 'co
 export function watchCollections(db: Firestore, sid: string, uid: string, cb: (list: Collection[]) => void, onError: (e: unknown) => void) {
   const q = query(colsOf(db, sid), or(where('scope', '==', 'shared'), where('ownerId', '==', uid)))
   return onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Collection)), onError)
+}
+
+/** NOTE-30·31 학습일지: 공간마다 하나뿐인 기본 모음 (`collections/journal`) */
+export const JOURNAL_ID = 'journal'
+export const JOURNAL_MOODS = ['😄', '🙂', '😐', '😕', '😢']
+const JOURNAL_SCHEMA: PropDef[] = [
+  { key: 'date', name: '날짜', type: 'date', options: [] },
+  { key: 'subjects', name: '과목', type: 'multiSelect', options: [] },
+  { key: 'minutes', name: '학습 시간(분)', type: 'number', options: [] },
+  { key: 'mood', name: '기분', type: 'select', options: JOURNAL_MOODS },
+  { key: 'rating', name: '만족도', type: 'select', options: ['★', '★★', '★★★', '★★★★', '★★★★★'] },
+  { key: 'tags', name: '태그', type: 'multiSelect', options: [] },
+  { key: 'late', name: '늦게 씀', type: 'checkbox', options: [] },
+]
+
+export async function ensureJournal(db: Firestore, sid: string, uid: string) {
+  const ref = doc(colsOf(db, sid), JOURNAL_ID)
+  if ((await getDoc(ref)).exists()) return
+  const now = serverTimestamp()
+  await setDoc(ref, {
+    kind: 'system',
+    systemType: 'journal',
+    name: '학습일지',
+    icon: '📔',
+    ownerId: uid,
+    scope: sid.startsWith('p_') ? 'private' : 'shared',
+    schema: JOURNAL_SCHEMA,
+    views: [],
+    templateIds: [],
+    createdAt: now,
+    updatedAt: now,
+  })
 }
 
 export async function createCollection(db: Firestore, sid: string, uid: string, input: CollectionInput): Promise<string> {

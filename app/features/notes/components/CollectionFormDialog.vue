@@ -183,7 +183,7 @@ async function submit() {
       </form>
 
       <DialogFooter class="gap-2 sm:justify-between">
-        <Button v-if="collection" type="button" variant="ghost" class="text-destructive" :disabled="pending" @click="remove">
+        <Button v-if="collection && collection.kind !== 'system'" type="button" variant="ghost" class="text-destructive" :disabled="pending" @click="remove">
           {{ t.delete }}
         </Button>
         <Button type="submit" form="collection-form" :disabled="pending || !name.trim()">

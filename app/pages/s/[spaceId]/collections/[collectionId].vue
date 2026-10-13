@@ -36,7 +36,7 @@ const creating = ref(false)
 
 // 지금 보기 설정. 저장한 보기를 고르면 그 설정을 불러온다
 const active = ref<string>('list')
-const type = ref<ViewType>('list')
+const type = ref<ViewType>(route.params.collectionId === 'journal' ? 'calendar' : 'list')
 const filter = ref<{ key: string, value: string | boolean } | null>(null)
 const sort = ref<{ key: string, dir: 1 | -1 } | null>(null)
 const groupBy = ref<string | null>(null)
@@ -114,6 +114,8 @@ const shortDate = (p: Page) => (p.updatedAt ? p.updatedAt.toDate().toLocaleDateS
 const month = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const todayYmd = ymd(new Date())
+/** NOTE-30·36: 일지는 오늘 날짜로, 지난 날짜에 쓰면 '늦게 씀' */
+const isJournal = computed(() => col.value?.kind === 'system' && col.value.systemType === 'journal')
 const days = computed(() => {
   const first = month.value
   const start = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay())
@@ -138,6 +140,10 @@ async function add(props?: Record<string, PropValue>) {
   if (!col.value || creating.value) return
   creating.value = true
   try {
+    if (isJournal.value) {
+      const date = typeof props?.date === 'string' ? props.date : todayYmd
+      props = { ...props, date, ...(date < todayYmd ? { late: true } : {}) }
+    }
     const id = await notes.createItem(col.value, props)
     await navigateTo(`/s/${sid.value}/notes/${id}`)
   }
@@ -204,7 +210,7 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
           <span class="truncate">{{ col.name }}</span>
         </h1>
         <div class="flex items-center gap-2">
-          <Button variant="ghost" size="icon" :aria-label="ko.notes.copy.button" :title="ko.notes.copy.button" @click="copyOpen = true">
+          <Button v-if="col.kind !== 'system'" variant="ghost" size="icon" :aria-label="ko.notes.copy.button" :title="ko.notes.copy.button" @click="copyOpen = true">
             <CopyIcon />
           </Button>
           <Button v-if="canManage" variant="ghost" size="icon" :aria-label="t.settings" @click="settingsOpen = true">
@@ -312,7 +318,7 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
                 :to="`/s/${sid}/notes/${p.id}`"
                 class="bg-secondary hover:bg-secondary/70 truncate rounded px-1.5 py-0.5 text-xs"
               >
-                {{ p.icon }} {{ p.title || ko.notes.untitled }}
+                {{ isJournal && typeof p.props?.mood === 'string' ? p.props.mood : p.icon }} {{ p.title || ko.notes.untitled }}
               </NuxtLink>
             </div>
           </div>

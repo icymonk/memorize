@@ -16,6 +16,7 @@ export const deleteCollection = authedCallable(collectionRefInput, async ({ uid,
   const manager = ['owner', 'manager'].includes(member.get('access'))
   const owner = col.get('ownerId') === uid
   if (!owner && !(col.get('scope') === 'shared' && manager)) throw new HttpsError('permission-denied', 'cannot delete collection')
+  if (col.get('kind') === 'system') throw new HttpsError('failed-precondition', 'system collection')
   const items = await space.collection('pages').where('collectionId', '==', col.id).get()
   const now = FieldValue.serverTimestamp()
   const writes: [DocumentReference, Record<string, unknown>][] = items.docs
