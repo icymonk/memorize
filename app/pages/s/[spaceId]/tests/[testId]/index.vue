@@ -231,7 +231,9 @@ async function remove() {
         <li>{{ f.resultRelease }}: {{ t.release[test.settings.resultRelease] }}</li>
         <li v-if="test.hostIds.includes(uid) && !personal">{{ t.takers(test.participantIds?.length ?? 0) }}</li>
       </ul>
-      <p class="text-muted-foreground rounded-md border p-3 text-sm">{{ t.takeSoon }}</p>
+      <Button v-if="test.participantIds?.includes(uid) || test.hostIds.includes(uid)" class="self-start" as-child>
+        <NuxtLink :to="`/s/${sid}/tests/${test.id}/take`">{{ test.hostIds.includes(uid) ? t.take.hostPreview : (test.settings.practice ? t.take.practice : t.take.start) }}</NuxtLink>
+      </Button>
       <Button v-if="test.status === 'open' && test.hostIds.includes(uid)" variant="outline" class="self-start" @click="close">{{ t.close }}</Button>
     </template>
 

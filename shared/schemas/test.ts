@@ -60,3 +60,33 @@ export function testTakers(assignees: TestInput['assignees'], hostIds: readonly 
 
 /** 시험지 총점 */
 export const maxScoreOf = (refs: readonly { points: number }[]) => refs.reduce((s, r) => s + r.points, 0)
+
+/** TST-20~23 응시 */
+export const attemptRefInput = z.object({ spaceId: id, testId: id, attemptId: id })
+export type AttemptRefInput = z.infer<typeof attemptRefInput>
+export const startAttemptInput = z.object({ spaceId: id, testId: id })
+export type StartAttemptInput = z.infer<typeof startAttemptInput>
+export interface StartAttemptOutput { attemptId: string, nowMs: number }
+/** 결과 공개 전이면 score는 null */
+export interface SubmitAttemptOutput { score: number | null, maxScore: number, gradingStatus: 'done' | 'pending' }
+export const checkAnswerInput = attemptRefInput.extend({ questionId: id })
+export type CheckAnswerInput = z.infer<typeof checkAnswerInput>
+export interface CheckAnswerOutput { score: number | null, points: number, answer: (number | boolean | string)[], explanation: string }
+
+/** 시간 초과 직후 저장이 늦게 도착해도 받아 주는 여유 (ms) */
+export const SUBMIT_GRACE_MS = 30_000
+
+/** 마감 시각: 시간 제한과 시험 마감 중 이른 쪽 */
+export function attemptDeadline(startMs: number, s: Pick<TestSettings, 'timeLimitMin' | 'closeAt'>): number | null {
+  const byLimit = s.timeLimitMin ? startMs + s.timeLimitMin * 60_000 : null
+  if (byLimit == null) return s.closeAt
+  return s.closeAt == null ? byLimit : Math.min(byLimit, s.closeAt)
+}
+
+/** 지금 응시를 시작할 수 있는지. 연습 모드는 응시 횟수에 들지 않는다 */
+export function canStart(t: { status: string, settings: Pick<TestSettings, 'openAt' | 'closeAt' | 'maxAttempts' | 'practice'> }, used: number, nowMs: number): 'ok' | 'notOpen' | 'closed' | 'noAttempts' {
+  if (t.status === 'draft' || (t.settings.openAt != null && nowMs < t.settings.openAt)) return 'notOpen'
+  if (t.status === 'closed' || (t.settings.closeAt != null && nowMs >= t.settings.closeAt)) return 'closed'
+  if (!t.settings.practice && t.settings.maxAttempts > 0 && used >= t.settings.maxAttempts) return 'noAttempts'
+  return 'ok'
+}

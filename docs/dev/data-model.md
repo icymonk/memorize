@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.18 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.19 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -333,7 +333,7 @@ spaces/{sid}/tests/{testId}
   status: 'draft'|'open'|'closed'         # draft만 진행자가 고친다. open은 openTest만
   participantIds[], maxScore, openedAt    # openTest가 채움 (대상자 확정)
   createdBy, hostIds[], deletedAt
-  stats: { attempts, avg }                # 서버 관리 (연습 응시 제외)
+  stats: { attempts, scoreSum }           # 서버 관리 (연습 응시 제외). 평균 = scoreSum / attempts
 
 spaces/{sid}/tests/{testId}/paper/main     # 시험지 사본 (정답 없음). 진행자 + 시작 시각 이후 대상자 읽기
   items: [{ questionId, type, prompt, choices, media, points }], hostIds[]
@@ -342,9 +342,13 @@ spaces/{sid}/tests/{testId}/secret/key     # 정답 사본. 클라이언트 접�
 
 spaces/{sid}/tests/{testId}/attempts/{attemptId}
   uid, isPractice, startedAt, deadlineAt?, submittedAt?
-  order[], answers: map
-  score?, maxScore, itemResults: map, gradingStatus: 'auto'|'pending'|'done'
+  order[], choiceOrder: { [questionId]: number[] }, answers: map   # 답은 원래 보기 번호. 응시자는 answers만, deadlineAt+30초 전까지 저장
+  maxScore, gradingStatus: null|'pending'|'done'
   hostIds[]                               # 검사용 복사본
+  # 시작·제출은 startAttempt / submitAttempt (서버 시각). 시간이 지난 미제출 응시는 다음 startAttempt에서 제출 처리
+
+spaces/{sid}/tests/{testId}/results/{attemptId}   # 서버만 씀. 진행자, 또는 결과 공개 설정에 맞을 때 응시자 읽기 (TST-15·32)
+  uid, isPractice, score, maxScore, gradingStatus, items: { [questionId]: { score|null, points } }, comments: map, hostIds[]
 
 spaces/{sid}/problemSets/{setId}           # MATH-10·13
   title, grade?, unit: { curriculumCode?, custom? }, questionIds[]
@@ -439,3 +443,4 @@ users/{uid}/avatar/{fileName}
 - v2.16: 문제·정답 문서 형태 확정 (3-A1, TST-01·02)
 - v2.17: 문제 media·copiedFrom 형태 (3-A2, TST-01·40)
 - v2.18: 시험 status·participantIds, 시험지·정답 사본 (3-B1, TST-10~16)
+- v2.19: 응시 choiceOrder, 결과 문서 `results` 분리 (3-B2, TST-21~23·30)
