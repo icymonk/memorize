@@ -2,6 +2,7 @@
 import type { Activity } from '../services/activities'
 import { journalStreak } from '#shared/journal'
 import { listMembers } from '~/features/space/services/invites'
+import { getUserSpaceIds } from '~/features/space/services/spaces'
 import { listMyJournals } from '~/features/notes/services/journal'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
@@ -53,7 +54,10 @@ watch(() => props.sid, async (sid) => {
       journalLoaded.value = true
     }).catch(() => { journalLoaded.value = true })
   }
-  const sessions = await listMySessionsSince($firestore, sid, uid, new Date(`${days.value[0]}T00:00:00`)).catch(() => [])
+  // ACC-30: 내 공간 홈에서는 내 공간 + 모든 워크스페이스를 합친다
+  const sids = props.personal ? [...new Set([sid, ...await getUserSpaceIds($firestore, uid).catch(() => [] as string[])])] : [sid]
+  const since = new Date(`${days.value[0]}T00:00:00`)
+  const sessions = (await Promise.all(sids.map(s => listMySessionsSince($firestore, s, uid, since).catch(() => [])))).flat()
   const map: Record<string, number> = {}
   for (const s of sessions) map[s.date] = (map[s.date] ?? 0) + s.minutes
   minutesByDay.value = map
@@ -78,7 +82,7 @@ onUnmounted(() => stop?.())
     </Card>
     <Card :class="cn(!notes && 'sm:col-span-2')">
       <CardHeader>
-        <CardTitle>{{ t.record.title }}</CardTitle>
+        <CardTitle>{{ personal ? t.record.allTitle : t.record.title }}</CardTitle>
         <CardDescription>{{ t.record.summary(streak, weekMinutes) }}</CardDescription>
       </CardHeader>
       <CardFooter>

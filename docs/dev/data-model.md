@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.9 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.10 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -20,6 +20,7 @@ users/{uid}
   timezone, locale, birthYear?
   personalSpaceId: 'p_{uid}'
   spaceIds: string[]                        # 서버 관리 (참여 중인 공간)
+  formerSpaces: map<spaceId, { name, leftAt }>  # 서버 관리 (나가거나 내보내진 워크스페이스, 다시 들어오면 지움. ACC-32)
   guardianIds: string[]                     # 아이 계정: 보호자 uid (ACC-06~09)
   wardIds: string[]                         # 보호자 계정: 관리 중인 아이 uid
   settings: {
@@ -409,6 +410,7 @@ users/{uid}/avatar/{fileName}
 - 없음
 
 ## 16. 변경 이력
+- v2.10: `users.formerSpaces`(ACC-32 이전 워크스페이스 기록)
 - v2.9: 독후감 `status` 대신 `publishedAt`·`rewriteRequestedAt`(임시저장은 나만 보기)
 - v2.8: `groups`에서 `memberCount` 빼고 `deletedBy`, 소속은 `members.groupIds`
 - v2.7: 독후감 페이지의 `book`, 기본 모음 `collections/bookReview`

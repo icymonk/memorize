@@ -153,6 +153,19 @@ async function toggle(k: Kind, v: boolean) {
     </section>
     <section class="space-y-3">
       <h2 class="text-lg font-medium">
+        {{ ko.former.title }}
+      </h2>
+      <p class="text-sm text-muted-foreground">
+        {{ ko.former.hint }}
+      </p>
+      <Button variant="outline" size="sm" as-child>
+        <NuxtLink to="/former">
+          {{ ko.former.open }}
+        </NuxtLink>
+      </Button>
+    </section>
+    <section class="space-y-3">
+      <h2 class="text-lg font-medium">
         {{ t.notifications }}
       </h2>
       <p class="text-sm text-muted-foreground">
