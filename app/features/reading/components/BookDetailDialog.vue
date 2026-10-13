@@ -10,8 +10,8 @@ import { askFinish, listBookLogs, recordReading } from '../services/logs'
 import { updateShelf } from '../services/shelf'
 
 /** READ-11: 책별 내 정보 — 현재 위치, 시작일, 완독일, 별점 */
-const props = defineProps<{ sid: string, book: ShelfItem | null, today: string }>()
-const emit = defineEmits<{ saved: [] }>()
+const props = defineProps<{ sid: string, book: ShelfItem | null, today: string, reviews?: boolean }>()
+const emit = defineEmits<{ saved: [], review: [book: ShelfItem] }>()
 const open = defineModel<boolean>('open', { default: false })
 
 const t = ko.reading
@@ -139,6 +139,9 @@ async function save() {
         </div>
       </form>
       <DialogFooter>
+        <Button v-if="reviews" type="button" variant="outline" @click="emit('review', book)">
+          {{ ko.notes.review.write }}
+        </Button>
         <Button type="submit" form="book-detail" :disabled="pending">
           {{ d.save }}
         </Button>

@@ -2,6 +2,7 @@
 import type { Member } from '~/features/space/services/invites'
 import { listMembers } from '~/features/space/services/invites'
 import { journalStreak } from '#shared/journal'
+import NewReviewDialog from '~/features/notes/components/NewReviewDialog.vue'
 import type { PropDef, PropValue, ViewDef, ViewType } from '#shared/schemas/collection'
 import type { Page } from '~/features/notes/services/pages'
 import { coerceProp, compareProp, MAX_VIEWS, matchesFilter, newPropKey, VIEW_TYPES, viewDef } from '#shared/schemas/collection'
@@ -123,6 +124,8 @@ const todayYmd = ymd(new Date())
 /** NOTE-30·36: 일지는 오늘 날짜로, 지난 날짜에 쓰면 '늦게 씀' */
 const isJournal = computed(() => col.value?.kind === 'system' && col.value.systemType === 'journal')
 const myUid = useAuthStore().user?.uid
+const isReview = computed(() => col.value?.kind === 'system' && col.value.systemType === 'bookReview')
+const reviewOpen = ref(false)
 /** NOTE-45 멤버 일지: 나에게 보이는 일지를 멤버 × 날짜(이번 달) 표로 */
 const showMembers = ref(false)
 const members = ref<Member[]>([])
@@ -172,6 +175,10 @@ const shiftMonth = (n: number) => { month.value = new Date(month.value.getFullYe
 
 async function add(props?: Record<string, PropValue>) {
   if (!col.value || creating.value) return
+  if (isReview.value) {
+    reviewOpen.value = true
+    return
+  }
   creating.value = true
   try {
     if (isJournal.value) {
@@ -260,6 +267,7 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
           <Button v-if="canManage" variant="ghost" size="icon" :aria-label="t.settings" @click="settingsOpen = true">
             <Settings2Icon />
           </Button>
+          <NewReviewDialog v-if="isReview" v-model:open="reviewOpen" :sid="sid" />
           <Button v-if="canAdd" :disabled="creating" @click="add()">
             <PlusIcon />
             {{ t.newItem }}

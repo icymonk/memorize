@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.5 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.7 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -135,6 +135,7 @@ spaces/{sid}/pages/{pageId}
   lock: { uid, at } | null              # NOTE-60
   ownerStatus: 'active' | 'left'        # 작성자가 나가면 'left' → 본인 외 숨김 (WS-23)
   copiedFrom?: { spaceId, pageId }
+  book?: { bookKey, title, authors[], cover }   # 독후감의 책 (REV-02·03). 책장에서 복사, 만든 뒤 바꿀 수 없음. 표지는 cover에도
   commentCount, feedbackCount, reactionCounts   # 서버 관리
   deletedAt: Timestamp | null, deletedBy?, trashRootId?   # NOTE-22 휴지통 (함께 버린 하위 페이지는 같은 trashRootId)
   createdAt, updatedAt
@@ -408,6 +409,7 @@ users/{uid}/avatar/{fileName}
 - 없음
 
 ## 16. 변경 이력
+- v2.7: 독후감 페이지의 `book`, 기본 모음 `collections/bookReview`
 - v2.5: 페이지 휴지통 필드(`deletedAt`은 항상 기록, `deletedBy`·`trashRootId`), `userPrefs` 추가
 - v2.4: `decks.copiedFrom.spaceName`(WS-63, 원본 공간을 나간 뒤에도 표시)
 - v2.3: `spaces.ownershipTransfer`(WS-25)

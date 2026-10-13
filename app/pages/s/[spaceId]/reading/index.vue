@@ -8,6 +8,7 @@ import { toast } from 'vue-sonner'
 import { dateKey } from '#shared/dates'
 import AddBookDialog from '~/features/reading/components/AddBookDialog.vue'
 import BookDetailDialog from '~/features/reading/components/BookDetailDialog.vue'
+import NewReviewDialog from '~/features/notes/components/NewReviewDialog.vue'
 import { askFinish, recordReading } from '~/features/reading/services/logs'
 import { joinBook, listBooks, listMyShelf, removeFromShelf, statusPatch, updateShelf } from '~/features/reading/services/shelf'
 import { listMembers } from '~/features/space/services/invites'
@@ -34,6 +35,8 @@ const tab = ref<'all' | ShelfStatus | 'space'>('all')
 const addOpen = ref(false)
 const detail = ref<ShelfItem | null>(null)
 const detailOpen = ref(false)
+const reviewBook = ref<ShelfItem | null>(null)
+const reviewOpen = ref(false)
 const today = dateKey(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone)
 const mineKeys = computed(() => new Set(mine.value.map(b => b.bookKey)))
 
@@ -197,6 +200,10 @@ async function remove(b: ShelfItem) {
     </ul>
 
     <AddBookDialog v-model:open="addOpen" :sid="sid" @saved="load" />
-    <BookDetailDialog v-model:open="detailOpen" :sid="sid" :book="detail" :today="today" @saved="load" />
+    <BookDetailDialog
+      v-model:open="detailOpen" :sid="sid" :book="detail" :today="today" :reviews="!!space.current?.modules?.reviews && space.current?.modules?.notes !== false"
+      @saved="load" @review="b => { detailOpen = false; reviewBook = b; reviewOpen = true }"
+    />
+    <NewReviewDialog v-model:open="reviewOpen" :sid="sid" :book="reviewBook" />
   </div>
 </template>

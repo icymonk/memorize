@@ -8,7 +8,7 @@ import { callFn } from '~/lib/functions'
 export interface Collection {
   id: string
   kind: 'custom' | 'system'
-  systemType?: 'journal'
+  systemType?: 'journal' | 'bookReview'
   name: string
   icon: string
   ownerId: string
@@ -53,6 +53,34 @@ export async function ensureJournal(db: Firestore, sid: string, uid: string) {
     ownerId: uid,
     scope: sid.startsWith('p_') ? 'private' : 'shared',
     schema: JOURNAL_SCHEMA,
+    views: [],
+    templateIds: [],
+    createdAt: now,
+    updatedAt: now,
+  })
+}
+
+/** REV-01·02 독후감: 공간마다 하나뿐인 기본 모음 (`collections/bookReview`) */
+export const REVIEW_ID = 'bookReview'
+const REVIEW_SCHEMA: PropDef[] = [
+  { key: 'rating', name: '별점', type: 'select', options: ['★', '★★', '★★★', '★★★★', '★★★★★'] },
+  { key: 'startedAt', name: '읽기 시작', type: 'date', options: [] },
+  { key: 'finishedAt', name: '다 읽은 날', type: 'date', options: [] },
+  { key: 'tags', name: '태그', type: 'multiSelect', options: [] },
+]
+
+export async function ensureBookReview(db: Firestore, sid: string, uid: string) {
+  const ref = doc(colsOf(db, sid), REVIEW_ID)
+  if ((await getDoc(ref)).exists()) return
+  const now = serverTimestamp()
+  await setDoc(ref, {
+    kind: 'system',
+    systemType: 'bookReview',
+    name: '독후감',
+    icon: '📖',
+    ownerId: uid,
+    scope: sid.startsWith('p_') ? 'private' : 'shared',
+    schema: REVIEW_SCHEMA,
     views: [],
     templateIds: [],
     createdAt: now,
