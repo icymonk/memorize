@@ -62,7 +62,8 @@ service cloud.firestore {
       allow read: if isMember(sid);
       // WS-01·02·04: 소유자·매니저가 일반·기능·운영 방식만 바꾼다. 나머지(인원, 소유자, 삭제 예약)는 서버
       allow update: if resource.data.kind == 'workspace' && isManager(sid)
-        && onlyChanges(['name', 'icon', 'color', 'description', 'modules', 'settings', 'updatedAt'])
+        && onlyChanges(['name', 'icon', 'color', 'description', 'modules', 'settings', 'subjects', 'updatedAt'])
+        && request.resource.data.get('subjects', []) is list && request.resource.data.get('subjects', []).size() <= 30
         && isText(request.resource.data.name, 1, 40)
         && isText(request.resource.data.icon, 1, 16)
         && request.resource.data.color in ['slate', 'red', 'orange', 'amber', 'green', 'teal', 'blue', 'violet', 'pink']

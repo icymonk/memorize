@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { withSubjects } from '~/features/space/services/subjects'
 import type { Page } from '~/features/notes/services/pages'
 import type { SaveStatus } from '~/features/notes/sync/writer'
 import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon, CopyIcon } from '@lucide/vue'
@@ -43,7 +44,7 @@ const space = useSpaceStore()
 const auth = useAuthStore()
 const { $firestore } = useNuxtApp()
 const spaceTags = useTags()
-const defs = computed(() => (collection.value?.schema ?? []).map(d => withTags(d, spaceTags.value)))
+const defs = computed(() => (collection.value?.schema ?? []).map(d => withSubjects(withTags(d, spaceTags.value), space.current?.subjects ?? [])))
 
 const sid = computed(() => space.current!.id)
 /** 페이지마다 새로 마운트해서 편집기·잠금·자동 저장 상태가 이전 페이지와 섞이지 않게 한다 */
