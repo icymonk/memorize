@@ -6,7 +6,7 @@ import type { Deck, DeckFolder } from '~/features/vocab/services/decks'
 import type { CardState, DeckProgress } from '~/features/vocab/services/srs'
 import { canDeleteContent, canEditContent } from '#shared/permissions'
 import { STUDY_MODES } from '#shared/study'
-import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardPasteIcon, CopyIcon, PencilIcon, PlusIcon, StarIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
+import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardCheckIcon, ClipboardPasteIcon, CopyIcon, PencilIcon, PlusIcon, StarIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
 import CardFormDialog from '~/features/vocab/components/CardFormDialog.vue'
@@ -14,6 +14,7 @@ import RelatedWords from '~/features/vocab/components/RelatedWords.vue'
 import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import DeckFormDialog from '~/features/vocab/components/DeckFormDialog.vue'
 import PasteCardsDialog from '~/features/vocab/components/PasteCardsDialog.vue'
+import DeckQuestionsDialog from '~/features/tests/components/DeckQuestionsDialog.vue'
 import { useSpeech } from '~/features/vocab/composables/useSpeech'
 import { cardInput, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
 import { listCards, newCardId, saveCards } from '~/features/vocab/services/cards'
@@ -43,6 +44,9 @@ const cards = ref<Card[]>([])
 const cardOpen = ref(false)
 const editingCard = ref<Card | null>(null)
 const pasteOpen = ref(false)
+const testOpen = ref(false)
+/** VOC-25 시험 기능이 켜져 있고 문제를 만들고 시험을 열 수 있을 때 */
+const canTest = computed(() => !!space.current?.modules?.tests && (space.current.kind === 'personal' || (space.can('create') && space.can('host'))))
 const tableMode = ref(false)
 const draft = ref<{ id: string, front: string, reading: string, back: string, removed: boolean, isNew?: boolean }[]>([])
 const saving = ref(false)
@@ -299,7 +303,11 @@ async function remove() {
             <StarIcon class="fill-amber-400 text-amber-400" />{{ t.progress.starredOnly }}
           </NuxtLink>
         </Button>
+        <Button v-if="canTest" variant="outline" class="h-12" @click="testOpen = true">
+          <ClipboardCheckIcon />{{ ko.tests.gen.testOpen }}
+        </Button>
       </nav>
+      <DeckQuestionsDialog v-if="canTest" v-model:open="testOpen" :test-deck-id="deckId" />
 
       <section class="flex flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-2">

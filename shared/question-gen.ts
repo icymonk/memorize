@@ -2,14 +2,14 @@ import type { QuestionInput, QuestionKeyInput } from './schemas/question'
 import { normalizeAnswer, shuffle } from './study'
 
 /** TST-03 단어장에서 만들 문제 종류 */
-export const GEN_KINDS = ['meaningToWord', 'wordToMeaning', 'meaningShort', 'wordShort'] as const
+export const GEN_KINDS = ['meaningToWord', 'wordToMeaning', 'meaningShort', 'wordShort', 'wordOx'] as const
 export type GenKind = (typeof GEN_KINDS)[number]
 
 export interface GenCard { front: string, back: string[] }
 export interface GenOptions {
   kinds: readonly GenKind[]
-  /** 지문 문구. 종류마다 단어나 뜻을 받아 문제를 만든다 */
-  prompts: Record<GenKind, (s: string) => string>
+  /** 지문 문구. 종류마다 단어나 뜻을 받아 문제를 만든다. OX는 (단어, 제시한 뜻) */
+  prompts: Record<GenKind, (s: string, meaning: string) => string>
   base?: Partial<QuestionInput>
   choiceCount?: number
   rand?: () => number
@@ -48,7 +48,13 @@ export function generateQuestions(cards: readonly GenCard[], pool: readonly GenC
   for (const c of cards) {
     if (!c.front || !c.back.length) continue
     for (const kind of opts.kinds) {
-      const prompt = clip(opts.prompts[kind](kind === 'meaningToWord' || kind === 'meaningShort' ? meanings(c) : c.front), 2000)
+      if (kind === 'wordOx') {
+        const wrong = rand() < 0.5 ? choicesFor(c.back[0]!, c.back, firstMeanings, 2, rand) : null
+        const shown = wrong ? wrong.choices[1 - wrong.answer]! : c.back[0]!
+        out.push({ q: { ...base, type: 'ox', prompt: clip(opts.prompts.wordOx(c.front, shown), 2000), choices: [] }, k: { ...key, answer: [!wrong] } })
+        continue
+      }
+      const prompt = clip(opts.prompts[kind](kind === 'meaningToWord' || kind === 'meaningShort' ? meanings(c) : c.front, ''), 2000)
       if (kind === 'meaningToWord' || kind === 'wordToMeaning') {
         const r = kind === 'meaningToWord'
           ? choicesFor(c.front, [], fronts, n, rand)
