@@ -23,6 +23,18 @@ export const testSettings = z.object({
 }).refine(s => s.openAt == null || s.closeAt == null || s.closeAt > s.openAt, { message: 'closeAt', path: ['closeAt'] })
 export type TestSettings = z.infer<typeof testSettings>
 
+export const testMission = z.object({
+  enabled: z.boolean(),
+  minScore: z.number().int().min(1).max(10_000).nullable().default(null),
+})
+export type TestMission = z.infer<typeof testMission>
+
+/** TST-19·MIS-16: 연습이 아닌 응시가 미션 완료 조건을 채웠는지. 목표 점수가 있으면 채점이 끝나야 판단 */
+export function meetsTestMission(m: Pick<TestMission, 'minScore'>, r: { isPractice: boolean, score: number, gradingStatus: 'done' | 'pending' }): boolean {
+  if (r.isPractice) return false
+  return m.minScore == null || (r.gradingStatus === 'done' && r.score >= m.minScore)
+}
+
 /** TST-10~16 시험 만들기 (임시저장 상태에서만 고친다) */
 export const testInput = z.object({
   title: z.string().trim().min(1).max(80),
@@ -30,6 +42,8 @@ export const testInput = z.object({
   questionRefs: z.array(z.object({ questionId: id, points: z.number().int().min(1).max(100) })).max(MAX_TEST_QUESTIONS).default([]),
   settings: testSettings.default(testSettings.parse({})),
   assignees: z.object({ all: z.boolean(), uids: z.array(id).max(200), groupIds: z.array(id).max(20).default([]) }).default({ all: true, uids: [], groupIds: [] }),
+  /** TST-19 미션으로도 배정. 목표 점수가 없으면 응시(제출)만 해도 완료 */
+  mission: testMission.default({ enabled: false, minScore: null }),
 })
 export type TestInput = z.infer<typeof testInput>
 

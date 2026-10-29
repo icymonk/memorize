@@ -108,6 +108,10 @@ async function join(v: boolean) {
       </Button>
     </div>
 
+    <p v-if="joined && m.type === 'auto'" class="text-muted-foreground text-sm">
+      {{ t.mine.testRule(m.autoRule?.threshold ?? null) }}
+    </p>
+
     <div v-if="!joined" class="flex items-center gap-3 rounded-lg border p-4 text-sm">
       <span class="text-muted-foreground flex-1">{{ t.mine.notParticipant }}</span>
       <Button v-if="m.joinable && !finished" size="sm" :disabled="busy" @click="join(true)">
@@ -128,6 +132,14 @@ async function join(v: boolean) {
               <input type="checkbox" class="size-4" :checked="subs.has(p)" :disabled="busy || !canAct(p)" @change="toggleCheck(p)">
               {{ t.mine.done }}
             </label>
+          </template>
+          <template v-else-if="m.type === 'auto'">
+            <Badge :variant="subs.has(p) ? 'secondary' : 'outline'">
+              {{ t.status[subs.get(p)?.status ?? 'none'] }}
+            </Badge>
+            <Button v-if="m.linked?.type === 'test' && !subs.has(p)" size="sm" variant="outline" as-child>
+              <NuxtLink :to="`/s/${sid}/tests/${m.linked.id}`">{{ t.mine.goTest }}</NuxtLink>
+            </Button>
           </template>
           <template v-else>
             <Badge :variant="subs.get(p)?.status === 'rejected' ? 'destructive' : subs.has(p) ? 'secondary' : 'outline'">

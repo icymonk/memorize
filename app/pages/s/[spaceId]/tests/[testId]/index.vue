@@ -48,6 +48,7 @@ const busy = ref(false)
 const empty = (): TestInput => testInput.parse({ title: '-' })
 const form = ref<TestInput>({ ...empty(), title: '' })
 const timeLimit = ref<number | ''>('')
+const minScore = ref<number | ''>('')
 const openAt = ref('')
 const closeAt = ref('')
 const randTag = ref('')
@@ -96,7 +97,9 @@ onMounted(async () => {
     if (tst) {
       test.value = tst
       const { title, description, questionRefs, settings, assignees } = tst
-      form.value = { title, description, questionRefs, settings: { ...settings }, assignees: { ...assignees, groupIds: assignees.groupIds ?? [] } }
+      const mission = tst.mission ?? { enabled: false, minScore: null }
+      form.value = { title, description, questionRefs, settings: { ...settings }, assignees: { ...assignees, groupIds: assignees.groupIds ?? [] }, mission: { ...mission } }
+      minScore.value = mission.minScore ?? ''
       timeLimit.value = settings.timeLimitMin ?? ''
       openAt.value = toLocal(settings.openAt)
       closeAt.value = toLocal(settings.closeAt)
@@ -139,6 +142,9 @@ function build() {
     ...form.value,
     settings: { ...form.value.settings, timeLimitMin: timeLimit.value === '' ? null : Number(timeLimit.value), openAt: fromLocal(openAt.value), closeAt: fromLocal(closeAt.value) },
     assignees: personal.value ? { all: true, uids: [], groupIds: [] } : form.value.assignees,
+    mission: personal.value || !form.value.mission.enabled
+      ? { enabled: false, minScore: null }
+      : { enabled: true, minScore: minScore.value === '' ? null : Math.min(Number(minScore.value), total.value) },
   })
 }
 
@@ -241,7 +247,9 @@ async function remove() {
         </li>
         <li>{{ f.resultRelease }}: {{ t.release[test.settings.resultRelease] }}</li>
         <li v-if="test.hostIds.includes(uid) && !personal">{{ t.takers(test.participantIds?.length ?? 0) }}</li>
+        <li v-if="test.mission?.enabled">{{ ko.missions.mine.testRule(test.mission.minScore) }}</li>
       </ul>
+      <NuxtLink v-if="test.missionId" :to="`/s/${sid}/missions/${test.missionId}`" class="text-primary self-start text-sm underline-offset-4 hover:underline">{{ t.linkedMission }}</NuxtLink>
       <Button v-if="test.participantIds?.includes(uid) || test.hostIds.includes(uid)" class="self-start" as-child>
         <NuxtLink :to="`/s/${sid}/tests/${test.id}/take`">{{ test.hostIds.includes(uid) ? t.take.hostPreview : (test.settings.practice ? t.take.practice : t.take.start) }}</NuxtLink>
       </Button>
@@ -375,6 +383,14 @@ async function remove() {
             <input type="checkbox" class="size-4" :checked="form.assignees.uids.includes(m.uid)" @change="form.assignees.uids = toggle(form.assignees.uids, m.uid)">
             {{ m.displayName }}
           </label>
+        </div>
+      </div>
+
+      <div v-if="!personal" class="flex flex-col gap-2 text-sm">
+        <label class="flex items-center gap-2"><Switch v-model="form.mission.enabled" /> {{ f.mission }}</label>
+        <div v-if="form.mission.enabled" class="flex flex-col gap-2">
+          <Label for="t-min">{{ f.minScore }}</Label>
+          <Input id="t-min" v-model.number="minScore" type="number" min="1" :max="total || undefined" class="w-32" />
         </div>
       </div>
 

@@ -931,7 +931,7 @@ export const ko = {
       personalHint: '나만 대상인 개인 목표예요. 다른 사람에게는 보이지 않아요.',
     },
     types: { check: '체크형 — 스스로 완료 체크', submission: '제출형 — 제출하면 진행자가 검토' } as Record<string, string>,
-    typeShort: { check: '체크형', submission: '제출형' } as Record<string, string>,
+    typeShort: { check: '체크형', submission: '제출형', auto: '시험' } as Record<string, string>,
     recurrences: { once: '한 번', daily: '매일', weekly: '매주 요일 지정' } as Record<string, string>,
     weekdays: ['일', '월', '화', '수', '목', '금', '토'],
     notify: { feed: '피드에만', all: '참여자 전체에게 알림', none: '알리지 않음' } as Record<string, string>,
@@ -972,6 +972,8 @@ export const ko = {
       once: '이번 미션',
       late: '늦음',
       reason: (r: string) => `반려 사유: ${r}`,
+      testRule: (min: number | null) => min == null ? '시험에 응시하면 자동으로 완료돼요.' : `시험에서 ${min}점 이상 받으면 자동으로 완료돼요. 서술형은 채점이 끝난 뒤 반영돼요.`,
+      goTest: '시험 보기',
     },
     board: {
       title: '현황판',
@@ -1091,7 +1093,10 @@ export const ko = {
       everyone: '전체 멤버',
       pick: '골라서',
       groupLabel: (name: string) => `${name} 그룹`,
+      mission: '미션으로도 배정 (시험을 열면 대상자의 미션 목록에 나타나요)',
+      minScore: '목표 점수 (비우면 응시만 해도 완료)',
     },
+    linkedMission: '연결된 미션 보기',
     scoring: { best: '최고 점수', last: '마지막 점수' } as Record<string, string>,
     release: { instant: '제출하면 바로', afterClose: '마감 후', scoreOnly: '점수만', hidden: '공개 안 함' } as Record<string, string>,
     picker: {

@@ -1,8 +1,10 @@
 import type { CheckAnswerOutput, GradeAttemptOutput, OpenTestOutput, PaperItem, StartAttemptOutput, SubmitAttemptOutput } from '../../../shared/schemas/test'
 import { FieldValue, getFirestore, Timestamp } from 'firebase-admin/firestore'
 import { HttpsError } from 'firebase-functions/v2/https'
+import { dateKey } from '../../../shared/dates'
+import { submissionId } from '../../../shared/schemas/mission'
 import { gradeAnswer } from '../../../shared/schemas/question'
-import { applyGrades, attemptDeadline, attemptRefInput, canStart, checkAnswerInput, gradeAttemptInput, maxScoreOf, openTestInput, startAttemptInput, SUBMIT_GRACE_MS, testTakers } from '../../../shared/schemas/test'
+import { applyGrades, attemptDeadline, attemptRefInput, canStart, checkAnswerInput, gradeAttemptInput, maxScoreOf, meetsTestMission, openTestInput, startAttemptInput, SUBMIT_GRACE_MS, testTakers } from '../../../shared/schemas/test'
 import { shuffle } from '../../../shared/study'
 import { authedCallable } from '../lib/callable'
 import { notifyMembers } from '../lib/notify'
@@ -53,10 +55,62 @@ export const openTest = authedCallable(openTestInput, async ({ uid, data }): Pro
   const batch = db.batch()
   batch.set(testRef.collection('paper').doc('main'), { items, hostIds })
   batch.set(testRef.collection('secret').doc('key'), { items: secret })
-  batch.update(testRef, { status: 'open', participantIds: takers, maxScore, openedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
+  const mission = test.get('mission') as { enabled: boolean, minScore: number | null } | undefined
+  let missionId: string | null = null
+  if (mission?.enabled && takers.length && space.get('kind') !== 'personal') {
+    const ref = spaceRef.collection('missions').doc()
+    missionId = ref.id
+    batch.set(ref, testMissionDoc(uid, data.testId, test, takers, mission.minScore))
+  }
+  batch.update(testRef, { status: 'open', participantIds: takers, maxScore, missionId, openedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() })
   await batch.commit()
   return { questionCount: items.length, maxScore, takerCount: takers.length }
 })
+
+const ZONE = 'Asia/Seoul'
+
+/** TST-19·MIS-16 시험 연결 미션: 시험 대상자가 참여자, 기간은 시험 기간, 완료는 서버가 응시 결과로 기록 */
+function testMissionDoc(uid: string, testId: string, test: FirebaseFirestore.DocumentSnapshot, takers: string[], minScore: number | null) {
+  const settings = test.get('settings') ?? {}
+  const now = FieldValue.serverTimestamp()
+  return {
+    title: test.get('title') ?? '',
+    description: test.get('description') ?? '',
+    type: 'auto',
+    autoRule: { kind: 'test', targetId: testId, threshold: minScore },
+    linked: { type: 'test', id: testId },
+    recurrence: { kind: 'once', weekdays: [] },
+    startDate: dateKey(new Date(settings.openAt ?? Date.now()), ZONE),
+    endDate: settings.closeAt == null ? null : dateKey(new Date(settings.closeAt), ZONE),
+    allowLate: false,
+    assignees: test.get('assignees') ?? { all: true, uids: [], groupIds: [] },
+    includeSelf: false,
+    joinable: false,
+    isPersonal: false,
+    notifyOnComplete: 'feed',
+    participantIds: takers,
+    createdBy: uid,
+    hostIds: test.get('hostIds') ?? [uid],
+    reviewerIds: [],
+    closedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+/** 응시 결과가 연결 미션의 완료 조건을 채우면 완료 제출을 남긴다 (이미 있으면 그대로) */
+async function completeTestMission(test: FirebaseFirestore.DocumentSnapshot, taker: string, r: { isPractice: boolean, score: number, gradingStatus: 'done' | 'pending' }) {
+  const missionId = test.get('missionId') as string | null | undefined
+  const mission = test.get('mission') as { minScore: number | null } | undefined
+  if (!missionId || !mission || !(test.get('participantIds') ?? []).includes(taker) || !meetsTestMission(mission, r)) return
+  const ref = test.ref.parent.parent!.collection('missions').doc(missionId).collection('submissions').doc(submissionId(taker, 'once'))
+  await ref.create({
+    uid: taker, periodKey: 'once', status: 'done', content: '', pageId: null, attachments: [], late: false, reviewerUids: [],
+    score: r.score, submittedAt: FieldValue.serverTimestamp(),
+  }).catch((e: { code?: number }) => {
+    if (e.code !== 6) throw e // ALREADY_EXISTS
+  })
+}
 
 interface Loaded { testRef: FirebaseFirestore.DocumentReference, test: FirebaseFirestore.DocumentSnapshot }
 
@@ -75,7 +129,7 @@ async function loadTest(uid: string, spaceId: string, testId: string): Promise<L
 type Key = { answer: (number | boolean | string)[], ignoreCase: boolean, ignoreSpaces: boolean, explanation: string, rubric: string }
 
 /** 제출 처리와 자동 채점 (TST-23·30). 서술형이 있으면 채점 대기 */
-async function finalize(testRef: FirebaseFirestore.DocumentReference, attempt: FirebaseFirestore.DocumentSnapshot): Promise<SubmitAttemptOutput> {
+async function finalize(testRef: FirebaseFirestore.DocumentReference, test: FirebaseFirestore.DocumentSnapshot, attempt: FirebaseFirestore.DocumentSnapshot): Promise<SubmitAttemptOutput> {
   const [paper, secret] = await Promise.all([testRef.collection('paper').doc('main').get(), testRef.collection('secret').doc('key').get()])
   const items: PaperItem[] = paper.get('items') ?? []
   const keys: Record<string, Key> = secret.get('items') ?? {}
@@ -102,6 +156,7 @@ async function finalize(testRef: FirebaseFirestore.DocumentReference, attempt: F
   })
   if (!isPractice) batch.update(testRef, { 'stats.attempts': FieldValue.increment(1), 'stats.scoreSum': FieldValue.increment(score) })
   await batch.commit()
+  await completeTestMission(test, attempt.get('uid'), { isPractice, score, gradingStatus })
   return { score, maxScore, gradingStatus }
 }
 
@@ -114,7 +169,7 @@ export const startAttempt = authedCallable(startAttemptInput, async ({ uid, data
   if (open) {
     const deadline = open.get('deadlineAt')?.toMillis?.() ?? null
     if (deadline == null || now < deadline + SUBMIT_GRACE_MS) return { attemptId: open.id, nowMs: now }
-    await finalize(testRef, open)
+    await finalize(testRef, test, open)
   }
   const settings = test.get('settings')
   const isHost = (test.get('hostIds') ?? []).includes(uid)
@@ -139,12 +194,12 @@ export const startAttempt = authedCallable(startAttemptInput, async ({ uid, data
 
 /** TST-23 제출 (시간 초과 자동 제출도 이 함수) */
 export const submitAttempt = authedCallable(attemptRefInput, async ({ uid, data }): Promise<SubmitAttemptOutput> => {
-  const { testRef } = await loadTest(uid, data.spaceId, data.testId)
+  const { testRef, test } = await loadTest(uid, data.spaceId, data.testId)
   const attempt = await testRef.collection('attempts').doc(data.attemptId).get()
   if (!attempt.exists || attempt.get('uid') !== uid) throw new HttpsError('not-found', 'attempt not found')
   if (attempt.get('submittedAt')) throw new HttpsError('failed-precondition', 'already submitted')
-  const res = await finalize(testRef, attempt)
-  const release = (await testRef.get()).get('settings.resultRelease')
+  const res = await finalize(testRef, test, attempt)
+  const release = test.get('settings.resultRelease')
   return attempt.get('isPractice') || release === 'instant' || release === 'scoreOnly' ? res : { ...res, score: null }
 })
 
@@ -177,8 +232,9 @@ export const gradeAttempt = authedCallable(gradeAttemptInput, async ({ uid, data
     tx.update(resultRef, { items: next.items, score: next.score, gradingStatus: next.gradingStatus, comments, gradedBy: uid, gradedAt: FieldValue.serverTimestamp() })
     tx.update(testRef.collection('attempts').doc(data.attemptId), { gradingStatus: next.gradingStatus })
     if (!r.get('isPractice') && next.score !== before) tx.update(testRef, { 'stats.scoreSum': FieldValue.increment(next.score - before) })
-    return { ...next, maxScore: r.get('maxScore') as number, taker: r.get('uid') as string, justDone: !wasDone && next.gradingStatus === 'done' }
+    return { ...next, maxScore: r.get('maxScore') as number, taker: r.get('uid') as string, isPractice: !!r.get('isPractice'), justDone: !wasDone && next.gradingStatus === 'done' }
   })
+  await completeTestMission(test, res.taker, res)
   if (res.justDone) {
     await notifyMembers(data.spaceId, [{
       uid: res.taker, type: 'test', actorId: uid, refPath: `/s/${data.spaceId}/tests/${data.testId}/attempts/${data.attemptId}`,

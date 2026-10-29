@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.20 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.21 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -278,13 +278,13 @@ spaces/{sid}/readingGroups/{id}               # READ-40~45
 spaces/{sid}/missions/{missionId}
   title, descriptionPageId?
   type: 'check' | 'submission' | 'auto'
-  autoRule?: { kind, targetId?, threshold? }                 # MIS-03
+  autoRule?: { kind, targetId?, threshold? }                 # MIS-03. 시험 연결은 { kind: 'test', targetId: testId, threshold: 목표 점수|null }
   recurrence: { kind: 'once'|'daily'|'weekly', weekdays?[] }  # MIS-11
   startAt, endAt?, allowLate
   assignees: { all, groupIds[], uids[] }, includeSelf, joinable, participantIds[]
   reward?: { points, badgeId? }
   isPersonal: bool                                            # MIS-14
-  linked?: { type: 'readingGroup'|'lesson'|'test', id }       # MIS-16
+  linked?: { type: 'readingGroup'|'lesson'|'test', id }       # MIS-16. 시험 연결 미션은 openTest가 type 'auto'로 만들고, 진행자는 종료만 바꾼다
   notifyOnComplete: 'feed' | 'all' | 'none'                   # MIS-17
   peerReview?: { enabled, perSubmission, requiredReviews, anonymous: false }   # MIS-35·36
   createdBy, hostIds[], reviewerIds[]
@@ -329,7 +329,9 @@ spaces/{sid}/tests/{testId}
   settings: { timeLimitMin|null, openAt|null, closeAt|null (epoch ms), maxAttempts (0=무제한),
               scoring: 'best'|'last', shuffleQuestions, shuffleChoices,
               resultRelease: 'instant'|'afterClose'|'scoreOnly'|'hidden', practice }
-  assignees: { all, uids[], groupIds[] }, missionId?   # TST-16·19
+  assignees: { all, uids[], groupIds[] }   # TST-16
+  mission: { enabled, minScore|null }      # TST-19 미션으로도 배정. minScore가 없으면 응시만 해도 완료
+  missionId?                               # openTest가 연결 미션을 만들고 채움. 완료 제출({uid}_once)은 제출·채점 함수가 남긴다
   status: 'draft'|'open'|'closed'         # draft만 진행자가 고친다. open은 openTest만
   participantIds[], maxScore, openedAt    # openTest가 채움 (대상자 확정)
   createdBy, hostIds[], deletedAt
@@ -447,3 +449,4 @@ users/{uid}/avatar/{fileName}
 - v2.18: 시험 status·participantIds, 시험지·정답 사본 (3-B1, TST-10~16)
 - v2.19: 응시 choiceOrder, 결과 문서 `results` 분리 (3-B2, TST-21~23·30)
 - v2.20: 결과 gradedBy·gradedAt, 진행자의 secret/key 읽기 (3-B3, TST-31)
+- v2.21: 시험 `mission`·`missionId`, 시험 연결 미션(type 'auto', autoRule·linked) (3-B4, TST-19·MIS-16)
