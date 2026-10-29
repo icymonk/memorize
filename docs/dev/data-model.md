@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.23 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.24 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -308,7 +308,7 @@ spaces/{sid}/missions/{missionId}/peerReviews/{id}
 spaces/{sid}/questions/{questionId}
   type, subject: 'language'|'math'|'general', subjectId?
   prompt: string, choices[], media[] (첨부, 최대 5)    # type: single|multi|ox|short|essay (3-A1 지문은 글자)
-  tags[], unit?: { code|null, custom|null }, difficulty, defaultPoints, hints?[]   # unit: MATH-13 교육과정 code 또는 자유 입력
+  tags[], unit?: { code|null, custom|null }, variant?: bool, difficulty, defaultPoints, hints?[]   # unit: MATH-13 교육과정 code 또는 자유 입력
   createdBy, collaboratorIds[]
   sharing: 'private' | 'space'            # TST-08 (기본 private)
   answerVisibility: 'authors' | 'space'   # TST-07 (기본 authors)
@@ -323,6 +323,7 @@ spaces/{sid}/questionKeys/{questionId}     # 정답 (규칙: authorIds 또는 �
   template?: {                            # MATH-14 변형 문제. 있으면 questions.prompt·choices·hints는 목록용 예시 1개
     prompt, hints[], explanation          # `{name}` 자리 표시 (수식 안에서도 사용)
     vars: [{ name, kind: 'int'|'dec'|'frac'|'pick', min?, max?, step?, digits?, exclude?[], options?[] }]
+                                          # int: min~max(step 간격) · dec: 소수 digits자리 · frac: 분모 min~max(2~99)의 진분수 · pick: options 중 하나(숫자면 계산에도 씀)
     calc: [{ name, expr }]                # 계산값 (shared/math/expr 문법, eval 없음)
     conds: string[]                       # 모두 참일 때까지 다시 뽑기 (최대 200번)
     answerExpr, wrongExprs[]              # 숫자 정답 / 객관식이면 오답 식 (겹치면 다른 값으로 바꿈)
@@ -463,5 +464,6 @@ users/{uid}/avatar/{fileName}
 - v2.19: 응시 choiceOrder, 결과 문서 `results` 분리 (3-B2, TST-21~23·30)
 - v2.20: 결과 gradedBy·gradedAt, 진행자의 secret/key 읽기 (3-B3, TST-31)
 - v2.21: 시험 `mission`·`missionId`, 시험 연결 미션(type 'auto', autoRule·linked) (3-B4, TST-19·MIS-16)
+- v2.24: 변형 문제 `questions.variant`, `template.vars` 종류별 의미 (MATH-14)
 - v2.23: 문제집 필드 확정(description·editPolicy·questionIds 최대 100), 문제 unit, 정답 tolerance 의미, 교육과정은 저장소 원본을 직접 읽음 (MATH-10·12·13)
 - v2.22: 변형 문제 `questionKeys.template`, `problemAttempts.seed`, `curricula` 영역 단계·원본 위치, 내장 문제 틀 위치 (MATH-14·15·17)

@@ -255,13 +255,14 @@ service cloud.firestore {
       // 3-A1 문제 은행 (TST-01·02·04·07·08). 정답은 questionKeys에 따로 두고 출제자(+공개 설정 시 멤버)만 읽는다
       match /questions/{qid} {
         function validQ(x) {
-          return x.keys().hasOnly(['type', 'prompt', 'choices', 'tags', 'subjectId', 'media', 'copiedFrom', 'difficulty', 'defaultPoints', 'createdBy', 'sharing', 'answerVisibility', 'rev', 'deletedAt', 'createdAt', 'updatedAt', 'unit'])
+          return x.keys().hasOnly(['type', 'prompt', 'choices', 'tags', 'subjectId', 'media', 'copiedFrom', 'difficulty', 'defaultPoints', 'createdBy', 'sharing', 'answerVisibility', 'rev', 'deletedAt', 'createdAt', 'updatedAt', 'unit', 'variant'])
             && x.type in ['single', 'multi', 'ox', 'short', 'essay'] && isText(x.prompt, 1, 2000)
             && x.choices is list && x.choices.size() <= 6 && x.tags is list && x.tags.size() <= 10
             && (!('media' in x) || (x.media is list && x.media.size() <= 5))
             && x.difficulty in ['easy', 'normal', 'hard'] && x.defaultPoints is int && x.defaultPoints >= 1 && x.defaultPoints <= 100
             && x.sharing in ['private', 'space'] && x.answerVisibility in ['authors', 'space'] && x.rev is int
-            && (x.get('unit', null) == null || (x.unit is map && x.unit.keys().hasOnly(['code', 'custom'])));
+            && (x.get('unit', null) == null || (x.unit is map && x.unit.keys().hasOnly(['code', 'custom'])))
+            && x.get('variant', false) is bool;
         }
         allow read: if isMember(sid) && (resource.data.createdBy == uid() || resource.data.sharing == 'space');
         allow create: if isMember(sid) && request.resource.data.createdBy == uid() && request.resource.data.deletedAt == null
@@ -272,7 +273,10 @@ service cloud.firestore {
       match /questionKeys/{qid} {
         function qAfter() { return getAfter(/databases/$(database)/documents/spaces/$(sid)/questions/$(qid)).data; }
         function validKey(x) {
-          return x.keys().hasOnly(['answer', 'ignoreCase', 'ignoreSpaces', 'explanation', 'rubric', 'authorIds', 'answerVisibility', 'tolerance'])
+          return x.keys().hasOnly(['answer', 'ignoreCase', 'ignoreSpaces', 'explanation', 'rubric', 'authorIds', 'answerVisibility', 'tolerance', 'template'])
+            && (x.get('template', null) == null || (x.template is map
+              && x.template.keys().hasOnly(['prompt', 'explanation', 'hints', 'vars', 'calc', 'conds', 'answerExpr', 'wrongExprs'])
+              && x.template.vars is list && x.template.vars.size() <= 10 && x.template.calc.size() <= 10 && x.template.conds.size() <= 10))
             && (x.get('tolerance', null) == null || (x.tolerance is number && x.tolerance >= 0))
             && x.answer is list && x.answer.size() <= 20 && x.ignoreCase is bool && x.ignoreSpaces is bool
             && isText(x.explanation, 0, 2000) && isText(x.rubric, 0, 2000)

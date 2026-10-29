@@ -106,6 +106,7 @@ async function copyQuestion({ uid, data, fromRef, toRef, fromSpace }: Ctx): Prom
     difficulty: src.difficulty,
     defaultPoints: src.defaultPoints,
     unit: src.unit ?? null,
+    variant: seeKey && !!key?.template,
     createdBy: uid,
     sharing: 'private',
     answerVisibility: 'authors',
@@ -122,6 +123,7 @@ async function copyQuestion({ uid, data, fromRef, toRef, fromSpace }: Ctx): Prom
     explanation: seeKey ? key.explanation ?? '' : '',
     rubric: seeKey ? key.rubric ?? '' : '',
     tolerance: key?.tolerance ?? null,
+    template: seeKey ? key?.template ?? null : null,
     authorIds: [uid],
     answerVisibility: 'authors',
   })

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { parseNumber, sameNumber } from '../math/number'
+import { templateInput } from '../math/template'
 
 /** TST-01·02 문제 은행 — docs/dev/data-model.md 10절. 정답은 questionKeys에 따로 둔다 */
 export const QUESTION_TYPES = ['single', 'multi', 'ox', 'short', 'essay'] as const
@@ -31,6 +32,8 @@ export const questionInput = z.object({
   answerVisibility: z.enum(['authors', 'space']).default('authors'),
   /** MATH-13 학년·단원: 교육과정 목록의 code 또는 자유 입력 */
   unit: z.object({ code: z.string().max(40).nullable(), custom: text(60).nullable() }).nullable().default(null),
+  /** MATH-14 변형 문제: 지문·보기는 목록용 예시, 틀은 정답 문서(template)에 */
+  variant: z.boolean().default(false),
 })
 export type QuestionInput = z.infer<typeof questionInput>
 
@@ -43,6 +46,7 @@ export const questionKeyInput = z.object({
   rubric: text(2000).default(''),
   /** MATH-12 단답형 숫자 정답: null이면 글자로, 숫자면 그만큼의 오차까지 정답 (분수=소수) */
   tolerance: z.number().min(0).max(1_000_000).nullable().default(null),
+  template: templateInput.nullable().default(null),
 })
 export type QuestionKeyInput = z.infer<typeof questionKeyInput>
 

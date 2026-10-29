@@ -1143,6 +1143,13 @@ describe('numeric keys and units (MATH-12·13)', () => {
     await assertFails(save({}, { tolerance: '0' }))
     await assertFails(save({ unit: { code: 'm1', grade: 'm1' } }, {}))
   })
+  it('stores a variant template only in the key', async () => {
+    const template = { prompt: '{a}+{b}', explanation: '', hints: [], vars: [{ name: 'a', kind: 'int', min: 1, max: 9 }], calc: [], conds: [], answerExpr: 'a', wrongExprs: [] }
+    await assertSucceeds(save({ variant: true }, { tolerance: 0, template }))
+    await assertFails(save({ variant: 'yes' }, {}))
+    await assertFails(save({}, { template: { ...template, secret: 1 } }))
+    await assertFails(save({}, { template: { ...template, vars: Array.from({ length: 11 }, () => template.vars[0]) } }))
+  })
 })
 
 describe('problem sets (MATH-10·13)', () => {
