@@ -170,6 +170,27 @@
         }
       },
       {
+        "source": "/fn/generateProblems",
+        "function": {
+          "functionId": "generateProblems",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/previewTemplate",
+        "function": {
+          "functionId": "previewTemplate",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/saveGenerated",
+        "function": {
+          "functionId": "saveGenerated",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/gradeAttempt",
         "function": {
           "functionId": "gradeAttempt",

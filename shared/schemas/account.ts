@@ -7,6 +7,7 @@ import type { CollectionRefInput } from './collection'
 import type { LeaveFeedbackInput, RequestRewriteInput } from './feedback'
 import type { MovePageInput, PageOpOutput, PageRefInput } from './page'
 import type { DeleteUploadInput, RegisterUploadInput, RegisterUploadOutput } from './upload'
+import type { GenerateInput, GenerateOutput, GenItem, PreviewTemplateInput, SaveGeneratedInput, SaveGeneratedOutput } from '../math/generate'
 import type { CheckProblemInput, DrawProblemInput, ProblemRefInput, ProblemResult, ProblemView, RevealHintOutput } from '../math/solve'
 import { z } from 'zod'
 
@@ -56,6 +57,9 @@ export interface Callables {
   drawProblem: { input: DrawProblemInput, output: ProblemView }
   checkProblem: { input: CheckProblemInput, output: ProblemResult }
   revealHint: { input: ProblemRefInput, output: RevealHintOutput }
+  generateProblems: { input: GenerateInput, output: GenerateOutput }
+  previewTemplate: { input: PreviewTemplateInput, output: GenItem }
+  saveGenerated: { input: SaveGeneratedInput, output: SaveGeneratedOutput }
   movePage: { input: MovePageInput, output: PageOpOutput }
   trashPage: { input: PageRefInput, output: PageOpOutput }
   restorePage: { input: PageRefInput, output: PageOpOutput }

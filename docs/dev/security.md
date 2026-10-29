@@ -1,6 +1,6 @@
 # 보안 규칙
 
-> 상태: 확정 · v2.7 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기), `invites`(만든 사람·매니저 읽기·끄기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
+> 상태: 확정 · v2.8 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기), `invites`(만든 사람·매니저 읽기·끄기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
 
 ## 1. 원칙
 - **화면의 권한 표시는 편의, 실제 강제는 규칙과 서버 기능.**
@@ -219,6 +219,7 @@ match /b/{bucket}/o {
 - 없음
 
 ## 8. 변경 이력
+- v2.8: 단원별 만들기(`saveGenerated`): 서버가 `whoCanCreate`·문제집 편집 권한을 확인하고, 정답을 볼 수 없던 틀의 복사본은 정답 문서를 원래 출제자만 읽는다
 - v2.7: 문제집 풀이 기록 `problemAttempts`(서버만 씀)·풀이 메모 `problemNotes`, `questionKeys.hints`, `problemSets.hintPenalty`
 - v2.5: `invites` 규칙 적용, 생성은 서버(코드 유일성)
 - v2.4: `spaces` 수정 규칙 적용(바꿀 수 있는 필드·값 검사)

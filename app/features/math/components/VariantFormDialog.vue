@@ -51,6 +51,7 @@ const form = ref(empty())
 const seed = ref(newSeed())
 const saving = ref(false)
 const loadingKey = ref(false)
+const keyHidden = ref(false)
 const unitFromPreset = ref<Question['unit']>(null)
 
 function fill(d: TemplateDraft, choice: boolean) {
@@ -71,6 +72,7 @@ watch(open, async (v) => {
   if (!v) return
   form.value = { ...empty(), share: !!props.preset?.share }
   unitFromPreset.value = null
+  keyHidden.value = false
   seed.value = newSeed()
   const q = props.question
   if (!q) return
@@ -80,6 +82,9 @@ watch(open, async (v) => {
     const k = await getQuestionKey($firestore, space.current!.id, q.id)
     if (k?.template) fill(k.template, q.type === 'single')
     form.value.tolerance = k?.tolerance ?? 0
+  }
+  catch {
+    keyHidden.value = true
   }
   finally {
     loadingKey.value = false
@@ -194,6 +199,7 @@ async function submit() {
         <DialogDescription>{{ t.intro }}</DialogDescription>
       </DialogHeader>
       <Skeleton v-if="loadingKey" class="h-40 w-full" />
+      <p v-else-if="keyHidden" class="text-muted-foreground text-sm">{{ t.keyHidden }}</p>
       <form v-else id="variant-form" class="flex flex-col gap-4 text-sm" @submit.prevent="submit">
         <div v-if="!question" class="flex flex-col gap-2">
           <Label for="v-preset">{{ t.preset }}</Label>
@@ -328,7 +334,7 @@ async function submit() {
         </section>
       </form>
       <DialogFooter>
-        <Button type="submit" form="variant-form" :disabled="saving || loadingKey || !preview || !!preview.failed">{{ ko.dialog.ok }}</Button>
+        <Button type="submit" form="variant-form" :disabled="saving || loadingKey || keyHidden || !preview || !!preview.failed">{{ ko.dialog.ok }}</Button>
       </DialogFooter>
     </DialogContent>
   </Dialog>
