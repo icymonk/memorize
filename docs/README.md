@@ -35,7 +35,7 @@
 ### 제안 (확정 전 계획)
 | 문서 | 내용 | 상태 |
 | --- | --- | --- |
-| [proposals/math-generation.md](./proposals/math-generation.md) | 수학 문제 생성(변형 템플릿·단원별 생성)·공유 계획 | 초안 |
+| [proposals/math-generation.md](./proposals/math-generation.md) | 수학 문제 생성(변형 템플릿·단원별 생성)·공유 계획 | 확정 (math.md v1.1에 반영) |
 
 상태: `초안` → `리뷰 중` → `확정`
 

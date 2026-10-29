@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.21 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.22 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -320,6 +320,13 @@ spaces/{sid}/questionKeys/{questionId}     # 정답 (규칙: authorIds 또는 �
   answer: (number|bool|string)[]         # 객관식=보기 번호, OX=[bool], 단답=허용 답, 서술형=[]
   ignoreCase, ignoreSpaces, tolerance?, explanation, rubric
   authorIds[], answerVisibility           # 검사용 복사본
+  template?: {                            # MATH-14 변형 문제. 있으면 questions.prompt·choices·hints는 목록용 예시 1개
+    prompt, hints[], explanation          # `{name}` 자리 표시 (수식 안에서도 사용)
+    vars: [{ name, kind: 'int'|'dec'|'frac'|'pick', min?, max?, step?, digits?, exclude?[], options?[] }]
+    calc: [{ name, expr }]                # 계산값 (shared/math/expr 문법, eval 없음)
+    conds: string[]                       # 모두 참일 때까지 다시 뽑기 (최대 200번)
+    answerExpr, wrongExprs[]              # 숫자 정답 / 객관식이면 오답 식 (겹치면 다른 값으로 바꿈)
+  }
 
 spaces/{sid}/questionSets/{setId}          title, questionIds[], createdBy, sharing
 
@@ -360,13 +367,17 @@ spaces/{sid}/problemSets/{setId}           # MATH-10·13
 
 spaces/{sid}/problemAttempts/{uid}_{questionId}
   uid, questionId, tries, correct, hintsUsed, lastAnswer, isPractice, lastAt
+  seed?                                   # 변형 문제: 지금 풀고 있는 숫자 (drawProblem이 정함, 서버만 씀)
+  # 시험 응시의 변형 문제는 시험지 사본을 만들 때 seed를 정한다 (MATH-17: 응시자마다 / 시험마다 하나)
 
 spaces/{sid}/drillRecords/{id}             uid, kind, config, score, durationSec, createdAt
 spaces/{sid}/drillTop/{kind}               entries[] (서버 관리)
 spaces/{sid}/answerAppeals/{id}            questionId, uid, answer, status, createdAt   # MATH 이의 신청
 
-curricula/{curriculumId}                   # 전역 참고 데이터 (읽기 전용)
-  name, grades: [{ grade, units: [{ code, name, children[] }] }]
+curricula/{curriculumId}                   # 전역 참고 데이터 (읽기 전용). 'kr-2022': 2022 개정 초1~고1
+  name, grades: [{ grade, areas: [{ name, units: [{ code, name, children: [{ code, name }] }] }] }]
+  # 원본은 저장소 shared/math/curricula/*.json, 배포 때 넣는다
+# MATH-15 내장 문제 틀은 Firestore가 아니라 shared/math/library (단원 code → 문제 틀 목록, 앱·서버 공용)
 ```
 
 ## 11. 통합 오답 노트 (WRN)
@@ -450,3 +461,4 @@ users/{uid}/avatar/{fileName}
 - v2.19: 응시 choiceOrder, 결과 문서 `results` 분리 (3-B2, TST-21~23·30)
 - v2.20: 결과 gradedBy·gradedAt, 진행자의 secret/key 읽기 (3-B3, TST-31)
 - v2.21: 시험 `mission`·`missionId`, 시험 연결 미션(type 'auto', autoRule·linked) (3-B4, TST-19·MIS-16)
+- v2.22: 변형 문제 `questionKeys.template`, `problemAttempts.seed`, `curricula` 영역 단계·원본 위치, 내장 문제 틀 위치 (MATH-14·15·17)
