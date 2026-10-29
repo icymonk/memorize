@@ -43,6 +43,7 @@ const empty = () => ({
   answerExpr: '',
   wrongExprs: [] as string[],
   explanation: '',
+  hints: '',
   tolerance: 0,
   share: false,
 })
@@ -62,6 +63,7 @@ function fill(d: TemplateDraft, choice: boolean) {
     answerExpr: d.answerExpr,
     wrongExprs: [...(d.wrongExprs ?? [])],
     explanation: d.explanation ?? '',
+    hints: (d.hints ?? []).join('\n'),
   })
 }
 
@@ -98,7 +100,7 @@ const draft = computed(() => {
   return templateInput.safeParse({
     prompt: f.prompt,
     explanation: f.explanation,
-    hints: [],
+    hints: f.hints.split('\n').map(x => x.trim()).filter(Boolean),
     vars: f.vars.map(v => ({
       name: v.name.trim(),
       kind: v.kind,
@@ -289,6 +291,11 @@ async function submit() {
         <div class="flex flex-col gap-2">
           <Label for="v-expl">{{ t.explanation }}</Label>
           <Textarea id="v-expl" v-model="form.explanation" rows="2" maxlength="2000" />
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label for="v-hints">{{ ko.math.solve.hintsField }}</Label>
+          <Textarea id="v-hints" v-model="form.hints" rows="2" :placeholder="ko.math.solve.hintsPlaceholder" />
+          <p class="text-muted-foreground text-xs">{{ ko.math.solve.hintsHint }} {{ t.hintsVars }}</p>
         </div>
         <p class="text-muted-foreground text-xs">{{ t.exprHelp }}</p>
 

@@ -43,7 +43,7 @@ export function generateQuestions(cards: readonly GenCard[], pool: readonly GenC
   const fronts = pool.map(c => c.front)
   const firstMeanings = pool.map(c => c.back[0] ?? '')
   const base: Omit<QuestionInput, 'type' | 'prompt' | 'choices'> = { tags: [], subjectId: null, media: [], difficulty: 'normal', defaultPoints: 10, sharing: 'private', answerVisibility: 'authors', unit: null, variant: false, ...opts.base }
-  const key = { ignoreCase: true, ignoreSpaces: false, explanation: '', rubric: '', tolerance: null, template: null }
+  const key = { ignoreCase: true, ignoreSpaces: false, explanation: '', rubric: '', tolerance: null, template: null, hints: [] }
   const out: GenQuestion[] = []
   for (const c of cards) {
     if (!c.front || !c.back.length) continue

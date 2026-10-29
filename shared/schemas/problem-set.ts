@@ -2,6 +2,7 @@ import { z } from 'zod'
 
 /** MATH-10·13 문제집 — docs/dev/data-model.md 10절 */
 export const PROBLEM_SET_MAX_QUESTIONS = 100
+export const HINT_PENALTY_MAX = 50
 
 export const problemSetInput = z.object({
   title: z.string().trim().min(1).max(80),
@@ -11,5 +12,7 @@ export const problemSetInput = z.object({
   visibility: z.enum(['private', 'space']).default('private'),
   /** members: 공개 문제집에 다른 멤버도 문제를 넣고 뺀다 */
   editPolicy: z.enum(['owner', 'members']).default('owner'),
+  /** MATH-21 힌트 하나당 깎는 점수(100점 만점 기준) */
+  hintPenalty: z.number().int().min(0).max(HINT_PENALTY_MAX).default(0),
 }).transform(v => ({ ...v, editPolicy: v.visibility === 'space' ? v.editPolicy : 'owner' as const }))
 export type ProblemSetInput = z.infer<typeof problemSetInput>

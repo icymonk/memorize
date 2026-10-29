@@ -273,10 +273,11 @@ service cloud.firestore {
       match /questionKeys/{qid} {
         function qAfter() { return getAfter(/databases/$(database)/documents/spaces/$(sid)/questions/$(qid)).data; }
         function validKey(x) {
-          return x.keys().hasOnly(['answer', 'ignoreCase', 'ignoreSpaces', 'explanation', 'rubric', 'authorIds', 'answerVisibility', 'tolerance', 'template'])
+          return x.keys().hasOnly(['answer', 'ignoreCase', 'ignoreSpaces', 'explanation', 'rubric', 'authorIds', 'answerVisibility', 'tolerance', 'template', 'hints'])
             && (x.get('template', null) == null || (x.template is map
               && x.template.keys().hasOnly(['prompt', 'explanation', 'hints', 'vars', 'calc', 'conds', 'answerExpr', 'wrongExprs'])
               && x.template.vars is list && x.template.vars.size() <= 10 && x.template.calc.size() <= 10 && x.template.conds.size() <= 10))
+            && (x.get('hints', []) is list && x.get('hints', []).size() <= 5)
             && (x.get('tolerance', null) == null || (x.tolerance is number && x.tolerance >= 0))
             && x.answer is list && x.answer.size() <= 20 && x.ignoreCase is bool && x.ignoreSpaces is bool
             && isText(x.explanation, 0, 2000) && isText(x.rubric, 0, 2000)
@@ -290,13 +291,14 @@ service cloud.firestore {
       // 수학 M2 문제집 (MATH-10·13). 공개(space)면 멤버 모두 읽고, editPolicy가 members면 멤버도 문제 목록만 고친다
       match /problemSets/{setId} {
         function validSet(x) {
-          return x.keys().hasOnly(['title', 'description', 'grade', 'unit', 'questionIds', 'visibility', 'editPolicy', 'createdBy', 'deletedAt', 'createdAt', 'updatedAt'])
+          return x.keys().hasOnly(['title', 'description', 'grade', 'unit', 'questionIds', 'visibility', 'editPolicy', 'createdBy', 'deletedAt', 'createdAt', 'updatedAt', 'hintPenalty'])
             && isText(x.title, 1, 80) && isText(x.description, 0, 500)
             && (x.grade == null || isText(x.grade, 1, 10))
             && (x.unit == null || (x.unit is map && x.unit.keys().hasOnly(['code', 'custom'])))
             && x.questionIds is list && x.questionIds.size() <= 100
             && x.visibility in ['private', 'space'] && x.editPolicy in ['owner', 'members']
             && (x.visibility == 'space' || x.editPolicy == 'owner')
+            && x.get('hintPenalty', 0) is int && x.get('hintPenalty', 0) >= 0 && x.get('hintPenalty', 0) <= 50
             && (space(sid).kind == 'workspace' || x.visibility == 'private');
         }
         allow read: if isMember(sid) && (resource.data.createdBy == uid() || resource.data.visibility == 'space');
@@ -307,6 +309,21 @@ service cloud.firestore {
           && (resource.data.createdBy == uid()
             || (resource.data.visibility == 'space' && resource.data.editPolicy == 'members' && resource.data.deletedAt == null
               && onlyChanges(['questionIds', 'updatedAt'])));
+      }
+      // 수학 M4 풀이 기록 (MATH-20·21·24): 본인만 읽고, 숫자(seed)·채점·힌트는 서버(drawProblem·checkProblem·revealHint)만 쓴다
+      match /problemAttempts/{attemptId} {
+        allow read: if isMember(sid) && attemptId.split('_')[0] == uid();
+        allow write: if false;
+      }
+      // MATH-22 풀이 메모: 문제마다 내 메모 하나 ({uid}_{questionId})
+      match /problemNotes/{noteId} {
+        function validNote(x) {
+          return x.keys().hasOnly(['uid', 'questionId', 'text', 'updatedAt'])
+            && x.uid == uid() && x.questionId is string && noteId == uid() + '_' + x.questionId && isText(x.text, 0, 5000);
+        }
+        allow read: if isMember(sid) && noteId.split('_')[0] == uid();
+        allow create, update: if isMember(sid) && validNote(request.resource.data);
+        allow delete: if isMember(sid) && noteId.split('_')[0] == uid();
       }
 
       // 3-B1 시험 (TST-10~16). 진행자는 임시저장 상태에서만 고치고, 여는 것(문제 사본·대상자)은 서버 함수(openTest)가 한다

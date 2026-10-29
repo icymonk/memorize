@@ -1,20 +1,22 @@
 <script setup lang="ts">
 import type { ProblemSet } from '~/features/math/services/problemSets'
+import type { ProblemAttempt } from '~/features/math/services/solve'
 import type { Question } from '~/features/tests/services/questions'
 import { unitLabel } from '#shared/math/curriculum'
 import { PROBLEM_SET_MAX_QUESTIONS } from '#shared/schemas/problem-set'
-import { ArrowLeftIcon, ListPlusIcon, PencilIcon, PlusIcon, SigmaIcon, Trash2Icon, XIcon } from '@lucide/vue'
+import { ArrowLeftIcon, CheckIcon, ListPlusIcon, PencilIcon, PlayIcon, PlusIcon, SigmaIcon, Trash2Icon, XIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import MathText from '~/features/math/components/MathText.vue'
 import ProblemSetFormDialog from '~/features/math/components/ProblemSetFormDialog.vue'
 import VariantFormDialog from '~/features/math/components/VariantFormDialog.vue'
 import { addToSet, deleteProblemSet, getProblemSet, removeFromSet } from '~/features/math/services/problemSets'
+import { getMyAttempts } from '~/features/math/services/solve'
 import QuestionFormDialog from '~/features/tests/components/QuestionFormDialog.vue'
 import { getQuestions, listQuestions } from '~/features/tests/services/questions'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 
-/** MATH-10 문제집 상세: 문제 목록, 새 문제·문제 은행에서 넣기. 풀기는 M4 */
+/** MATH-10 문제집 상세: 문제 목록, 새 문제·문제 은행에서 넣기, 풀기(M4)와 내 진행 */
 const t = ko.math.set
 const route = useRoute()
 const space = useSpaceStore()
@@ -31,6 +33,8 @@ const uid = computed(() => auth.user!.uid)
 const set = ref<ProblemSet | null>(null)
 const questions = ref<Question[]>([])
 const hidden = ref(0)
+const attempts = ref<Record<string, ProblemAttempt>>({})
+const solved = computed(() => questions.value.filter(q => attempts.value[q.id]?.correct).length)
 const loading = ref(true)
 const busy = ref(false)
 const editOpen = ref(false)
@@ -53,6 +57,7 @@ async function load() {
       const r = await getQuestions($firestore, sid.value, set.value.questionIds)
       questions.value = r.list
       hidden.value = r.hidden
+      attempts.value = await getMyAttempts($firestore, sid.value, uid.value, r.list.map(q => q.id))
     }
   }
   catch {
@@ -150,7 +155,10 @@ async function remove_() {
         </div>
       </div>
 
-      <p class="text-muted-foreground text-sm">{{ t.solveSoon }}</p>
+      <div v-if="questions.length" class="flex flex-wrap items-center gap-3">
+        <Button as-child><NuxtLink :to="`/s/${sid}/math/${setId}/solve`"><PlayIcon /> {{ t.solve }}</NuxtLink></Button>
+        <span class="text-muted-foreground text-sm">{{ t.progress(solved, questions.length) }}</span>
+      </div>
 
       <Card>
         <CardHeader class="flex flex-row flex-wrap items-center justify-between gap-2">
@@ -171,6 +179,8 @@ async function remove_() {
                 <div class="flex flex-wrap gap-1 text-xs">
                   <Badge variant="outline">{{ ko.tests.types[q.type] }}</Badge>
                   <Badge v-if="q.variant" variant="secondary">{{ ko.math.variant.badge }}</Badge>
+                  <Badge v-if="attempts[q.id]?.correct" variant="outline" class="border-green-600 text-green-700"><CheckIcon class="size-3" /> {{ t.solvedMark }}</Badge>
+                  <Badge v-else-if="attempts[q.id]?.gaveUp" variant="outline">{{ t.gaveUpMark }}</Badge>
                   <Badge v-if="set.visibility === 'space' && q.sharing !== 'space'" variant="destructive" :title="t.privateQuestionHint">{{ t.privateQuestion }}</Badge>
                 </div>
               </div>

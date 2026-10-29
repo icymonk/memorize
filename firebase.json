@@ -149,6 +149,27 @@
         }
       },
       {
+        "source": "/fn/drawProblem",
+        "function": {
+          "functionId": "drawProblem",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/checkProblem",
+        "function": {
+          "functionId": "checkProblem",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/revealHint",
+        "function": {
+          "functionId": "revealHint",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/gradeAttempt",
         "function": {
           "functionId": "gradeAttempt",
