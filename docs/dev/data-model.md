@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.24 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.25 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -318,7 +318,7 @@ spaces/{sid}/questions/{questionId}
 
 spaces/{sid}/questionKeys/{questionId}     # 정답 (규칙: authorIds 또는 공개 설정만 읽기)
   answer: (number|bool|string)[]         # 객관식=보기 번호, OX=[bool], 단답=허용 답, 서술형=[]
-  ignoreCase, ignoreSpaces, tolerance?, explanation, rubric   # tolerance: 단답형 숫자 정답(MATH-12). null=글자 비교, 숫자=그 오차까지 정답, 분수=소수 동치 (shared/math/number)
+  ignoreCase, ignoreSpaces, tolerance?, explanation, rubric, hints[] (MATH-21, 5개까지, 서버가 한 단계씩 연다)   # tolerance: 단답형 숫자 정답(MATH-12). null=글자 비교, 숫자=그 오차까지 정답, 분수=소수 동치 (shared/math/number)
   authorIds[], answerVisibility           # 검사용 복사본
   template?: {                            # MATH-14 변형 문제. 있으면 questions.prompt·choices·hints는 목록용 예시 1개
     prompt, hints[], explanation          # `{name}` 자리 표시 (수식 안에서도 사용)
@@ -365,11 +365,15 @@ spaces/{sid}/tests/{testId}/results/{attemptId}   # 서버만 씀. 진행자, �
 spaces/{sid}/problemSets/{setId}           # MATH-10·13
   title, description, grade|null, unit: { code|null, custom|null }|null, questionIds[] (최대 100)
   visibility: 'private'|'space', editPolicy: 'owner'|'members'   # members: 공개 문제집에 멤버도 questionIds만 고침
-  createdBy, deletedAt, createdAt, updatedAt, hintPenalty? (M4)
+  createdBy, deletedAt, createdAt, updatedAt, hintPenalty (0~50, 힌트 하나당 깎는 점수, 100점 만점)
 
 spaces/{sid}/problemAttempts/{uid}_{questionId}
-  uid, questionId, tries, correct, hintsUsed, lastAnswer, isPractice, lastAt
-  seed?                                   # 변형 문제: 지금 풀고 있는 숫자 (drawProblem이 정함, 서버만 씀)
+  uid, questionId, setId, tries, done, correct|null, gaveUp, score|null, hintsUsed, lastAnswer, isPractice, rounds, lastAt
+  seed|null                               # 변형 문제: 지금 풀고 있는 숫자 (drawProblem이 정함, 서버만 씀). "다시 풀기"는 새 seed로 처음부터
+  # 문서 전체를 서버만 쓰고 본인만 읽는다. score는 맞혔을 때 100 - hintsUsed × hintPenalty, 포기 0, 서술형 null
+
+spaces/{sid}/problemNotes/{uid}_{questionId}   # MATH-22 풀이 메모
+  uid, questionId, text (5000자, $…$ 수식), updatedAt
   # 시험 응시의 변형 문제는 시험지 사본을 만들 때 seed를 정한다 (MATH-17: 응시자마다 / 시험마다 하나)
 
 spaces/{sid}/drillRecords/{id}             uid, kind, config, score, durationSec, createdAt
@@ -466,4 +470,5 @@ users/{uid}/avatar/{fileName}
 - v2.21: 시험 `mission`·`missionId`, 시험 연결 미션(type 'auto', autoRule·linked) (3-B4, TST-19·MIS-16)
 - v2.24: 변형 문제 `questions.variant`, `template.vars` 종류별 의미 (MATH-14)
 - v2.23: 문제집 필드 확정(description·editPolicy·questionIds 최대 100), 문제 unit, 정답 tolerance 의미, 교육과정은 저장소 원본을 직접 읽음 (MATH-10·12·13)
+- v2.25: 문제집 풀기 `problemAttempts` 필드 확정, `problemNotes`, `questionKeys.hints`, `problemSets.hintPenalty` (MATH-20~24)
 - v2.22: 변형 문제 `questionKeys.template`, `problemAttempts.seed`, `curricula` 영역 단계·원본 위치, 내장 문제 틀 위치 (MATH-14·15·17)

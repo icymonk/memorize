@@ -1,6 +1,6 @@
 # 보안 규칙
 
-> 상태: 확정 · v2.6 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기), `invites`(만든 사람·매니저 읽기·끄기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
+> 상태: 확정 · v2.7 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기), `invites`(만든 사람·매니저 읽기·끄기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
 
 ## 1. 원칙
 - **화면의 권한 표시는 편의, 실제 강제는 규칙과 서버 기능.**
@@ -163,6 +163,8 @@ match /spaces/{sid}/pages/{pageId} {
 | `questions` | 작성자·공동 출제자, 또는 `sharing == 'space'`면 멤버 | `whoCanCreate`, 수정은 출제자 |
 | `questionKeys` | `uid() in authorIds`, 또는 `answerVisibility == 'space'`면 멤버 | 출제자 (`authorIds`는 서버) |
 | `problemSets` | 작성자, 또는 `visibility == 'space'`면 멤버 | `whoCanCreate`, 수정은 작성자. `editPolicy == 'members'`인 공개 문제집은 멤버가 `questionIds`만 |
+| `problemAttempts` | 본인 (`{uid}_` 문서 id) | 서버만 (`drawProblem`·`checkProblem`·`revealHint`) |
+| `problemNotes` | 본인 | 본인 (`{uid}_{questionId}`, 5000자) |
 | `tests` | 멤버 (대상 아닌 경우 목록만) | 생성 `whoCanHost`, 수정 진행자 |
 | `attempts` | 본인, 보호자, `hostIds` | 본인: 마감 전 `answers`만 / 그 외 서버 |
 | `answerAppeals` | 신청자, 출제자 | 생성 본인 / 처리 서버 |
@@ -217,6 +219,7 @@ match /b/{bucket}/o {
 - 없음
 
 ## 8. 변경 이력
+- v2.7: 문제집 풀이 기록 `problemAttempts`(서버만 씀)·풀이 메모 `problemNotes`, `questionKeys.hints`, `problemSets.hintPenalty`
 - v2.5: `invites` 규칙 적용, 생성은 서버(코드 유일성)
 - v2.4: `spaces` 수정 규칙 적용(바꿀 수 있는 필드·값 검사)
 - v2.3: 1차 일부 적용(users·spaces·members 읽기)

@@ -1188,6 +1188,48 @@ describe('problem sets (MATH-10·13)', () => {
   })
 })
 
+describe('problem solving (MATH-20~22)', () => {
+  it('hint penalty and key hints are bounded', async () => {
+    const ps = { title: '연습', description: '', grade: null, unit: null, questionIds: [], visibility: 'private', editPolicy: 'owner', createdBy: 'bob', deletedAt: null }
+    await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'problemSets', 'h1'), { ...ps, hintPenalty: 20 }))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'problemSets', 'h2'), { ...ps, hintPenalty: 51 }))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'problemSets', 'h3'), { ...ps, hintPenalty: 1.5 }))
+    const q = { type: 'short', prompt: '1+1', choices: [], tags: [], difficulty: 'normal', defaultPoints: 10, createdBy: 'bob', sharing: 'private', answerVisibility: 'authors', rev: 1, deletedAt: null }
+    const k = { answer: ['2'], ignoreCase: true, ignoreSpaces: false, explanation: '', rubric: '', authorIds: ['bob'], answerVisibility: 'authors' }
+    const save = (hints: unknown) => {
+      const d = db('bob')
+      const b = writeBatch(d)
+      b.set(doc(d, 'spaces', SID, 'questions', 'h1'), q)
+      b.set(doc(d, 'spaces', SID, 'questionKeys', 'h1'), { ...k, hints })
+      return b.commit()
+    }
+    await assertSucceeds(save(['하나씩 세요']))
+    await assertFails(save(Array.from({ length: 6 }, () => '힌트')))
+    await assertFails(save('힌트'))
+  })
+
+  it('attempts are read by their owner and written only by the server', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'problemAttempts', 'bob_q1'), { uid: 'bob', questionId: 'q1', seed: 7, tries: 1 }))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'problemAttempts', 'bob_q1')))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'problemAttempts', 'bob_q2')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'problemAttempts', 'bob_q1')))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'problemAttempts', 'bob_q3'), { uid: 'bob', questionId: 'q3', tries: 0 }))
+    await assertFails(updateDoc(doc(db('bob'), 'spaces', SID, 'problemAttempts', 'bob_q1'), { done: true }))
+  })
+
+  it('solution notes belong to their writer', async () => {
+    const n = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'problemNotes', id)
+    await assertSucceeds(getDoc(n('bob', 'bob_q1')))
+    await assertSucceeds(setDoc(n('bob', 'bob_q1'), { uid: 'bob', questionId: 'q1', text: '$x=2$', updatedAt: serverTimestamp() }))
+    await assertFails(setDoc(n('bob', 'bob_q2'), { uid: 'bob', questionId: 'q1', text: '' }))
+    await assertFails(setDoc(n('bob', 'alice_q1'), { uid: 'alice', questionId: 'q1', text: '' }))
+    await assertFails(setDoc(n('bob', 'bob_q3'), { uid: 'bob', questionId: 'q3', text: 'x'.repeat(5001) }))
+    await assertFails(getDoc(n('alice', 'bob_q1')))
+    await assertFails(getDoc(n('lee', 'lee_q1')))
+    await assertSucceeds(deleteDoc(n('bob', 'bob_q1')))
+  })
+})
+
 describe('tests (3-B1, TST-10~16)', () => {
   const settings = { timeLimitMin: null, openAt: null, closeAt: null, maxAttempts: 1, scoring: 'best', shuffleQuestions: false, shuffleChoices: false, resultRelease: 'instant', practice: false }
   const t = (uid: string, over: object = {}) => ({ title: '1단원', description: '', questionRefs: [{ questionId: 'q1', points: 10 }], settings, assignees: { all: true, uids: [], groupIds: [] }, status: 'draft', createdBy: uid, hostIds: [uid], deletedAt: null, ...over })

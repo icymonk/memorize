@@ -124,6 +124,7 @@ async function copyQuestion({ uid, data, fromRef, toRef, fromSpace }: Ctx): Prom
     rubric: seeKey ? key.rubric ?? '' : '',
     tolerance: key?.tolerance ?? null,
     template: seeKey ? key?.template ?? null : null,
+    hints: seeKey ? key?.hints ?? [] : [],
     authorIds: [uid],
     answerVisibility: 'authors',
   })

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { ProblemSet } from '../services/problemSets'
 import { CURRICULUM, findUnit } from '#shared/math/curriculum'
-import { problemSetInput } from '#shared/schemas/problem-set'
+import { HINT_PENALTY_MAX, problemSetInput } from '#shared/schemas/problem-set'
 import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
@@ -19,7 +19,7 @@ const { $firestore } = useNuxtApp()
 const personal = computed(() => space.current?.kind === 'personal')
 
 const NONE = '_'
-const empty = () => ({ title: '', description: '', grade: NONE, mode: 'pick' as 'pick' | 'custom', unit: NONE, concept: NONE, custom: '', share: false, membersEdit: false })
+const empty = () => ({ title: '', description: '', grade: NONE, mode: 'pick' as 'pick' | 'custom', unit: NONE, concept: NONE, custom: '', share: false, membersEdit: false, hintPenalty: 0 })
 const form = ref(empty())
 const saving = ref(false)
 
@@ -42,6 +42,7 @@ watch(open, (v) => {
     custom: s.unit?.custom ?? '',
     share: s.visibility === 'space',
     membersEdit: s.editPolicy === 'members',
+    hintPenalty: s.hintPenalty ?? 0,
   }
 })
 watch(() => form.value.grade, (g, old) => {
@@ -62,6 +63,7 @@ async function submit() {
     unit: code || custom ? { code, custom } : null,
     visibility: !personal.value && v.share ? 'space' : 'private',
     editPolicy: v.membersEdit ? 'members' : 'owner',
+    hintPenalty: Math.round(Number(v.hintPenalty) || 0),
   })
   if (!parsed.success) {
     toast.error(ko.errors.invalidInput)
@@ -145,6 +147,11 @@ async function submit() {
             <span class="flex flex-col"><span>{{ t.membersEdit }}</span><span class="text-muted-foreground text-xs">{{ t.membersEditHint }}</span></span>
           </label>
         </template>
+        <div class="flex flex-col gap-2">
+          <Label for="set-hint-penalty">{{ t.hintPenalty }}</Label>
+          <Input id="set-hint-penalty" v-model.number="form.hintPenalty" type="number" min="0" :max="HINT_PENALTY_MAX" step="5" class="w-28" />
+          <p class="text-muted-foreground text-xs">{{ t.hintPenaltyHint }}</p>
+        </div>
       </form>
       <DialogFooter>
         <Button type="submit" form="set-form" :disabled="saving">{{ ko.dialog.ok }}</Button>

@@ -40,6 +40,7 @@ const empty = () => ({
   tolerance: 0,
   rubric: '',
   explanation: '',
+  hints: '',
   tags: '',
   subjectId: null as string | null,
   media: [] as Attachment[],
@@ -88,6 +89,7 @@ watch(open, async (v) => {
     tolerance: k?.tolerance ?? 0,
     rubric: k?.rubric ?? '',
     explanation: k?.explanation ?? '',
+    hints: (k?.hints ?? []).join('\n'),
     tags: q.tags.join(', '),
     subjectId: q.subjectId ?? null,
     media: [...(q.media ?? [])],
@@ -124,6 +126,7 @@ async function addMedia(e: Event) {
   }
 }
 
+const lines = (s: string) => s.split('\n').map(x => x.trim()).filter(Boolean)
 const list = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
 
 async function submit() {
@@ -142,7 +145,7 @@ async function submit() {
     unit: props.question?.unit ?? props.preset?.unit ?? null,
   })
   const answer = isChoice.value ? v.correct : v.type === 'ox' ? [v.ox] : v.type === 'short' ? list(v.accepted) : []
-  const k = questionKeyInput.safeParse({ answer, ignoreCase: v.ignoreCase, ignoreSpaces: v.ignoreSpaces, explanation: v.explanation, rubric: v.type === 'essay' ? v.rubric : '', tolerance: v.type === 'short' && v.numeric ? Math.max(0, Number(v.tolerance) || 0) : null })
+  const k = questionKeyInput.safeParse({ answer, ignoreCase: v.ignoreCase, ignoreSpaces: v.ignoreSpaces, explanation: v.explanation, rubric: v.type === 'essay' ? v.rubric : '', tolerance: v.type === 'short' && v.numeric ? Math.max(0, Number(v.tolerance) || 0) : null, hints: lines(v.hints) })
   if (!q.success || !k.success) {
     toast.error(ko.errors.invalidInput)
     return
@@ -247,6 +250,11 @@ async function submit() {
           </div>
           <Textarea id="q-explanation" v-model="form.explanation" rows="2" />
           <div v-if="hasTex(form.explanation)" class="bg-muted/40 rounded-md p-2 text-sm whitespace-pre-line"><MathText :text="form.explanation" /></div>
+        </div>
+        <div class="flex flex-col gap-2">
+          <Label for="q-hints">{{ ko.math.solve.hintsField }}</Label>
+          <Textarea id="q-hints" v-model="form.hints" rows="2" :placeholder="ko.math.solve.hintsPlaceholder" />
+          <p class="text-muted-foreground text-xs">{{ ko.math.solve.hintsHint }}</p>
         </div>
         <div class="grid grid-cols-3 gap-3">
           <div class="col-span-3 flex flex-col gap-2 sm:col-span-1">

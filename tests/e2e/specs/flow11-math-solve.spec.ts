@@ -1,0 +1,86 @@
+import { expect, test } from '@playwright/test'
+import { workspaceWithMember } from './helpers'
+
+/** 수학 M4(MATH-20~24): 공개 문제집을 멤버가 풀며 힌트를 열고, 틀리고, 맞히고, 변형 문제는 포기 후 다른 숫자로 다시 풀고, 메모를 남긴다 */
+test('a member solves a problem set with hints, instant grading and a fresh variant', async ({ browser }) => {
+  test.setTimeout(150_000)
+  const { pa, pb, ws } = await workspaceWithMember(browser, 'sora', 'min', '풀기 반')
+
+  await pa.goto(`/s/${ws}/settings`)
+  await pa.getByRole('switch', { name: '테스트' }).click()
+  await pa.getByRole('switch', { name: '수학' }).click()
+  await pa.getByRole('button', { name: '저장' }).nth(1).click()
+  await pa.getByRole('link', { name: '수학' }).first().click()
+  await pa.waitForURL(/\/math$/)
+  await pa.getByRole('button', { name: '문제집 만들기' }).click()
+  const sd = pa.getByRole('dialog')
+  await sd.locator('#set-title').fill('풀기 연습')
+  await sd.locator('label', { hasText: '워크스페이스에 공개' }).getByRole('switch').click()
+  await sd.locator('#set-hint-penalty').fill('20')
+  await sd.getByRole('button', { name: '확인' }).click()
+  await pa.waitForURL(/\/math\/[^/]+$/)
+
+  await pa.getByRole('button', { name: '새 문제' }).click()
+  const q = pa.getByRole('dialog')
+  await q.getByRole('button', { name: '단답형' }).click()
+  await q.locator('#q-prompt').fill('$\\frac{1}{2}+\\frac{1}{4}$ 의 값은?')
+  await q.locator('#q-accepted').fill('3/4')
+  await q.locator('label', { hasText: '숫자로 채점' }).getByRole('switch').click()
+  await q.locator('#q-explanation').fill('통분하면 $\\frac{2}{4}+\\frac{1}{4}$')
+  await q.locator('#q-hints').fill('분모를 4로 맞춰 보세요\n1/2 = 2/4')
+  await q.getByRole('button', { name: '확인' }).click()
+  await expect(pa.locator('ol > li')).toHaveCount(1)
+
+  await pa.getByRole('button', { name: '변형 문제' }).click()
+  const v = pa.getByRole('dialog')
+  await v.locator('#v-preset').click()
+  await pa.getByRole('option', { name: '일차방정식 ax + b = c' }).click()
+  await v.getByRole('button', { name: '확인' }).click()
+  await expect(pa.locator('ol > li')).toHaveCount(2)
+  const setUrl = pa.url()
+
+  // 멤버가 푼다
+  await pb.goto(setUrl)
+  await pb.getByRole('link', { name: '풀기' }).click()
+  await pb.waitForURL(/\/solve$/)
+  await expect(pb.getByTestId('solve-prompt').locator('.katex').first()).toBeVisible()
+  await pb.getByRole('button', { name: '힌트 (1/2)' }).click()
+  await expect(pb.getByText('분모를 4로 맞춰 보세요')).toBeVisible()
+  const input = pb.getByRole('textbox', { name: '답을 입력하세요' })
+  await input.fill('2/3')
+  await pb.getByRole('button', { name: '채점' }).click()
+  await expect(pb.getByText('틀렸어요. 다시 해 보세요 (1번째)')).toBeVisible()
+  await input.fill('0.75')
+  await pb.getByRole('button', { name: '채점' }).click()
+  await expect(pb.getByText('맞았어요!')).toBeVisible()
+  await expect(pb.getByText('80점')).toBeVisible()
+  await expect(pb.getByText('해설', { exact: true })).toBeVisible()
+  await expect(pb.getByText('1/2 = 2/4')).toBeVisible()
+
+  await pb.locator('#solve-note').fill('통분 후 더하기')
+  await pb.getByRole('button', { name: '메모 저장' }).click()
+  await expect(pb.getByRole('button', { name: '메모 저장' })).toBeDisabled()
+
+  await pb.getByRole('button', { name: '다음 문제' }).first().click()
+  const prompt = pb.getByTestId('solve-prompt')
+  await expect(prompt).toBeVisible()
+  const before = await prompt.innerText()
+  await pb.getByRole('button', { name: '포기하고 해설 보기' }).click()
+  await pb.getByRole('dialog').getByRole('button', { name: '확인' }).click()
+  await expect(pb.getByText('포기했어요')).toBeVisible()
+  await expect(pb.getByText(/^정답: /)).toBeVisible()
+  await pb.getByRole('button', { name: '다른 숫자로 다시' }).click()
+  await expect(pb.getByRole('button', { name: '채점' })).toBeVisible()
+  await expect.poll(() => prompt.innerText()).not.toBe(before)
+
+  // 다시 들어와도 기록·메모가 남는다
+  await pb.reload()
+  await expect(pb.getByText('맞았어요!')).toBeVisible()
+  await expect(pb.locator('#solve-note')).toHaveValue('통분 후 더하기')
+  await pb.goto(setUrl)
+  await expect(pb.getByText('2문제 중 1문제 맞힘')).toBeVisible()
+
+  // 내가 만든 문제는 연습
+  await pa.getByRole('link', { name: '풀기' }).click()
+  await expect(pa.getByText('연습', { exact: true })).toBeVisible()
+})

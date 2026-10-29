@@ -47,6 +47,8 @@ export const questionKeyInput = z.object({
   /** MATH-12 단답형 숫자 정답: null이면 글자로, 숫자면 그만큼의 오차까지 정답 (분수=소수) */
   tolerance: z.number().min(0).max(1_000_000).nullable().default(null),
   template: templateInput.nullable().default(null),
+  /** MATH-21 단계별 힌트 (일반 문제). 변형 문제는 template.hints. 풀 때 서버가 한 단계씩 연다 */
+  hints: z.array(text(500).min(1)).max(5).default([]),
 })
 export type QuestionKeyInput = z.infer<typeof questionKeyInput>
 
