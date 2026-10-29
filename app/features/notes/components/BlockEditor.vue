@@ -19,12 +19,14 @@ import { loadBlocks, watchBlocks } from '../services/pages'
 import { diffBlocks, savedFrom } from '../sync/diff'
 import { fromBlocks, toBlocks } from '../sync/serialize'
 import { createSaveQueue, firestoreCommitter } from '../sync/writer'
+import MathInputDialog from '~/features/math/components/MathInputDialog.vue'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
 import LinkCardView from './LinkCardView.vue'
 import LinkPicker from './LinkPicker.vue'
 import QuotePicker from './QuotePicker.vue'
 import SlashMenu from './SlashMenu.vue'
+import 'katex/dist/katex.min.css'
 
 /** 블록 편집기: 불러오기 → 편집 → 0.8초 뒤 바뀐 블록만 저장 (docs/dev/editor.md 3·4절) */
 const props = defineProps<{ spaceId: string, pageId: string, editable: boolean, bookKey?: string }>()
@@ -79,7 +81,33 @@ function insertLink(block: LinkBlock) {
   linkEditor?.chain().focus().insertContent([block, { type: 'paragraph' }]).run()
 }
 
+/** MATH-01·02 노트 수식: `/수식`으로 넣고, 누르면 고친다 */
+const mathOpen = ref(false)
+const mathEdit = ref<{ kind: 'inlineMath' | 'blockMath', latex: string, pos: number | null }>({ kind: 'inlineMath', latex: '', pos: null })
+let mathEditor: CoreEditor | undefined
+function openMath(e: CoreEditor, kind: 'inlineMath' | 'blockMath', latex = '', pos: number | null = null) {
+  mathEditor = e
+  mathEdit.value = { kind, latex, pos }
+  mathOpen.value = true
+}
+function applyMath(latex: string, display: boolean) {
+  const e = mathEditor
+  if (!e) return
+  const { kind, pos } = mathEdit.value
+  if (pos != null) {
+    if (kind === 'inlineMath') e.chain().setNodeSelection(pos).updateInlineMath({ latex, pos }).focus().run()
+    else e.chain().setNodeSelection(pos).updateBlockMath({ latex, pos }).focus().run()
+    return
+  }
+  if (display || kind === 'blockMath') insertBlock(e, 'blockMath', { latex })
+  else e.chain().focus().insertInlineMath({ latex }).run()
+}
+
 function onSlashItem(key: string, e: CoreEditor) {
+  if (key === 'inlineMath' || key === 'blockMath') {
+    openMath(e, key)
+    return true
+  }
   if (key === 'link') {
     linkEditor = e
     linkOpen.value = true
@@ -105,7 +133,7 @@ onMounted(async () => {
     const blocks = await loadBlocks($firestore, props.spaceId, props.pageId)
     emit('loaded', blocks.length)
     const e = new Editor({
-      extensions: noteExtensions({ placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem, exclude: props.bookKey ? [] : ['quote'] }, link: { sid: props.spaceId, view: LinkCardView } }),
+      extensions: noteExtensions({ math: { onEdit: (kind, latex, pos) => { if (e.isEditable) openMath(e, kind, latex, pos) } }, placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem, exclude: props.bookKey ? [] : ['quote'] }, link: { sid: props.spaceId, view: LinkCardView } }),
       content: fromBlocks(blocks),
       editable: props.editable,
       editorProps: { attributes: { class: 'note-editor focus:outline-none' } },
@@ -232,7 +260,7 @@ function turnHovered(item: SlashItem) {
   if (!onSlashItem(item.key, e)) item.run(e)
   e.commands.focus()
 }
-const turnItems = SLASH_ITEMS.filter(i => !['horizontalRule', 'video', 'quote', 'link'].includes(i.key))
+const turnItems = SLASH_ITEMS.filter(i => !['horizontalRule', 'inlineMath', 'blockMath', 'video', 'quote', 'link'].includes(i.key))
 
 defineExpose({ flush, focus: () => editor.value?.commands.focus('start') })
 </script>
@@ -289,7 +317,8 @@ defineExpose({ flush, focus: () => editor.value?.commands.focus('start') })
         </div>
       </div>
 
-      <LinkPicker v-model:open="linkOpen" :sid="spaceId" :page-id="pageId" @pick="insertLink" />
+      <MathInputDialog v-model:open="mathOpen" :initial="mathEdit.latex" @insert="applyMath" />
+    <LinkPicker v-model:open="linkOpen" :sid="spaceId" :page-id="pageId" @pick="insertLink" />
       <QuotePicker v-if="bookKey" v-model:open="quoteOpen" :sid="spaceId" :book-key="bookKey" @pick="insertQuote" />
 
       <EditorContent :editor="editor" />

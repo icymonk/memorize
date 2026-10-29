@@ -5,6 +5,7 @@ import { CopyIcon, LayersIcon, PencilIcon, PlusIcon, Trash2Icon } from '@lucide/
 import { toast } from 'vue-sonner'
 import AttachmentList from '~/features/files/components/AttachmentList.vue'
 import { listMembers } from '~/features/space/services/invites'
+import MathText from '~/features/math/components/MathText.vue'
 import DeckQuestionsDialog from '~/features/tests/components/DeckQuestionsDialog.vue'
 import QuestionFormDialog from '~/features/tests/components/QuestionFormDialog.vue'
 import { deleteQuestion, getQuestionKey, listQuestions } from '~/features/tests/services/questions'
@@ -141,7 +142,7 @@ async function remove(q: Question) {
       <li v-for="q in shown" :key="q.id" class="flex flex-col gap-2 px-4 py-3">
         <div class="flex items-start gap-3">
           <button type="button" class="flex min-w-0 flex-1 flex-col items-start gap-1 text-left" @click="toggle(q)">
-            <span class="line-clamp-2 text-sm whitespace-pre-line">{{ q.prompt }}</span>
+            <span class="line-clamp-2 text-sm whitespace-pre-line"><MathText :text="q.prompt" /></span>
             <span class="text-muted-foreground flex flex-wrap gap-x-2 text-xs">
               <span>{{ t.types[q.type] }}</span>
               <span v-if="q.subjectId && subjectName.get(q.subjectId)">{{ subjectName.get(q.subjectId) }}</span>
@@ -168,12 +169,12 @@ async function remove(q: Question) {
         <div v-if="openId === q.id" class="bg-muted/50 flex flex-col gap-1 rounded-md p-3 text-sm">
           <AttachmentList v-if="q.media?.length" :files="q.media" />
           <ol v-if="q.choices.length" class="list-decimal pl-5">
-            <li v-for="(c, i) in q.choices" :key="i">{{ c }}</li>
+            <li v-for="(c, i) in q.choices" :key="i"><MathText :text="c" /></li>
           </ol>
           <template v-if="keys[q.id]">
-            <p v-if="q.type !== 'essay'"><span class="font-medium">{{ t.answer }}:</span> {{ answerText(q, keys[q.id]!) }}</p>
+            <p v-if="q.type !== 'essay'"><span class="font-medium">{{ t.answer }}:</span> <MathText :text="answerText(q, keys[q.id]!)" /></p>
             <p v-if="keys[q.id]!.rubric" class="whitespace-pre-line"><span class="font-medium">{{ t.fields.rubric }}:</span> {{ keys[q.id]!.rubric }}</p>
-            <p v-if="keys[q.id]!.explanation" class="whitespace-pre-line"><span class="font-medium">{{ t.fields.explanation }}:</span> {{ keys[q.id]!.explanation }}</p>
+            <p v-if="keys[q.id]!.explanation" class="whitespace-pre-line"><span class="font-medium">{{ t.fields.explanation }}:</span> <MathText :text="keys[q.id]!.explanation" /></p>
           </template>
           <p v-else-if="q.id in keys" class="text-muted-foreground text-xs">{{ t.answerHidden }}</p>
         </div>

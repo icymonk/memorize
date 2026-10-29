@@ -3,6 +3,7 @@ import type { LinkCardOptions } from './link-card'
 import type { SlashCommandOptions } from './slash'
 import { Color } from '@tiptap/extension-color'
 import { Highlight } from '@tiptap/extension-highlight'
+import { Mathematics } from '@tiptap/extension-mathematics'
 import { TextStyle } from '@tiptap/extension-text-style'
 import UniqueID from '@tiptap/extension-unique-id'
 import { Placeholder } from '@tiptap/extensions'
@@ -15,7 +16,12 @@ import { SlashCommand } from './slash'
 
 export const newBlockId = () => crypto.randomUUID()
 
-export function noteExtensions(opts: { placeholder?: string, slash?: Partial<SlashCommandOptions>, link?: Partial<LinkCardOptions> } = {}) {
+/** MATH-01 노트 수식: 누르면 편집(수정 가능할 때) */
+export interface NoteMathOptions {
+  onEdit?: (kind: 'inlineMath' | 'blockMath', latex: string, pos: number) => void
+}
+
+export function noteExtensions(opts: { placeholder?: string, slash?: Partial<SlashCommandOptions>, link?: Partial<LinkCardOptions>, math?: NoteMathOptions } = {}) {
   return [
     StarterKit.configure({
       bulletList: false,
@@ -39,6 +45,11 @@ export function noteExtensions(opts: { placeholder?: string, slash?: Partial<Sla
     TextStyle,
     Color,
     Highlight.configure({ multicolor: true }),
+    Mathematics.configure({
+      katexOptions: { throwOnError: false, strict: 'ignore' },
+      inlineOptions: { onClick: (node, pos) => opts.math?.onEdit?.('inlineMath', node.attrs.latex, pos) },
+      blockOptions: { onClick: (node, pos) => opts.math?.onEdit?.('blockMath', node.attrs.latex, pos) },
+    }),
     ...(opts.placeholder ? [Placeholder.configure({ placeholder: ({ node }) => (node.type.name === 'paragraph' ? opts.placeholder! : '') })] : []),
     ...(opts.slash ? [SlashCommand.configure(opts.slash)] : []),
     UniqueID.configure({ types: BLOCK_TYPES, attributeName: 'id', generateID: newBlockId }),

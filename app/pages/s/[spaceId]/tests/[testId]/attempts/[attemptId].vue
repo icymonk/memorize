@@ -6,6 +6,7 @@ import { ArrowLeftIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { getAnswerKey, getAttempt, getPaper, getResult } from '~/features/tests/services/attempts'
 import { listMembers } from '~/features/space/services/invites'
+import MathText from '~/features/math/components/MathText.vue'
 import { getTest } from '~/features/tests/services/tests'
 import { errorMessage } from '~/lib/errors'
 import { callFn } from '~/lib/functions'
@@ -110,15 +111,15 @@ async function save() {
         <li v-for="(it, n) in items" :key="it.questionId" class="flex flex-col gap-2 rounded-md border p-3 text-sm">
           <div class="flex items-start gap-2">
             <span class="text-muted-foreground shrink-0 font-medium">{{ n + 1 }}.</span>
-            <p class="flex-1 whitespace-pre-line">{{ it.prompt }}</p>
+            <p class="flex-1 whitespace-pre-line"><MathText :text="it.prompt" /></p>
             <span v-if="result.items[it.questionId]?.score == null" class="text-muted-foreground shrink-0 text-xs">{{ t.take.pending }}</span>
             <span v-else class="shrink-0 text-xs font-medium" :class="result.items[it.questionId]!.score! >= it.points ? 'text-green-700' : result.items[it.questionId]!.score! > 0 ? 'text-amber-700' : 'text-destructive'">
               {{ t.take.graded(result.items[it.questionId]!.score!, it.points) }}
             </span>
           </div>
-          <p v-if="attempt"><span class="text-muted-foreground">{{ g.myAnswer }}:</span> <span class="whitespace-pre-line">{{ fmtAnswer(it, attempt.answers[it.questionId]) }}</span></p>
+          <p v-if="attempt"><span class="text-muted-foreground">{{ g.myAnswer }}:</span> <span class="whitespace-pre-line"><MathText :text="fmtAnswer(it, attempt.answers[it.questionId])" /></span></p>
           <template v-if="key?.[it.questionId]">
-            <p v-if="it.type !== 'essay'"><span class="text-muted-foreground">{{ g.answer }}:</span> {{ fmtAnswer(it, key[it.questionId]!.answer) }}</p>
+            <p v-if="it.type !== 'essay'"><span class="text-muted-foreground">{{ g.answer }}:</span> <MathText :text="fmtAnswer(it, key[it.questionId]!.answer)" /></p>
             <p v-if="key[it.questionId]!.rubric" class="whitespace-pre-line"><span class="text-muted-foreground">{{ g.rubric }}:</span> {{ key[it.questionId]!.rubric }}</p>
           </template>
           <div v-if="isHost" class="flex flex-wrap items-start gap-2">

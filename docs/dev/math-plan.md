@@ -1,13 +1,13 @@
 # 수학 작업 분해 (M1~M9)
 
-> 상태: 확정 · v1.0 — [features/math.md](../features/math.md) v1.1을 개발 작업으로 나눈 것. 배경은 [proposals/math-generation.md](../proposals/math-generation.md). M1~M5는 3단계 중(3-B5 다음)에 앞당겨 하고, M6~M8은 4단계, M9는 5단계.
+> 상태: 확정 · v1.1 — [features/math.md](../features/math.md) v1.1을 개발 작업으로 나눈 것. 배경은 [proposals/math-generation.md](../proposals/math-generation.md). M1~M5는 3단계 중(3-B5 다음)에 앞당겨 하고, M6~M8은 4단계, M9는 5단계.
 
 완료 기준(M1~M5): **단원을 골라 만든 문제집과 내가 만든 변형 문제를 다른 멤버가 풀고 바로 채점받음**
 
 ## 작업 분해
 | # | 작업 | 기능 ID | 단계 |
 | --- | --- | --- | --- |
-| M1 | 수식 보기(KaTeX, 지문·해설·노트의 `$…$`)·수식 입력(MathLive 화면 키보드, 휴대폰). 수학 모듈 켜기, `/s/:id/math` 홈 틀 | MATH-01·02 | 3 |
+| M1 | ✅ 수식 보기(KaTeX, 지문·해설·노트의 `$…$`)·수식 입력(MathLive 화면 키보드, 휴대폰). 수학 모듈 켜기, `/s/:id/math` 홈 틀. 진행: 지문·보기·정답·해설을 `MathText`로 그림(`$…$` 줄 안, `$$…$$` 따로 줄, `\$`는 글자). 문제 만들기의 지문·해설과 노트 `/수식`·`/수식 블록`에서 수식 키보드 입력. 노트 수식은 `inlineMath`·`blockMath` 노드(누르면 고침), 마크다운 내보내기는 `$…$`/`$$…$$` | MATH-01·02 | 3 |
 | M2 | 문제집(`problemSets`) 만들기·목록·상세·공개 대상·편집 범위, 수학 문제(숫자 정답: 허용 오차, 분수=소수 동치 / 객관식), 교육과정 목록 원본(`shared/math/curricula/kr-2022.json`) + 자유 입력 단원 | MATH-10~13 | 3 |
 | M3 | 문제 틀 엔진(`shared/math/`): 식 계산기(분수는 정확한 유리수, `eval` 없음, 허용 함수 `+ - * / ^ % gcd lcm abs sqrt round floor ceil min max`), seed 난수(같은 seed → 같은 숫자), 조건 다시 뽑기(최대 200번, 실패율), 지문 채우기. 변형 문제 만들기 화면·예시 5개·자주 쓰는 형식 6종. `previewTemplate` | MATH-14 | 3 |
 | M4 | 풀기 `/s/:id/math/:setId/solve`: `drawProblem`(seed 기록, 완성 지문만), `checkAnswer` 변형 문제 채점, 힌트 한 단계씩(사용 기록·감점), 해설, 풀이 메모, 내 문제는 연습 | MATH-20~24 | 3 |
@@ -24,4 +24,5 @@
 - PR마다 단위 테스트, 규칙 테스트(새 컬렉션·필드), 로컬 E2E 흐름 하나를 붙인다.
 
 ## 변경 이력
+- v1.1: M1 완료 (KaTeX 수식 보기, MathLive 수식 입력, 노트 수식, 수학 메뉴·홈)
 - v1.0: 확정 — 3-B5 다음에 M1~M5 앞당김, AI 초안은 M9
