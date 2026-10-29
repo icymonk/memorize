@@ -11,6 +11,7 @@ import { shuffle } from '#shared/study'
 import { ArrowLeftIcon, Trash2Icon, TriangleAlertIcon, XIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { listGroups } from '~/features/space/services/groups'
+import MathText from '~/features/math/components/MathText.vue'
 import { listMembers } from '~/features/space/services/invites'
 import { listResults } from '~/features/tests/services/attempts'
 import { listQuestions } from '~/features/tests/services/questions'
@@ -323,7 +324,7 @@ async function remove() {
             <li v-for="q in questions" :key="q.id" class="flex items-center gap-2 p-2 text-sm">
               <input type="checkbox" class="size-4" :checked="picked.has(q.id)" :aria-label="q.prompt" @change="picked.has(q.id) ? removeQuestion(q.id) : addQuestion(q)">
               <Badge variant="outline" class="shrink-0">{{ ko.tests.types[q.type] }}</Badge>
-              <span class="line-clamp-1 flex-1">{{ q.prompt }}</span>
+              <span class="line-clamp-1 flex-1"><MathText :text="q.prompt" /></span>
               <span v-for="tg in q.tags.slice(0, 2)" :key="tg" class="text-muted-foreground text-xs">#{{ tg }}</span>
             </li>
           </ul>

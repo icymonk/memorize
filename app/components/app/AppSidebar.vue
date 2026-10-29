@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpenIcon, ClipboardCheckIcon, FileQuestionIcon, BookOpenTextIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, NotebookPenIcon, FlagIcon, LibraryIcon, PlusIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, ClipboardCheckIcon, FileQuestionIcon, BookOpenTextIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, NotebookPenIcon, FlagIcon, LibraryIcon, PlusIcon, SettingsIcon, SigmaIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
 import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
@@ -117,6 +117,14 @@ watch(() => auth.account, (account) => {
               <NuxtLink :to="`/s/${currentSpace.id}/questions`">
                 <FileQuestionIcon />
                 <span>{{ ko.tests.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.math">
+            <SidebarMenuButton as-child :tooltip="ko.math.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/math`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/math`">
+                <SigmaIcon />
+                <span>{{ ko.math.nav }}</span>
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>

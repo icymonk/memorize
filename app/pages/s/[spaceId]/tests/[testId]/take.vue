@@ -9,6 +9,7 @@ import { doc, getDoc } from 'firebase/firestore'
 import { toast } from 'vue-sonner'
 import { getPaper, getResult, myAttempts, saveAnswers } from '~/features/tests/services/attempts'
 import { getTest } from '~/features/tests/services/tests'
+import MathText from '~/features/math/components/MathText.vue'
 import { errorMessage } from '~/lib/errors'
 import { callFn } from '~/lib/functions'
 import { ko } from '~/locales/ko'
@@ -224,14 +225,14 @@ async function submit(auto = false) {
         <li v-for="(it, n) in items" :key="it.questionId" class="flex flex-col gap-2 rounded-md border p-3">
           <div class="flex items-start gap-2">
             <span class="text-muted-foreground shrink-0 text-sm font-medium">{{ n + 1 }}.</span>
-            <p class="flex-1 text-sm whitespace-pre-line">{{ it.prompt }}</p>
+            <p class="flex-1 text-sm whitespace-pre-line"><MathText :text="it.prompt" /></p>
             <span class="text-muted-foreground shrink-0 text-xs">{{ k.pointsOf(it.points) }}</span>
           </div>
           <AttachmentList v-if="it.media?.length" :files="it.media" />
           <div v-if="it.type === 'single' || it.type === 'multi'" class="flex flex-col gap-1" role="group" :aria-label="it.prompt">
             <label v-for="i in choiceIdx(it)" :key="i" class="hover:bg-muted/50 flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm" :class="isPicked(it, i) ? 'border-primary bg-primary/5' : ''">
               <input :type="it.type === 'single' ? 'radio' : 'checkbox'" class="size-4" :name="it.questionId" :checked="isPicked(it, i)" @change="it.type === 'single' ? setSingle(it, i) : toggleMulti(it, i)">
-              {{ it.choices[i] }}
+              <MathText :text="it.choices[i]" />
             </label>
           </div>
           <div v-else-if="it.type === 'ox'" class="flex gap-2">
@@ -245,8 +246,8 @@ async function submit(auto = false) {
               <p v-if="checked[it.questionId]!.score == null" class="text-muted-foreground">{{ k.essayNote }}</p>
               <p v-else-if="checked[it.questionId]!.score! > 0" class="flex items-center gap-1 text-green-700"><CheckIcon class="size-4" /> {{ k.correct }}</p>
               <p v-else class="text-destructive flex items-center gap-1"><XIcon class="size-4" /> {{ k.wrong }}</p>
-              <p v-if="it.type !== 'essay'">{{ k.answerIs(answerText(it, checked[it.questionId]!.answer)) }}</p>
-              <p v-if="checked[it.questionId]!.explanation" class="text-muted-foreground whitespace-pre-line">{{ checked[it.questionId]!.explanation }}</p>
+              <p v-if="it.type !== 'essay'"><MathText :text="k.answerIs(answerText(it, checked[it.questionId]!.answer))" /></p>
+              <p v-if="checked[it.questionId]!.explanation" class="text-muted-foreground whitespace-pre-line"><MathText :text="checked[it.questionId]!.explanation" /></p>
             </div>
           </div>
         </li>
@@ -268,7 +269,7 @@ async function submit(auto = false) {
       <ol v-if="doneResult && test?.settings.resultRelease !== 'scoreOnly'" class="flex flex-col divide-y rounded-md border text-sm">
         <li v-for="(it, n) in items" :key="it.questionId" class="flex items-center gap-2 p-2">
           <span class="text-muted-foreground w-6 text-right">{{ n + 1 }}</span>
-          <span class="line-clamp-1 flex-1">{{ it.prompt }}</span>
+          <span class="line-clamp-1 flex-1"><MathText :text="it.prompt" /></span>
           <span v-if="doneResult.items[it.questionId]?.score == null" class="text-muted-foreground">{{ k.pending }}</span>
           <span v-else :class="doneResult.items[it.questionId]!.score! > 0 ? 'text-green-700' : 'text-destructive'">{{ k.graded(doneResult.items[it.questionId]!.score!, it.points) }}</span>
         </li>

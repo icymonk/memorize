@@ -3,9 +3,12 @@ import type { QuestionType } from '#shared/schemas/question'
 import type { Question } from '../services/questions'
 import type { Attachment } from '#shared/schemas/upload'
 import { CHOICES, keyFits, MAX_MEDIA, QUESTION_DIFFICULTY, QUESTION_TYPES, questionInput, questionKeyInput } from '#shared/schemas/question'
-import { PaperclipIcon, PlusIcon, XIcon } from '@lucide/vue'
+import { PaperclipIcon, PlusIcon, SigmaIcon, XIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import AttachmentList from '~/features/files/components/AttachmentList.vue'
+import MathInputDialog from '~/features/math/components/MathInputDialog.vue'
+import MathText from '~/features/math/components/MathText.vue'
+import { hasTex } from '~/features/math/lib/tex'
 import { uploadFile } from '~/features/files/services/uploads'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
@@ -45,6 +48,21 @@ const empty = () => ({
 })
 const form = ref(empty())
 const saving = ref(false)
+/** MATH-02: 커서 자리에 `$…$` 수식을 넣는다 */
+const mathOpen = ref(false)
+const mathTarget = ref<'prompt' | 'explanation'>('prompt')
+function openMath(target: 'prompt' | 'explanation') {
+  mathTarget.value = target
+  mathOpen.value = true
+}
+function insertMath(latex: string, display: boolean) {
+  const key = mathTarget.value
+  const tex = display ? `$$${latex}$$` : `$${latex}$`
+  const el = document.getElementById(`q-${key}`) as HTMLTextAreaElement | null
+  const cur = form.value[key]
+  const at = el?.selectionStart ?? cur.length
+  form.value[key] = cur.slice(0, at) + tex + cur.slice(el?.selectionEnd ?? at)
+}
 const isChoice = computed(() => form.value.type === 'single' || form.value.type === 'multi')
 
 watch(open, async (v) => {
@@ -160,8 +178,12 @@ async function submit() {
           </div>
         </div>
         <div class="flex flex-col gap-2">
-          <Label for="q-prompt">{{ f.prompt }}</Label>
+          <div class="flex items-center justify-between">
+            <Label for="q-prompt">{{ f.prompt }}</Label>
+            <Button type="button" variant="ghost" size="sm" class="h-7" @click="openMath('prompt')"><SigmaIcon /> {{ ko.math.input.button }}</Button>
+          </div>
           <Textarea id="q-prompt" v-model="form.prompt" rows="3" />
+          <div v-if="hasTex(form.prompt)" class="bg-muted/40 rounded-md p-2 text-sm whitespace-pre-line" data-testid="prompt-preview"><MathText :text="form.prompt" /></div>
         </div>
         <div class="flex flex-col gap-2">
           <Label>{{ t.media }}</Label>
@@ -206,8 +228,12 @@ async function submit() {
           <Textarea id="q-rubric" v-model="form.rubric" rows="2" />
         </div>
         <div class="flex flex-col gap-2">
-          <Label for="q-explanation">{{ f.explanation }}</Label>
+          <div class="flex items-center justify-between">
+            <Label for="q-explanation">{{ f.explanation }}</Label>
+            <Button type="button" variant="ghost" size="sm" class="h-7" @click="openMath('explanation')"><SigmaIcon /> {{ ko.math.input.button }}</Button>
+          </div>
           <Textarea id="q-explanation" v-model="form.explanation" rows="2" />
+          <div v-if="hasTex(form.explanation)" class="bg-muted/40 rounded-md p-2 text-sm whitespace-pre-line"><MathText :text="form.explanation" /></div>
         </div>
         <div class="grid grid-cols-3 gap-3">
           <div class="col-span-3 flex flex-col gap-2 sm:col-span-1">
@@ -250,4 +276,5 @@ async function submit() {
       </form>
     </DialogContent>
   </Dialog>
+  <MathInputDialog v-model:open="mathOpen" @insert="insertMath" />
 </template>
