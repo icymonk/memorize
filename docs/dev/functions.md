@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.8 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.9 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -90,7 +90,10 @@
 | --- | --- | --- | --- |
 | `startAttempt` | 대상·기간·횟수 확인 → 응시 문서(마감 시각 서버 계산, 섞인 순서) 생성. 진행자·출제자면 연습 응시 | TST-20·21 | 3 |
 | `submitAttempt` | 마감 확인 → 정답으로 채점 → 결과 저장 → 공개 설정에 따라 해설 포함 응답. 시간이 지난 응시는 자동 제출 | TST-23·30·32 | 3 |
-| `checkAnswer` | 연습 모드·수학 문제집의 문항별 즉시 채점 | TST-17, MATH-20 | 3 |
+| `checkAnswer` | 연습 모드·수학 문제집의 문항별 즉시 채점. 변형 문제는 `problemAttempts.seed`로 숫자를 다시 만들어 채점 | TST-17, MATH-20 | 3 |
+| `drawProblem` | 변형 문제 숫자 뽑기: seed를 정해 기록하고 완성된 지문·보기만 돌려준다 (정답 식은 안 내려감) | MATH-14·20 | 3 |
+| `previewTemplate` | 문제 틀 미리보기·단원별 만들기 미리보기: 예시 숫자로 완성한 문제와 숫자 뽑기 실패율 (출제자에게만 정답 포함) | MATH-14·15 | 3 |
+| `saveGenerated` | 단원별 만들기 결과 저장: 고른 문제 틀(내장·다른 사람 것 포함)을 내 문제·정답으로 복사해 문제집에 넣는다 | MATH-15 | 3 |
 | `getGradingKit` / `gradeManual` / `regrade` | 서술형 채점 자료 제공, 직접 채점, 다시 채점 | TST-31 | 3 |
 | `resolveAppeal` | 이의 신청 인정 → 정답 추가·재채점 | MATH 예외 | 4 |
 
@@ -150,3 +153,4 @@
 - v2.6: callable `openTest` (3-B1, TST-10·16)
 - v2.7: callable `startAttempt`·`submitAttempt`·`checkAnswer` (3-B2)
 - v2.8: callable `gradeAttempt`, 알림 종류 `test` (3-B3)
+- v2.9: callable `drawProblem`·`previewTemplate`·`saveGenerated`, 변형 문제 채점 (MATH-14·15)
