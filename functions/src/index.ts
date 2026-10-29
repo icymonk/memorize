@@ -7,6 +7,7 @@ export { leaveSpace, removeMember, respondOwnership, setManager, transferOwnersh
 export { copyContent } from './callable/copy'
 export { checkAnswer, gradeAttempt, openTest, startAttempt, submitAttempt } from './callable/tests'
 export { checkProblem, drawProblem, revealHint } from './callable/math'
+export { generateProblems, previewTemplate, saveGenerated } from './callable/generate'
 export { deleteCollection } from './callable/collections'
 export { movePage, restorePage, trashPage } from './callable/pages'
 export { onCardWritten } from './trigger/card'

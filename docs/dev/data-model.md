@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.25 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.26 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -384,7 +384,9 @@ curricula/{curriculumId}                   # 전역 참고 데이터 (읽기 전
   name, grades: [{ grade, areas: [{ name, units: [{ code, name, children: [{ code, name }] }] }] }]
   # 원본은 저장소 shared/math/curricula/*.json. M2부터 앱·서버가 이 원본을 직접 읽고 Firestore 복사본은 두지 않는다
   # code: 단원 `m1-04`, 세부 개념 `m1-04-2` (학년 e1~e6·m1~m3·h1)
-# MATH-15 내장 문제 틀은 Firestore가 아니라 shared/math/library (단원 code → 문제 틀 목록, 앱·서버 공용)
+# MATH-15 내장 문제 틀은 Firestore가 아니라 shared/math/library.ts (세부 개념 code → 문제 틀 목록, 앱·서버 공용)
+# 단원별 만들기로 저장한 문제는 내 변형 문제(questions.variant, unit=틀의 세부 개념)로 복사된다. 다른 사람 틀이면 copiedFrom을 남기고
+# 정답을 볼 수 없던 틀은 questionKeys.authorIds를 원래 출제자로 둔다 (나는 풀 수만 있고 정답 식은 못 본다)
 ```
 
 ## 11. 통합 오답 노트 (WRN)
@@ -470,5 +472,6 @@ users/{uid}/avatar/{fileName}
 - v2.21: 시험 `mission`·`missionId`, 시험 연결 미션(type 'auto', autoRule·linked) (3-B4, TST-19·MIS-16)
 - v2.24: 변형 문제 `questions.variant`, `template.vars` 종류별 의미 (MATH-14)
 - v2.23: 문제집 필드 확정(description·editPolicy·questionIds 최대 100), 문제 unit, 정답 tolerance 의미, 교육과정은 저장소 원본을 직접 읽음 (MATH-10·12·13)
+- v2.26: 단원별 만들기 저장 규칙(내장 틀 위치, 다른 사람 틀 복사 시 authorIds) (MATH-15)
 - v2.25: 문제집 풀기 `problemAttempts` 필드 확정, `problemNotes`, `questionKeys.hints`, `problemSets.hintPenalty` (MATH-20~24)
 - v2.22: 변형 문제 `questionKeys.template`, `problemAttempts.seed`, `curricula` 영역 단계·원본 위치, 내장 문제 틀 위치 (MATH-14·15·17)

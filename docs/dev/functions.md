@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.10 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.11 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -94,7 +94,8 @@
 | `drawProblem` | 문제집 문제 하나 열기: 풀이 기록을 시작하고 변형 문제는 seed를 정해 기록, 완성된 지문·보기와 연 힌트만 돌려준다 (정답 식은 안 내려감). `fresh`면 새 숫자로 처음부터 | MATH-14·20·24 | 3 |
 | `checkProblem` | 문제집 문항 바로 채점: 변형 문제는 `problemAttempts.seed`로 숫자를 다시 만들어 채점. 맞히거나 포기하면 정답·해설, 점수는 힌트 감점 반영 | MATH-20·23 | 3 |
 | `revealHint` | 힌트 한 단계 더 열기 (사용 수 기록) | MATH-21 | 3 |
-| `previewTemplate` | 문제 틀 미리보기·단원별 만들기 미리보기: 예시 숫자로 완성한 문제와 숫자 뽑기 실패율 (출제자에게만 정답 포함) | MATH-14·15 | 3 |
+| `generateProblems` | 단원별 만들기 미리보기 목록: 단원(·세부 개념)의 내장 틀 + 워크스페이스 공유 틀에서 난이도·개수·정답 형식대로 골라 숫자를 채운다 (정답은 내장·내 틀·정답 공개 틀만) | MATH-15 | 3 |
+| `previewTemplate` | 미리보기 한 문제 다시: 새 seed로 숫자 다시 뽑기, 숫자↔객관식 바꾸기 | MATH-14·15 | 3 |
 | `saveGenerated` | 단원별 만들기 결과 저장: 고른 문제 틀(내장·다른 사람 것 포함)을 내 문제·정답으로 복사해 문제집에 넣는다 | MATH-15 | 3 |
 | `getGradingKit` / `gradeManual` / `regrade` | 서술형 채점 자료 제공, 직접 채점, 다시 채점 | TST-31 | 3 |
 | `resolveAppeal` | 이의 신청 인정 → 정답 추가·재채점 | MATH 예외 | 4 |
@@ -155,5 +156,6 @@
 - v2.6: callable `openTest` (3-B1, TST-10·16)
 - v2.7: callable `startAttempt`·`submitAttempt`·`checkAnswer` (3-B2)
 - v2.8: callable `gradeAttempt`, 알림 종류 `test` (3-B3)
+- v2.11: callable `generateProblems`, `previewTemplate`·`saveGenerated` 구현 (M5)
 - v2.10: callable `checkProblem`·`revealHint` (문제집 풀기, 시험용 `checkAnswer`와 분리)
 - v2.9: callable `drawProblem`·`previewTemplate`·`saveGenerated`, 변형 문제 채점 (MATH-14·15)

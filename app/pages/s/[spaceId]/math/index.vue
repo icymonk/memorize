@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import type { ProblemSet } from '~/features/math/services/problemSets'
 import { unitLabel } from '#shared/math/curriculum'
-import { FileQuestionIcon, PlusIcon, SigmaIcon } from '@lucide/vue'
+import { FileQuestionIcon, PlusIcon, SigmaIcon, SparklesIcon } from '@lucide/vue'
 import MathInputDialog from '~/features/math/components/MathInputDialog.vue'
 import MathText from '~/features/math/components/MathText.vue'
 import ProblemSetFormDialog from '~/features/math/components/ProblemSetFormDialog.vue'
 import { listProblemSets } from '~/features/math/services/problemSets'
 import { ko } from '~/locales/ko'
 
-/** 수학 홈 (MATH-01·02·10). 변형 문제·단원별 만들기는 M3·M5에서 붙인다 */
+/** 수학 홈 (MATH-01·02·10·15): 문제집 목록, 문제집 만들기, 단원별 만들기 */
 const t = ko.math.home
 const space = useSpaceStore()
 const auth = useAuthStore()
@@ -64,7 +64,10 @@ function insert(latex: string, display: boolean) {
           <CardTitle>{{ t.sets }}</CardTitle>
           <CardDescription>{{ t.setsSoon }}</CardDescription>
         </div>
-        <Button v-if="tests && canCreate" size="sm" @click="formOpen = true"><PlusIcon /> {{ t.createSet }}</Button>
+        <div v-if="tests && canCreate" class="flex flex-wrap justify-end gap-1">
+          <Button as-child size="sm" variant="outline"><NuxtLink :to="`/s/${sid}/math/generate`"><SparklesIcon /> {{ t.generate }}</NuxtLink></Button>
+          <Button size="sm" @click="formOpen = true"><PlusIcon /> {{ t.createSet }}</Button>
+        </div>
       </CardHeader>
       <CardContent class="flex flex-col gap-2">
         <p v-if="!tests" class="text-muted-foreground text-sm">{{ t.testsOff }}</p>
