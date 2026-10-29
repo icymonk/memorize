@@ -3,14 +3,17 @@ import type { GenKind } from '#shared/question-gen'
 import type { Deck } from '~/features/vocab/services/decks'
 import { GEN_KINDS, generateQuestions } from '#shared/question-gen'
 import { shuffle } from '#shared/study'
+import { MAX_TEST_QUESTIONS, testInput } from '#shared/schemas/test'
 import { toast } from 'vue-sonner'
 import { listCards } from '~/features/vocab/services/cards'
 import { listDecks } from '~/features/vocab/services/decks'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 import { saveQuestions } from '../services/questions'
+import { createTest } from '../services/tests'
 
-/** TST-03 단어장에서 문제 만들기 */
+/** TST-03 단어장에서 문제 만들기. VOC-25 testDeckId를 주면 그 단어장으로 시험 초안까지 만든다 */
+const props = defineProps<{ testDeckId?: string }>()
 const emit = defineEmits<{ saved: [] }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -25,6 +28,7 @@ const MAX_CARDS = 100
 const decks = ref<Deck[]>([])
 const deckId = ref('')
 const cards = ref<{ front: string, back: string[] }[]>([])
+const asTest = computed(() => !!props.testDeckId)
 const kinds = ref<GenKind[]>(['meaningToWord', 'wordShort'])
 const count = ref(20)
 const points = ref(10)
@@ -36,7 +40,10 @@ const saving = ref(false)
 const deck = computed(() => decks.value.find(d => d.id === deckId.value))
 const max = computed(() => Math.min(cards.value.length, MAX_CARDS))
 const picked = computed(() => Math.max(0, Math.min(Math.floor(count.value || 0), max.value)))
-const estimate = computed(() => picked.value * kinds.value.filter(k => cards.value.length > 1 || k === 'meaningShort' || k === 'wordShort').length)
+const estimate = computed(() => {
+  const n = picked.value * kinds.value.filter(k => cards.value.length > 1 || k === 'meaningShort' || k === 'wordShort' || k === 'wordOx').length
+  return asTest.value ? Math.min(n, MAX_TEST_QUESTIONS) : n
+})
 
 watch(open, async (v) => {
   if (!v) return
@@ -44,8 +51,10 @@ watch(open, async (v) => {
   cards.value = []
   share.value = false
   reveal.value = false
+  if (asTest.value) kinds.value = ['meaningToWord', 'wordToMeaning', 'wordShort', 'wordOx']
   try {
     decks.value = await listDecks($firestore, space.current!.id, auth.user!.uid, space.membership?.groupIds ?? [])
+    if (props.testDeckId) await pick(props.testDeckId)
   }
   catch (e) {
     toast.error(errorMessage(e) ?? ko.errors.unknown)
@@ -75,7 +84,7 @@ function toggleKind(k: GenKind) {
 async function submit() {
   if (!deck.value || !kinds.value.length || !picked.value) return
   const chosen = shuffle(cards.value).slice(0, picked.value)
-  const items = generateQuestions(chosen, cards.value, {
+  const generated = generateQuestions(chosen, cards.value, {
     kinds: GEN_KINDS.filter(k => kinds.value.includes(k)),
     prompts: g.prompt,
     base: {
@@ -85,14 +94,28 @@ async function submit() {
       answerVisibility: !personal.value && reveal.value ? 'space' : 'authors',
     },
   })
+  const items = asTest.value ? shuffle(generated).slice(0, MAX_TEST_QUESTIONS) : generated
   if (!items.length) {
     toast.error(g.none)
     return
   }
   saving.value = true
   try {
-    const n = await saveQuestions($firestore, space.current!.id, auth.user!.uid, items)
-    toast.success(g.done(n))
+    const sid = space.current!.id
+    const ids = await saveQuestions($firestore, sid, auth.user!.uid, items)
+    if (asTest.value) {
+      const input = testInput.parse({
+        title: g.testTitle(deck.value.title).slice(0, 80),
+        questionRefs: ids.map((questionId, i) => ({ questionId, points: items[i]!.q.defaultPoints })),
+        settings: { shuffleQuestions: true },
+      })
+      const testId = await createTest($firestore, sid, auth.user!.uid, input)
+      toast.success(g.testDone(ids.length))
+      open.value = false
+      await navigateTo(`/s/${sid}/tests/${testId}`)
+      return
+    }
+    toast.success(g.done(ids.length))
     open.value = false
     emit('saved')
   }
@@ -109,11 +132,11 @@ async function submit() {
   <Dialog v-model:open="open">
     <DialogContent class="max-h-[90svh] overflow-y-auto sm:max-w-lg">
       <DialogHeader>
-        <DialogTitle>{{ g.title }}</DialogTitle>
-        <DialogDescription>{{ g.description }}</DialogDescription>
+        <DialogTitle>{{ asTest ? g.testTitleDialog : g.title }}</DialogTitle>
+        <DialogDescription>{{ asTest ? g.testDescription : g.description }}</DialogDescription>
       </DialogHeader>
       <form class="flex flex-col gap-4" @submit.prevent="submit">
-        <div class="flex flex-col gap-2">
+        <div v-if="!asTest" class="flex flex-col gap-2">
           <Label>{{ g.deck }}</Label>
           <p v-if="!decks.length" class="text-muted-foreground text-sm">{{ g.noDecks }}</p>
           <div v-else class="flex max-h-40 flex-wrap gap-1 overflow-y-auto">
@@ -154,7 +177,7 @@ async function submit() {
         </template>
         <DialogFooter class="items-center gap-2">
           <span v-if="deck && estimate" class="text-muted-foreground text-sm">{{ g.preview(estimate) }}</span>
-          <Button type="submit" :disabled="saving || loading || !deck || !estimate">{{ g.submit }}</Button>
+          <Button type="submit" :disabled="saving || loading || !deck || !estimate">{{ asTest ? g.testSubmit : g.submit }}</Button>
         </DialogFooter>
       </form>
     </DialogContent>

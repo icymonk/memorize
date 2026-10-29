@@ -55,19 +55,21 @@ export async function saveQuestion(db: Firestore, sid: string, uid: string, q: Q
 /** 규칙이 정답마다 같은 묶음의 문제를 읽으므로(getAfter) 묶음 하나의 문서 읽기 한도(20) 안으로 나눈다 */
 const GEN_BATCH = 15
 
-/** TST-03 여러 문제를 한꺼번에 새로 만든다 */
+/** TST-03 여러 문제를 한꺼번에 새로 만든다. 만든 문제 id를 순서대로 돌려준다 */
 export async function saveQuestions(db: Firestore, sid: string, uid: string, items: { q: QuestionInput, k: QuestionKeyInput }[]) {
   const now = serverTimestamp()
+  const ids: string[] = []
   for (let i = 0; i < items.length; i += GEN_BATCH) {
     const batch = writeBatch(db)
     for (const { q, k } of items.slice(i, i + GEN_BATCH)) {
       const ref = doc(questionsOf(db, sid))
+      ids.push(ref.id)
       batch.set(ref, { ...q, createdBy: uid, rev: 1, deletedAt: null, createdAt: now, updatedAt: now })
       batch.set(keyRef(db, sid, ref.id), { ...k, authorIds: [uid], answerVisibility: q.answerVisibility })
     }
     await batch.commit()
   }
-  return items.length
+  return ids
 }
 
 export async function deleteQuestion(db: Firestore, sid: string, q: Question) {
