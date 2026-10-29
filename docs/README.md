@@ -32,6 +32,11 @@
 | [features/math.md](./features/math.md) | 수학 공부 | 확정 |
 | [features/wrong-notes.md](./features/wrong-notes.md) | 통합 오답 노트 | 확정 |
 
+### 제안 (확정 전 계획)
+| 문서 | 내용 | 상태 |
+| --- | --- | --- |
+| [proposals/math-generation.md](./proposals/math-generation.md) | 수학 문제 생성(변형 템플릿·단원별 생성)·공유 계획 | 초안 |
+
 상태: `초안` → `리뷰 중` → `확정`
 
 ### 추천 리뷰 순서
