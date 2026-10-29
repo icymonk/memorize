@@ -1126,6 +1126,61 @@ describe('question bank (3-A1, TST-01·07·08)', () => {
 })
 
 
+describe('numeric keys and units (MATH-12·13)', () => {
+  const q = { type: 'short', prompt: '1/2+1/4', choices: [], tags: [], difficulty: 'normal', defaultPoints: 10, createdBy: 'bob', sharing: 'private', answerVisibility: 'authors', rev: 1, deletedAt: null }
+  const k = { answer: ['3/4'], ignoreCase: true, ignoreSpaces: false, explanation: '', rubric: '', authorIds: ['bob'], answerVisibility: 'authors' }
+  const save = (qo: object, ko: object) => {
+    const d = db('bob')
+    const b = writeBatch(d)
+    b.set(doc(d, 'spaces', SID, 'questions', 'n1'), { ...q, ...qo })
+    b.set(doc(d, 'spaces', SID, 'questionKeys', 'n1'), { ...k, ...ko })
+    return b.commit()
+  }
+  it('accepts a tolerance and a unit, rejects bad values', async () => {
+    await assertSucceeds(save({ unit: { code: 'm1-04', custom: null } }, { tolerance: 0 }))
+    await assertSucceeds(save({ unit: null }, { tolerance: null }))
+    await assertFails(save({}, { tolerance: -1 }))
+    await assertFails(save({}, { tolerance: '0' }))
+    await assertFails(save({ unit: { code: 'm1', grade: 'm1' } }, {}))
+  })
+})
+
+describe('problem sets (MATH-10·13)', () => {
+  const ps = (uid: string, over: object = {}) => ({ title: '일차방정식', description: '', grade: 'm1', unit: { code: 'm1-04', custom: null }, questionIds: [], visibility: 'private', editPolicy: 'owner', createdBy: uid, deletedAt: null, ...over })
+  const ref = (uid: string, id: string, sid = SID) => doc(db(uid), 'spaces', sid, 'problemSets', id)
+
+  it('private sets stay with the author; space sets are read by members', async () => {
+    await assertSucceeds(setDoc(ref('bob', 's1'), ps('bob')))
+    await assertSucceeds(setDoc(ref('bob', 's2'), ps('bob', { visibility: 'space' })))
+    await assertFails(getDoc(ref('alice', 's1')))
+    await assertSucceeds(getDoc(ref('alice', 's2')))
+    await assertFails(getDoc(ref('lee', 's2')))
+    await assertSucceeds(getDocs(query(collection(db('alice'), 'spaces', SID, 'problemSets'), where('visibility', '==', 'space'))))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'problemSets')))
+  })
+
+  it('validates and owns', async () => {
+    await assertFails(setDoc(ref('bob', 's3'), ps('alice')))
+    await assertFails(setDoc(ref('bob', 's3'), ps('bob', { title: '' })))
+    await assertFails(setDoc(ref('bob', 's3'), ps('bob', { editPolicy: 'members' })))
+    await assertFails(setDoc(ref('bob', 's3'), ps('bob', { questionIds: Array.from({ length: 101 }, (_, i) => `q${i}`) })))
+    await assertFails(setDoc(ref('pat', 's3'), ps('pat')))
+    await assertSucceeds(setDoc(ref('alice', 'p1', 'p_alice'), ps('alice')))
+    await assertFails(setDoc(ref('alice', 'p2', 'p_alice'), ps('alice', { visibility: 'space' })))
+    await assertFails(deleteDoc(ref('bob', 's1')))
+  })
+
+  it('members edit only the question list of open space sets', async () => {
+    await assertSucceeds(setDoc(ref('bob', 's4'), ps('bob', { visibility: 'space', editPolicy: 'members' })))
+    await assertSucceeds(setDoc(ref('bob', 's5'), ps('bob', { visibility: 'space' })))
+    await assertSucceeds(updateDoc(ref('alice', 's4'), { questionIds: ['qa'] }))
+    await assertFails(updateDoc(ref('alice', 's4'), { title: '바꿈' }))
+    await assertFails(updateDoc(ref('alice', 's5'), { questionIds: ['qa'] }))
+    await assertSucceeds(updateDoc(ref('bob', 's5'), { title: '바꿈', questionIds: ['qb'] }))
+    await assertFails(updateDoc(ref('bob', 's5'), { createdBy: 'alice' }))
+  })
+})
+
 describe('tests (3-B1, TST-10~16)', () => {
   const settings = { timeLimitMin: null, openAt: null, closeAt: null, maxAttempts: 1, scoring: 'best', shuffleQuestions: false, shuffleChoices: false, resultRelease: 'instant', practice: false }
   const t = (uid: string, over: object = {}) => ({ title: '1단원', description: '', questionRefs: [{ questionId: 'q1', points: 10 }], settings, assignees: { all: true, uids: [], groupIds: [] }, status: 'draft', createdBy: uid, hostIds: [uid], deletedAt: null, ...over })

@@ -50,3 +50,18 @@ describe('question media and subject', () => {
   })
 })
 
+describe('numeric short answers (MATH-12)', () => {
+  const key = { answer: ['3/4'], ignoreCase: true, ignoreSpaces: false, tolerance: 0 }
+  it('grades fractions and decimals as the same number', () => {
+    expect(gradeAnswer('short', key, '0.75', 10)).toBe(10)
+    expect(gradeAnswer('short', key, '6/8', 10)).toBe(10)
+    expect(gradeAnswer('short', key, '0.7', 10)).toBe(0)
+    expect(gradeAnswer('short', { ...key, tolerance: 0.1 }, '0.7', 10)).toBe(10)
+    expect(gradeAnswer('short', key, '삼분의 일', 10)).toBe(0)
+  })
+  it('numeric keys must be numbers', () => {
+    expect(keyFits({ type: 'short', choices: [] }, { answer: ['1 1/2'], tolerance: 0 })).toBe(true)
+    expect(keyFits({ type: 'short', choices: [] }, { answer: ['x'], tolerance: 0 })).toBe(false)
+    expect(keyFits({ type: 'short', choices: [] }, { answer: ['x'], tolerance: null })).toBe(true)
+  })
+})
