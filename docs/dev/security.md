@@ -162,6 +162,7 @@ match /spaces/{sid}/pages/{pageId} {
 | --- | --- | --- |
 | `questions` | 작성자·공동 출제자, 또는 `sharing == 'space'`면 멤버 | `whoCanCreate`, 수정은 출제자 |
 | `questionKeys` | `uid() in authorIds`, 또는 `answerVisibility == 'space'`면 멤버 | 출제자 (`authorIds`는 서버) |
+| `problemSets` | 작성자, 또는 `visibility == 'space'`면 멤버 | `whoCanCreate`, 수정은 작성자. `editPolicy == 'members'`인 공개 문제집은 멤버가 `questionIds`만 |
 | `tests` | 멤버 (대상 아닌 경우 목록만) | 생성 `whoCanHost`, 수정 진행자 |
 | `attempts` | 본인, 보호자, `hostIds` | 본인: 마감 전 `answers`만 / 그 외 서버 |
 | `answerAppeals` | 신청자, 출제자 | 생성 본인 / 처리 서버 |

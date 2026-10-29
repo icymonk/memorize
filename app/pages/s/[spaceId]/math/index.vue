@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { FileQuestionIcon, SigmaIcon } from '@lucide/vue'
+import type { ProblemSet } from '~/features/math/services/problemSets'
+import { unitLabel } from '#shared/math/curriculum'
+import { FileQuestionIcon, PlusIcon, SigmaIcon } from '@lucide/vue'
 import MathInputDialog from '~/features/math/components/MathInputDialog.vue'
 import MathText from '~/features/math/components/MathText.vue'
+import ProblemSetFormDialog from '~/features/math/components/ProblemSetFormDialog.vue'
+import { listProblemSets } from '~/features/math/services/problemSets'
 import { ko } from '~/locales/ko'
 
-/** 수학 홈 (MATH-01·02). 문제집·변형 문제·단원별 만들기는 M2~M5에서 붙인다 */
+/** 수학 홈 (MATH-01·02·10). 변형 문제·단원별 만들기는 M3·M5에서 붙인다 */
 const t = ko.math.home
 const space = useSpaceStore()
+const auth = useAuthStore()
+const { $firestore } = useNuxtApp()
 
 if (!space.current?.modules?.math) {
   await navigateTo(`/s/${space.current!.id}`, { replace: true })
@@ -14,8 +20,30 @@ if (!space.current?.modules?.math) {
 
 const sid = computed(() => space.current!.id)
 const tests = computed(() => !!space.current?.modules?.tests)
+const canCreate = computed(() => space.can('create'))
+const sets = ref<ProblemSet[]>([])
+const loading = ref(true)
+const loadError = ref(false)
+const formOpen = ref(false)
 const draft = ref('')
 const inputOpen = ref(false)
+
+async function load() {
+  loading.value = true
+  loadError.value = false
+  try {
+    sets.value = await listProblemSets($firestore, sid.value, auth.user!.uid)
+  }
+  catch {
+    loadError.value = true
+  }
+  finally {
+    loading.value = false
+  }
+}
+onMounted(load)
+
+const created = (id: string) => navigateTo(`/s/${sid.value}/math/${id}`)
 
 function insert(latex: string, display: boolean) {
   const tex = display ? `$$${latex}$$` : `$${latex}$`
@@ -31,15 +59,39 @@ function insert(latex: string, display: boolean) {
     </div>
 
     <Card>
-      <CardHeader>
-        <CardTitle>{{ t.sets }}</CardTitle>
-        <CardDescription>{{ t.setsSoon }}</CardDescription>
+      <CardHeader class="flex flex-row items-start justify-between gap-2">
+        <div class="flex flex-col gap-1.5">
+          <CardTitle>{{ t.sets }}</CardTitle>
+          <CardDescription>{{ t.setsSoon }}</CardDescription>
+        </div>
+        <Button v-if="tests && canCreate" size="sm" @click="formOpen = true"><PlusIcon /> {{ t.createSet }}</Button>
       </CardHeader>
-      <CardContent>
-        <Button v-if="tests" as-child variant="outline" size="sm">
+      <CardContent class="flex flex-col gap-2">
+        <p v-if="!tests" class="text-muted-foreground text-sm">{{ t.testsOff }}</p>
+        <template v-else-if="loading">
+          <Skeleton v-for="i in 3" :key="i" class="h-14 w-full" />
+        </template>
+        <p v-else-if="loadError" class="text-destructive text-sm">{{ t.loadFailed }}</p>
+        <p v-else-if="!sets.length" class="text-muted-foreground text-sm">{{ t.noSets }}</p>
+        <NuxtLink
+          v-for="s in sets"
+          v-else
+          :key="s.id"
+          :to="`/s/${sid}/math/${s.id}`"
+          class="hover:bg-accent flex items-center justify-between gap-2 rounded-md border p-3"
+        >
+          <span class="flex min-w-0 flex-col">
+            <span class="truncate font-medium">{{ s.title }}</span>
+            <span class="text-muted-foreground truncate text-xs">{{ unitLabel(s.unit) || '—' }}</span>
+          </span>
+          <span class="flex shrink-0 items-center gap-2 text-xs">
+            <Badge v-if="s.visibility === 'space'" variant="secondary">{{ ko.math.set.public }}</Badge>
+            <span class="text-muted-foreground">{{ t.count(s.questionIds.length) }}</span>
+          </span>
+        </NuxtLink>
+        <Button v-if="tests" as-child variant="ghost" size="sm" class="self-start">
           <NuxtLink :to="`/s/${sid}/questions`"><FileQuestionIcon /> {{ t.questions }}</NuxtLink>
         </Button>
-        <p v-else class="text-muted-foreground text-sm">{{ t.testsOff }}</p>
       </CardContent>
     </Card>
 
@@ -59,5 +111,6 @@ function insert(latex: string, display: boolean) {
     </Card>
 
     <MathInputDialog v-model:open="inputOpen" @insert="insert" />
+    <ProblemSetFormDialog v-model:open="formOpen" @saved="created" />
   </div>
 </template>

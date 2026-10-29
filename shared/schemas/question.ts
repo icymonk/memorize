@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { parseNumber, sameNumber } from '../math/number'
 
 /** TST-01·02 문제 은행 — docs/dev/data-model.md 10절. 정답은 questionKeys에 따로 둔다 */
 export const QUESTION_TYPES = ['single', 'multi', 'ox', 'short', 'essay'] as const
@@ -28,6 +29,8 @@ export const questionInput = z.object({
   defaultPoints: z.number().int().min(1).max(100).default(10),
   sharing: z.enum(['private', 'space']).default('private'),
   answerVisibility: z.enum(['authors', 'space']).default('authors'),
+  /** MATH-13 학년·단원: 교육과정 목록의 code 또는 자유 입력 */
+  unit: z.object({ code: z.string().max(40).nullable(), custom: text(60).nullable() }).nullable().default(null),
 })
 export type QuestionInput = z.infer<typeof questionInput>
 
@@ -38,11 +41,13 @@ export const questionKeyInput = z.object({
   ignoreSpaces: z.boolean().default(false),
   explanation: text(2000).default(''),
   rubric: text(2000).default(''),
+  /** MATH-12 단답형 숫자 정답: null이면 글자로, 숫자면 그만큼의 오차까지 정답 (분수=소수) */
+  tolerance: z.number().min(0).max(1_000_000).nullable().default(null),
 })
 export type QuestionKeyInput = z.infer<typeof questionKeyInput>
 
 /** 유형에 맞는 보기·정답인지 */
-export function keyFits(q: Pick<QuestionInput, 'type' | 'choices'>, k: Pick<QuestionKeyInput, 'answer'>): boolean {
+export function keyFits(q: Pick<QuestionInput, 'type' | 'choices'>, k: Pick<QuestionKeyInput, 'answer'> & { tolerance?: number | null }): boolean {
   const a = k.answer
   switch (q.type) {
     case 'single':
@@ -51,7 +56,7 @@ export function keyFits(q: Pick<QuestionInput, 'type' | 'choices'>, k: Pick<Ques
       return ok && (q.type === 'multi' || a.length === 1)
     }
     case 'ox': return q.choices.length === 0 && a.length === 1 && typeof a[0] === 'boolean'
-    case 'short': return q.choices.length === 0 && a.length >= 1 && a.every(v => typeof v === 'string')
+    case 'short': return q.choices.length === 0 && a.length >= 1 && a.every(v => typeof v === 'string' && (k.tolerance == null || parseNumber(v) != null))
     case 'essay': return q.choices.length === 0 && a.length === 0
   }
 }
@@ -64,7 +69,7 @@ function norm(s: string, k: Pick<QuestionKeyInput, 'ignoreCase' | 'ignoreSpaces'
 }
 
 /** TST-30 자동 채점. 서술형은 null (직접 채점) */
-export function gradeAnswer(type: QuestionType, key: Pick<QuestionKeyInput, 'answer' | 'ignoreCase' | 'ignoreSpaces'>, given: unknown, points: number): number | null {
+export function gradeAnswer(type: QuestionType, key: Pick<QuestionKeyInput, 'answer' | 'ignoreCase' | 'ignoreSpaces'> & { tolerance?: number | null }, given: unknown, points: number): number | null {
   switch (type) {
     case 'single':
     case 'multi': {
@@ -76,6 +81,10 @@ export function gradeAnswer(type: QuestionType, key: Pick<QuestionKeyInput, 'ans
     case 'ox': return given === key.answer[0] ? points : 0
     case 'short': {
       if (typeof given !== 'string' || !given.trim()) return 0
+      if (key.tolerance != null) {
+        const g = parseNumber(given)
+        return g != null && key.answer.some(a => typeof a === 'string' && parseNumber(a) != null && sameNumber(g, parseNumber(a)!, key.tolerance!)) ? points : 0
+      }
       const g = norm(given, key)
       return key.answer.some(a => typeof a === 'string' && norm(a, key) === g) ? points : 0
     }

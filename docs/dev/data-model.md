@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.22 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.23 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -308,7 +308,7 @@ spaces/{sid}/missions/{missionId}/peerReviews/{id}
 spaces/{sid}/questions/{questionId}
   type, subject: 'language'|'math'|'general', subjectId?
   prompt: string, choices[], media[] (첨부, 최대 5)    # type: single|multi|ox|short|essay (3-A1 지문은 글자)
-  tags[], unit?, difficulty, defaultPoints, hints?[]
+  tags[], unit?: { code|null, custom|null }, difficulty, defaultPoints, hints?[]   # unit: MATH-13 교육과정 code 또는 자유 입력
   createdBy, collaboratorIds[]
   sharing: 'private' | 'space'            # TST-08 (기본 private)
   answerVisibility: 'authors' | 'space'   # TST-07 (기본 authors)
@@ -318,7 +318,7 @@ spaces/{sid}/questions/{questionId}
 
 spaces/{sid}/questionKeys/{questionId}     # 정답 (규칙: authorIds 또는 공개 설정만 읽기)
   answer: (number|bool|string)[]         # 객관식=보기 번호, OX=[bool], 단답=허용 답, 서술형=[]
-  ignoreCase, ignoreSpaces, tolerance?, explanation, rubric
+  ignoreCase, ignoreSpaces, tolerance?, explanation, rubric   # tolerance: 단답형 숫자 정답(MATH-12). null=글자 비교, 숫자=그 오차까지 정답, 분수=소수 동치 (shared/math/number)
   authorIds[], answerVisibility           # 검사용 복사본
   template?: {                            # MATH-14 변형 문제. 있으면 questions.prompt·choices·hints는 목록용 예시 1개
     prompt, hints[], explanation          # `{name}` 자리 표시 (수식 안에서도 사용)
@@ -362,8 +362,9 @@ spaces/{sid}/tests/{testId}/results/{attemptId}   # 서버만 씀. 진행자, �
   # secret/key는 서버와 진행자만 읽는다 (채점 기준 보기)
 
 spaces/{sid}/problemSets/{setId}           # MATH-10·13
-  title, grade?, unit: { curriculumCode?, custom? }, questionIds[]
-  visibility, createdBy, editPolicy, collaboratorIds[], hintPenalty?
+  title, description, grade|null, unit: { code|null, custom|null }|null, questionIds[] (최대 100)
+  visibility: 'private'|'space', editPolicy: 'owner'|'members'   # members: 공개 문제집에 멤버도 questionIds만 고침
+  createdBy, deletedAt, createdAt, updatedAt, hintPenalty? (M4)
 
 spaces/{sid}/problemAttempts/{uid}_{questionId}
   uid, questionId, tries, correct, hintsUsed, lastAnswer, isPractice, lastAt
@@ -376,7 +377,8 @@ spaces/{sid}/answerAppeals/{id}            questionId, uid, answer, status, crea
 
 curricula/{curriculumId}                   # 전역 참고 데이터 (읽기 전용). 'kr-2022': 2022 개정 초1~고1
   name, grades: [{ grade, areas: [{ name, units: [{ code, name, children: [{ code, name }] }] }] }]
-  # 원본은 저장소 shared/math/curricula/*.json, 배포 때 넣는다
+  # 원본은 저장소 shared/math/curricula/*.json. M2부터 앱·서버가 이 원본을 직접 읽고 Firestore 복사본은 두지 않는다
+  # code: 단원 `m1-04`, 세부 개념 `m1-04-2` (학년 e1~e6·m1~m3·h1)
 # MATH-15 내장 문제 틀은 Firestore가 아니라 shared/math/library (단원 code → 문제 틀 목록, 앱·서버 공용)
 ```
 
@@ -461,4 +463,5 @@ users/{uid}/avatar/{fileName}
 - v2.19: 응시 choiceOrder, 결과 문서 `results` 분리 (3-B2, TST-21~23·30)
 - v2.20: 결과 gradedBy·gradedAt, 진행자의 secret/key 읽기 (3-B3, TST-31)
 - v2.21: 시험 `mission`·`missionId`, 시험 연결 미션(type 'auto', autoRule·linked) (3-B4, TST-19·MIS-16)
+- v2.23: 문제집 필드 확정(description·editPolicy·questionIds 최대 100), 문제 unit, 정답 tolerance 의미, 교육과정은 저장소 원본을 직접 읽음 (MATH-10·12·13)
 - v2.22: 변형 문제 `questionKeys.template`, `problemAttempts.seed`, `curricula` 영역 단계·원본 위치, 내장 문제 틀 위치 (MATH-14·15·17)

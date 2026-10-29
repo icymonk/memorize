@@ -77,3 +77,10 @@ export async function deleteQuestion(db: Firestore, sid: string, q: Question) {
   batch.update(doc(questionsOf(db, sid), q.id), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() })
   await batch.commit()
 }
+
+/** 문제집 등에서 id 목록으로. 못 읽는(비공개·삭제된) 문제는 빠지고 순서는 유지한다 */
+export async function getQuestions(db: Firestore, sid: string, ids: string[]): Promise<{ list: Question[], hidden: number }> {
+  const snaps = await Promise.all(ids.map(id => getDoc(doc(questionsOf(db, sid), id)).catch(() => null)))
+  const list = toList(snaps.filter(s => s?.exists()).map(s => ({ id: s!.id, data: () => s!.data() ?? {} })))
+  return { list, hidden: ids.length - list.length }
+}

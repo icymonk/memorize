@@ -15,8 +15,8 @@ import { ko } from '~/locales/ko'
 import { getQuestionKey, saveQuestion } from '../services/questions'
 
 /** TST-01·02·07·08 문제 만들기·수정 */
-const props = defineProps<{ question?: Question | null }>()
-const emit = defineEmits<{ saved: [] }>()
+const props = defineProps<{ question?: Question | null, preset?: { unit?: Question['unit'], share?: boolean } }>()
+const emit = defineEmits<{ saved: [id: string] }>()
 const open = defineModel<boolean>('open', { default: false })
 
 const t = ko.tests
@@ -36,6 +36,8 @@ const empty = () => ({
   accepted: '',
   ignoreCase: true,
   ignoreSpaces: false,
+  numeric: false,
+  tolerance: 0,
   rubric: '',
   explanation: '',
   tags: '',
@@ -68,7 +70,7 @@ const isChoice = computed(() => form.value.type === 'single' || form.value.type 
 watch(open, async (v) => {
   if (!v) return
   const q = props.question
-  form.value = empty()
+  form.value = { ...empty(), share: !!props.preset?.share }
   if (!q) return
   const k = await getQuestionKey($firestore, space.current!.id, q.id)
   const a = k?.answer ?? []
@@ -82,6 +84,8 @@ watch(open, async (v) => {
     accepted: a.filter((v): v is string => typeof v === 'string').join(', '),
     ignoreCase: k?.ignoreCase ?? true,
     ignoreSpaces: k?.ignoreSpaces ?? false,
+    numeric: k?.tolerance != null,
+    tolerance: k?.tolerance ?? 0,
     rubric: k?.rubric ?? '',
     explanation: k?.explanation ?? '',
     tags: q.tags.join(', '),
@@ -135,9 +139,10 @@ async function submit() {
     defaultPoints: Number(v.points),
     sharing: !personal.value && v.share ? 'space' : 'private',
     answerVisibility: !personal.value && v.reveal ? 'space' : 'authors',
+    unit: props.question?.unit ?? props.preset?.unit ?? null,
   })
   const answer = isChoice.value ? v.correct : v.type === 'ox' ? [v.ox] : v.type === 'short' ? list(v.accepted) : []
-  const k = questionKeyInput.safeParse({ answer, ignoreCase: v.ignoreCase, ignoreSpaces: v.ignoreSpaces, explanation: v.explanation, rubric: v.type === 'essay' ? v.rubric : '' })
+  const k = questionKeyInput.safeParse({ answer, ignoreCase: v.ignoreCase, ignoreSpaces: v.ignoreSpaces, explanation: v.explanation, rubric: v.type === 'essay' ? v.rubric : '', tolerance: v.type === 'short' && v.numeric ? Math.max(0, Number(v.tolerance) || 0) : null })
   if (!q.success || !k.success) {
     toast.error(ko.errors.invalidInput)
     return
@@ -148,10 +153,10 @@ async function submit() {
   }
   saving.value = true
   try {
-    await saveQuestion($firestore, space.current!.id, auth.user!.uid, q.data, k.data, props.question)
+    const id = await saveQuestion($firestore, space.current!.id, auth.user!.uid, q.data, k.data, props.question)
     toast.success(t.saved)
     open.value = false
-    emit('saved')
+    emit('saved', id)
   }
   catch (e) {
     toast.error(errorMessage(e) ?? ko.errors.unknown)
@@ -217,8 +222,16 @@ async function submit() {
         </div>
         <div v-else-if="form.type === 'short'" class="flex flex-col gap-2">
           <Label for="q-accepted">{{ f.accepted }}</Label>
-          <Input id="q-accepted" v-model="form.accepted" />
-          <div class="flex flex-wrap gap-4 text-sm">
+          <Input id="q-accepted" v-model="form.accepted" :inputmode="form.numeric ? 'decimal' : undefined" />
+          <label class="flex items-start gap-3 text-sm">
+            <Switch v-model="form.numeric" />
+            <span class="flex flex-col"><span>{{ f.numeric }}</span><span class="text-muted-foreground text-xs">{{ f.numericHint }}</span></span>
+          </label>
+          <div v-if="form.numeric" class="flex items-center gap-2 text-sm">
+            <Label for="q-tolerance" class="shrink-0">{{ f.tolerance }}</Label>
+            <Input id="q-tolerance" v-model.number="form.tolerance" type="number" min="0" step="any" class="w-28" />
+          </div>
+          <div v-else class="flex flex-wrap gap-4 text-sm">
             <label class="flex items-center gap-2"><Switch v-model="form.ignoreCase" /> {{ f.ignoreCase }}</label>
             <label class="flex items-center gap-2"><Switch v-model="form.ignoreSpaces" /> {{ f.ignoreSpaces }}</label>
           </div>

@@ -255,12 +255,13 @@ service cloud.firestore {
       // 3-A1 문제 은행 (TST-01·02·04·07·08). 정답은 questionKeys에 따로 두고 출제자(+공개 설정 시 멤버)만 읽는다
       match /questions/{qid} {
         function validQ(x) {
-          return x.keys().hasOnly(['type', 'prompt', 'choices', 'tags', 'subjectId', 'media', 'copiedFrom', 'difficulty', 'defaultPoints', 'createdBy', 'sharing', 'answerVisibility', 'rev', 'deletedAt', 'createdAt', 'updatedAt'])
+          return x.keys().hasOnly(['type', 'prompt', 'choices', 'tags', 'subjectId', 'media', 'copiedFrom', 'difficulty', 'defaultPoints', 'createdBy', 'sharing', 'answerVisibility', 'rev', 'deletedAt', 'createdAt', 'updatedAt', 'unit'])
             && x.type in ['single', 'multi', 'ox', 'short', 'essay'] && isText(x.prompt, 1, 2000)
             && x.choices is list && x.choices.size() <= 6 && x.tags is list && x.tags.size() <= 10
             && (!('media' in x) || (x.media is list && x.media.size() <= 5))
             && x.difficulty in ['easy', 'normal', 'hard'] && x.defaultPoints is int && x.defaultPoints >= 1 && x.defaultPoints <= 100
-            && x.sharing in ['private', 'space'] && x.answerVisibility in ['authors', 'space'] && x.rev is int;
+            && x.sharing in ['private', 'space'] && x.answerVisibility in ['authors', 'space'] && x.rev is int
+            && (x.get('unit', null) == null || (x.unit is map && x.unit.keys().hasOnly(['code', 'custom'])));
         }
         allow read: if isMember(sid) && (resource.data.createdBy == uid() || resource.data.sharing == 'space');
         allow create: if isMember(sid) && request.resource.data.createdBy == uid() && request.resource.data.deletedAt == null
@@ -271,7 +272,8 @@ service cloud.firestore {
       match /questionKeys/{qid} {
         function qAfter() { return getAfter(/databases/$(database)/documents/spaces/$(sid)/questions/$(qid)).data; }
         function validKey(x) {
-          return x.keys().hasOnly(['answer', 'ignoreCase', 'ignoreSpaces', 'explanation', 'rubric', 'authorIds', 'answerVisibility'])
+          return x.keys().hasOnly(['answer', 'ignoreCase', 'ignoreSpaces', 'explanation', 'rubric', 'authorIds', 'answerVisibility', 'tolerance'])
+            && (x.get('tolerance', null) == null || (x.tolerance is number && x.tolerance >= 0))
             && x.answer is list && x.answer.size() <= 20 && x.ignoreCase is bool && x.ignoreSpaces is bool
             && isText(x.explanation, 0, 2000) && isText(x.rubric, 0, 2000)
             && x.authorIds == [uid()] && qAfter().createdBy == uid() && x.answerVisibility == qAfter().answerVisibility;
@@ -279,6 +281,28 @@ service cloud.firestore {
         allow read: if isMember(sid) && (uid() in resource.data.authorIds || resource.data.answerVisibility == 'space');
         allow create: if isMember(sid) && validKey(request.resource.data);
         allow update: if isMember(sid) && uid() in resource.data.authorIds && validKey(request.resource.data);
+      }
+
+      // 수학 M2 문제집 (MATH-10·13). 공개(space)면 멤버 모두 읽고, editPolicy가 members면 멤버도 문제 목록만 고친다
+      match /problemSets/{setId} {
+        function validSet(x) {
+          return x.keys().hasOnly(['title', 'description', 'grade', 'unit', 'questionIds', 'visibility', 'editPolicy', 'createdBy', 'deletedAt', 'createdAt', 'updatedAt'])
+            && isText(x.title, 1, 80) && isText(x.description, 0, 500)
+            && (x.grade == null || isText(x.grade, 1, 10))
+            && (x.unit == null || (x.unit is map && x.unit.keys().hasOnly(['code', 'custom'])))
+            && x.questionIds is list && x.questionIds.size() <= 100
+            && x.visibility in ['private', 'space'] && x.editPolicy in ['owner', 'members']
+            && (x.visibility == 'space' || x.editPolicy == 'owner')
+            && (space(sid).kind == 'workspace' || x.visibility == 'private');
+        }
+        allow read: if isMember(sid) && (resource.data.createdBy == uid() || resource.data.visibility == 'space');
+        allow create: if isMember(sid) && request.resource.data.createdBy == uid() && request.resource.data.deletedAt == null
+          && validSet(request.resource.data)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid));
+        allow update: if isMember(sid) && validSet(request.resource.data) && request.resource.data.createdBy == resource.data.createdBy
+          && (resource.data.createdBy == uid()
+            || (resource.data.visibility == 'space' && resource.data.editPolicy == 'members' && resource.data.deletedAt == null
+              && onlyChanges(['questionIds', 'updatedAt'])));
       }
 
       // 3-B1 시험 (TST-10~16). 진행자는 임시저장 상태에서만 고치고, 여는 것(문제 사본·대상자)은 서버 함수(openTest)가 한다

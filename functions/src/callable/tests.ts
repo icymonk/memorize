@@ -42,6 +42,7 @@ export const openTest = authedCallable(openTestInput, async ({ uid, data }): Pro
       ignoreSpaces: k.get('ignoreSpaces') ?? false,
       explanation: k.get('explanation') ?? '',
       rubric: k.get('rubric') ?? '',
+      tolerance: k.get('tolerance') ?? null,
     }
   })
 
@@ -126,7 +127,7 @@ async function loadTest(uid: string, spaceId: string, testId: string): Promise<L
   return { testRef, test }
 }
 
-type Key = { answer: (number | boolean | string)[], ignoreCase: boolean, ignoreSpaces: boolean, explanation: string, rubric: string }
+type Key = { answer: (number | boolean | string)[], ignoreCase: boolean, ignoreSpaces: boolean, explanation: string, rubric: string, tolerance?: number | null }
 
 /** 제출 처리와 자동 채점 (TST-23·30). 서술형이 있으면 채점 대기 */
 async function finalize(testRef: FirebaseFirestore.DocumentReference, test: FirebaseFirestore.DocumentSnapshot, attempt: FirebaseFirestore.DocumentSnapshot): Promise<SubmitAttemptOutput> {
