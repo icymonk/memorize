@@ -939,6 +939,18 @@ describe('mission join and submissions (2-E2, MIS-21~24·32)', () => {
     await seed({ closedAt: serverTimestamp() })
     await assertFails(setDoc(sref('alice', 'alice_once'), sub()))
   })
+
+  it('test-linked missions (MIS-16): only the server creates or completes them; hosts may only close', async () => {
+    const linked = { type: 'auto', reviewerIds: [], joinable: false, autoRule: { kind: 'test', targetId: 't1', threshold: null }, linked: { type: 'test', id: 't1' } }
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'missions', 'm2'), { ...base, ...linked }))
+    await seed(linked)
+    await assertFails(setDoc(sref('alice', 'alice_once'), sub({ status: 'done', reviewerUids: ['bob'] })))
+    await assertFails(updateDoc(mref('bob'), { title: '바꿈' }))
+    await assertFails(updateDoc(mref('bob'), { type: 'check' }))
+    await assertSucceeds(updateDoc(mref('bob'), { closedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'missions', 'm1', 'submissions', 'alice_once'), sub({ status: 'done', reviewerUids: ['bob'] })))
+    await assertFails(deleteDoc(sref('alice', 'alice_once')))
+  })
 })
 
 describe('mission review (2-E3, MIS-31)', () => {
@@ -1126,6 +1138,10 @@ describe('tests (3-B1, TST-10~16)', () => {
     await assertFails(setDoc(tRef('pat', 't4'), t('pat')))
     await assertFails(getDoc(tRef('alice', 't1')))
     await assertSucceeds(updateDoc(tRef('bob', 't1'), { title: '고침' }))
+    await assertSucceeds(updateDoc(tRef('bob', 't1'), { mission: { enabled: true, minScore: 8 } }))
+    await assertFails(updateDoc(tRef('bob', 't1'), { mission: { enabled: true, minScore: 0 } }))
+    await assertFails(updateDoc(tRef('bob', 't1'), { missionId: 'm1' }))
+    await assertFails(setDoc(tRef('bob', 't5'), t('bob', { missionId: 'm1' })))
     await assertFails(updateDoc(tRef('bob', 't1'), { status: 'open' }))
     await assertFails(updateDoc(tRef('bob', 't1'), { hostIds: ['bob', 'alice'] }))
     await assertFails(updateDoc(tRef('alice', 't1'), { title: '남의 것' }))

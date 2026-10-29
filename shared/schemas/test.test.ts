@@ -70,3 +70,18 @@ describe('grading (TST-14·31)', () => {
     expect(finalScores(rs, 'best').size).toBe(2)
   })
 })
+
+describe('test missions (TST-19)', () => {
+  it('defaults to off and keeps a target score', () => {
+    expect(testInput.parse({ title: 'x' }).mission).toEqual({ enabled: false, minScore: null })
+    expect(testInput.parse({ title: 'x', mission: { enabled: true, minScore: 7 } }).mission).toEqual({ enabled: true, minScore: 7 })
+  })
+  it('completes on any submit without a target, on a graded score with one, never in practice', async () => {
+    const { meetsTestMission } = await import('./test')
+    expect(meetsTestMission({ minScore: null }, { isPractice: false, score: 0, gradingStatus: 'pending' })).toBe(true)
+    expect(meetsTestMission({ minScore: null }, { isPractice: true, score: 10, gradingStatus: 'done' })).toBe(false)
+    expect(meetsTestMission({ minScore: 7 }, { isPractice: false, score: 8, gradingStatus: 'pending' })).toBe(false)
+    expect(meetsTestMission({ minScore: 7 }, { isPractice: false, score: 7, gradingStatus: 'done' })).toBe(true)
+    expect(meetsTestMission({ minScore: 7 }, { isPractice: false, score: 6, gradingStatus: 'done' })).toBe(false)
+  })
+})

@@ -76,7 +76,7 @@ export type SubmissionInput = z.infer<typeof submissionInput>
 export const submissionId = (uid: string, period: string) => `${uid}_${period}`
 
 /** 체크형은 바로 완료. 제출형은 검토할 사람(진행자·리뷰어 − 본인)이 없으면 바로 완료 (MIS-32) */
-export function initialStatus(type: MissionInput['type'], reviewers: string[]): SubmissionStatus {
+export function initialStatus(type: MissionInput['type'] | 'auto', reviewers: string[]): SubmissionStatus {
   return type === 'check' || reviewers.length === 0 ? 'done' : 'submitted'
 }
 

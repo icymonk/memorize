@@ -2,8 +2,11 @@ import type { ResultRelease, TestInput, TestStatus } from '#shared/schemas/test'
 import type { Firestore, Timestamp } from 'firebase/firestore'
 import { addDoc, collection, doc, getDoc, getDocs, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 
-export interface Test extends TestInput {
+export interface Test extends Omit<TestInput, 'mission'> {
   id: string
+  mission?: TestInput['mission']
+  /** TST-19 시험을 열 때 서버가 만든 연결 미션 */
+  missionId?: string | null
   status: TestStatus
   createdBy: string
   hostIds: string[]
