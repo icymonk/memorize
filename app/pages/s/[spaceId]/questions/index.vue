@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import type { Member } from '~/features/space/services/invites'
 import type { Question, QuestionKey } from '~/features/tests/services/questions'
-import { CopyIcon, LayersIcon, PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { CopyIcon, LayersIcon, PencilIcon, PlusIcon, Trash2Icon, SigmaIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import AttachmentList from '~/features/files/components/AttachmentList.vue'
 import { listMembers } from '~/features/space/services/invites'
 import MathText from '~/features/math/components/MathText.vue'
 import DeckQuestionsDialog from '~/features/tests/components/DeckQuestionsDialog.vue'
+import VariantFormDialog from '~/features/math/components/VariantFormDialog.vue'
 import QuestionFormDialog from '~/features/tests/components/QuestionFormDialog.vue'
 import { deleteQuestion, getQuestionKey, listQuestions } from '~/features/tests/services/questions'
 import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
@@ -40,6 +41,8 @@ const subjectName = computed(() => new Map(subjects.value.map(s => [s.id, s.name
 const copyOpen = ref(false)
 const copyId = ref('')
 const formOpen = ref(false)
+const variantOpen = ref(false)
+const mathOn = computed(() => !!space.current?.modules?.math)
 const genOpen = ref(false)
 const vocabOn = computed(() => space.current?.modules?.vocab !== false)
 const editing = ref<Question | null>(null)
@@ -93,7 +96,8 @@ function create() {
 }
 function edit(q: Question) {
   editing.value = q
-  formOpen.value = true
+  if (q.variant) variantOpen.value = true
+  else formOpen.value = true
 }
 async function remove(q: Question) {
   if (!(await confirmDialog(t.deleteConfirm))) return
@@ -115,6 +119,9 @@ async function remove(q: Question) {
       <div v-if="canCreate" class="flex gap-2">
         <Button v-if="vocabOn" size="sm" variant="outline" @click="genOpen = true">
           <LayersIcon /> {{ t.gen.open }}
+        </Button>
+        <Button v-if="mathOn" size="sm" variant="outline" @click="editing = null; variantOpen = true">
+          <SigmaIcon /> {{ ko.math.variant.create }}
         </Button>
         <Button size="sm" @click="create">
           <PlusIcon /> {{ t.create }}
@@ -145,6 +152,7 @@ async function remove(q: Question) {
             <span class="line-clamp-2 text-sm whitespace-pre-line"><MathText :text="q.prompt" /></span>
             <span class="text-muted-foreground flex flex-wrap gap-x-2 text-xs">
               <span>{{ t.types[q.type] }}</span>
+              <Badge v-if="q.variant" variant="secondary">{{ ko.math.variant.badge }}</Badge>
               <span v-if="q.subjectId && subjectName.get(q.subjectId)">{{ subjectName.get(q.subjectId) }}</span>
               <span v-if="q.copiedFrom">{{ t.copiedFrom(q.copiedFrom.spaceName) }}</span>
               <span>{{ t.difficulty[q.difficulty] }}</span>
@@ -181,6 +189,7 @@ async function remove(q: Question) {
       </li>
     </ul>
     <QuestionFormDialog v-model:open="formOpen" :question="editing" @saved="load" />
+    <VariantFormDialog v-model:open="variantOpen" :question="editing" @saved="load" />
     <DeckQuestionsDialog v-model:open="genOpen" @saved="tab = 'mine'; load()" />
     <CopyDeckDialog v-model:open="copyOpen" kind="question" :from-space-id="sid" :content-id="copyId" />
   </div>

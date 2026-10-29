@@ -3,10 +3,11 @@ import type { ProblemSet } from '~/features/math/services/problemSets'
 import type { Question } from '~/features/tests/services/questions'
 import { unitLabel } from '#shared/math/curriculum'
 import { PROBLEM_SET_MAX_QUESTIONS } from '#shared/schemas/problem-set'
-import { ArrowLeftIcon, ListPlusIcon, PencilIcon, PlusIcon, Trash2Icon, XIcon } from '@lucide/vue'
+import { ArrowLeftIcon, ListPlusIcon, PencilIcon, PlusIcon, SigmaIcon, Trash2Icon, XIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import MathText from '~/features/math/components/MathText.vue'
 import ProblemSetFormDialog from '~/features/math/components/ProblemSetFormDialog.vue'
+import VariantFormDialog from '~/features/math/components/VariantFormDialog.vue'
 import { addToSet, deleteProblemSet, getProblemSet, removeFromSet } from '~/features/math/services/problemSets'
 import QuestionFormDialog from '~/features/tests/components/QuestionFormDialog.vue'
 import { getQuestions, listQuestions } from '~/features/tests/services/questions'
@@ -34,6 +35,7 @@ const loading = ref(true)
 const busy = ref(false)
 const editOpen = ref(false)
 const newOpen = ref(false)
+const variantOpen = ref(false)
 const pickOpen = ref(false)
 const pickList = ref<Question[]>([])
 const picked = ref<string[]>([])
@@ -153,8 +155,9 @@ async function remove_() {
       <Card>
         <CardHeader class="flex flex-row flex-wrap items-center justify-between gap-2">
           <CardTitle>{{ t.questions }} · {{ set.questionIds.length }}</CardTitle>
-          <div v-if="canEdit" class="flex gap-1">
+          <div v-if="canEdit" class="flex flex-wrap gap-1">
             <Button size="sm" :disabled="busy || full" @click="newOpen = true"><PlusIcon /> {{ t.addNew }}</Button>
+            <Button size="sm" variant="outline" :disabled="busy || full" @click="variantOpen = true"><SigmaIcon /> {{ ko.math.variant.create }}</Button>
             <Button size="sm" variant="outline" :disabled="busy || full" @click="openPick"><ListPlusIcon /> {{ t.addExisting }}</Button>
           </div>
         </CardHeader>
@@ -167,6 +170,7 @@ async function remove_() {
                 <p class="text-sm whitespace-pre-line"><MathText :text="q.prompt" /></p>
                 <div class="flex flex-wrap gap-1 text-xs">
                   <Badge variant="outline">{{ ko.tests.types[q.type] }}</Badge>
+                  <Badge v-if="q.variant" variant="secondary">{{ ko.math.variant.badge }}</Badge>
                   <Badge v-if="set.visibility === 'space' && q.sharing !== 'space'" variant="destructive" :title="t.privateQuestionHint">{{ t.privateQuestion }}</Badge>
                 </div>
               </div>
@@ -178,6 +182,7 @@ async function remove_() {
       </Card>
 
       <ProblemSetFormDialog v-model:open="editOpen" :set="set" @saved="load" />
+      <VariantFormDialog v-model:open="variantOpen" :preset="{ unit: set.unit, share: set.visibility === 'space' }" @saved="added" />
       <QuestionFormDialog v-model:open="newOpen" :preset="{ unit: set.unit, share: set.visibility === 'space' }" @saved="added" />
       <Dialog v-model:open="pickOpen">
         <DialogContent class="max-h-[90svh] overflow-y-auto sm:max-w-lg">
