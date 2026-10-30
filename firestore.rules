@@ -265,6 +265,16 @@ service cloud.firestore {
             || (uid() in resource.data.participantIds && !(uid() in resource.data.hostIds)
               && request.resource.data.participantIds == resource.data.participantIds.removeAll([uid()])));
         allow delete: if isMember(sid) && resource.data.createdBy == uid();
+        // READ-43 챕터별 이야기: 참여자만 읽고 쓴다. 지우기는 작성자·진행자
+        match /comments/{cid} {
+          function grp() { return get(/databases/$(database)/documents/spaces/$(sid)/readingGroups/$(gid)).data; }
+          allow read: if isMember(sid) && uid() in grp().participantIds;
+          allow create: if isMember(sid) && uid() in grp().participantIds && request.resource.data.uid == uid()
+            && isText(request.resource.data.itemId, 1, 40) && isText(request.resource.data.body, 1, 1000)
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.keys().hasOnly(['uid', 'itemId', 'body', 'createdAt']);
+          allow delete: if isMember(sid) && (resource.data.uid == uid() || uid() in grp().hostIds);
+        }
       }
       match /books/{key} {
         allow read: if isMember(sid);
