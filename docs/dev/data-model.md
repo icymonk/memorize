@@ -260,8 +260,8 @@ spaces/{sid}/quotes/{id}                      # READ-30
   uid, bookKey, title, date, unit, position, text, visibility: 'private' | 'space'   # title·date: 모아 보기·학습일지 요약용 복사본
 
 spaces/{sid}/readingGroups/{id}               # READ-40~45
-  bookKey, book: { title, authors, cover }
-  startAt, endAt
+  bookKey, book: { title, authors, cover }, unit: 'page' | 'percent' | 'minute'
+  startAt, endAt                               # 'YYYY-MM-DD'
   assignees: { all, groupIds[], uids[] }, joinable, participantIds[]
   createdBy, hostIds[]
   schedule: [{ id, label, from, to, dueDate }]   # READ-45

@@ -784,6 +784,48 @@ describe('study settings (ACC-24)', () => {
   })
 })
 
+describe('reading groups (READ-40·41·45)', () => {
+  const group = (over: object = {}) => ({
+    bookKey: 'isbn:9788936434120',
+    book: { title: '소년이 온다', authors: ['한강'], cover: '' },
+    unit: 'page',
+    startAt: '2026-11-01',
+    endAt: '2026-11-28',
+    assignees: { all: false, uids: ['mia'], groupIds: [] },
+    joinable: false,
+    schedule: [{ id: 'w1', label: '1주차', from: 1, to: 50, dueDate: '2026-11-07' }],
+    createdBy: 'bob',
+    hostIds: ['bob'],
+    participantIds: ['bob'],
+    closedAt: null,
+    ...over,
+  })
+  const ref = (uid: string, id = 'g1', sid = SID) => doc(db(uid), 'spaces', sid, 'readingGroups', id)
+
+  it('members open groups as host and first participant; not in a personal space', async () => {
+    await assertSucceeds(setDoc(ref('bob'), group()))
+    await assertFails(setDoc(ref('bob', 'g2'), group({ participantIds: ['bob', 'mia'] })))
+    await assertFails(setDoc(ref('bob', 'g3'), group({ createdBy: 'alice', hostIds: ['alice'], participantIds: ['alice'] })))
+    await assertFails(setDoc(ref('bob', 'g4'), group({ endAt: '2026-10-01' })))
+    await assertFails(setDoc(ref('pat', 'g5'), group({ createdBy: 'pat', hostIds: ['pat'], participantIds: ['pat'] })))
+    await assertFails(setDoc(ref('alice', 'g6', 'p_alice'), group({ createdBy: 'alice', hostIds: ['alice'], participantIds: ['alice'] })))
+    await assertSucceeds(getDoc(ref('alice')))
+  })
+
+  it('assigned members or anyone in a joinable group join themselves; hosts edit the schedule', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'readingGroups', 'g1'), group()))
+    await assertFails(updateDoc(ref('alice'), { participantIds: ['bob', 'alice'] }))
+    await assertSucceeds(updateDoc(ref('mia'), { participantIds: ['bob', 'mia'] }))
+    await assertSucceeds(updateDoc(ref('mia'), { participantIds: ['bob'] }))
+    await assertFails(updateDoc(ref('bob'), { participantIds: [] }))
+    await assertFails(updateDoc(ref('mia'), { schedule: [] }))
+    await assertSucceeds(updateDoc(ref('bob'), { schedule: [], joinable: true }))
+    await assertSucceeds(updateDoc(ref('alice'), { participantIds: ['bob', 'alice'] }))
+    await assertFails(deleteDoc(ref('alice')))
+    await assertSucceeds(deleteDoc(ref('bob')))
+  })
+})
+
 describe('reading goal (READ-51)', () => {
   it('lets a user set only their own valid yearly goal', async () => {
     await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia'), { kind: 'standard', displayName: 'Mia' }))
