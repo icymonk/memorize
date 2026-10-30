@@ -21,7 +21,7 @@ export const registerUploadInput = z.object({
   sid: z.string().min(1).max(128),
   fileId,
   name: z.string().min(1).max(200),
-  refType: z.enum(['mission', 'page', 'card']).nullable().default(null),
+  refType: z.enum(['mission', 'page', 'card', 'lesson']).nullable().default(null),
   refId: z.string().max(300).nullable().default(null),
 })
 export type RegisterUploadInput = z.input<typeof registerUploadInput>

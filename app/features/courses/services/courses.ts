@@ -1,4 +1,4 @@
-import type { CourseInput, LessonLinks } from '#shared/schemas/course'
+import type { CourseInput, LessonLinks, Material } from '#shared/schemas/course'
 import type { Firestore, Timestamp } from 'firebase/firestore'
 import { lessonPageAccess } from '#shared/schemas/course'
 import { addDoc, and, collection, deleteDoc, doc, getDoc, getDocs, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
@@ -18,6 +18,8 @@ export interface Lesson extends LessonLinks {
   title: string
   order: number
   bodyPageId: string | null
+  /** CRS-11~16 (3-F2 전에 만든 레슨에는 없다) */
+  materials?: Material[]
   createdBy: string
   createdAt?: Timestamp
   updatedAt?: Timestamp
@@ -95,6 +97,7 @@ export async function addLesson(db: Firestore, sid: string, uid: string, course:
     linkedDeckIds: [],
     linkedProblemSetIds: [],
     linkedTestIds: [],
+    materials: [],
     createdBy: uid,
     createdAt: now,
     updatedAt: now,
@@ -102,7 +105,7 @@ export async function addLesson(db: Firestore, sid: string, uid: string, course:
   return ref.id
 }
 
-export const updateLesson = (db: Firestore, sid: string, cid: string, id: string, patch: Partial<LessonLinks & { title: string }>) =>
+export const updateLesson = (db: Firestore, sid: string, cid: string, id: string, patch: Partial<LessonLinks & { title: string, materials: Material[] }>) =>
   updateDoc(doc(lessonsOf(db, sid, cid), id), { ...patch, updatedAt: serverTimestamp() })
 
 export async function reorderLessons(db: Firestore, sid: string, cid: string, pairs: readonly { id: string, order: number }[]) {

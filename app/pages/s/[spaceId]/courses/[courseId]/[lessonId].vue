@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import type { LessonLinks } from '#shared/schemas/course'
+import type { LessonLinks, Material } from '#shared/schemas/course'
 import type { Course, Lesson } from '~/features/courses/services/courses'
 import type { SaveStatus } from '~/features/notes/sync/writer'
-import { canEditCourse, LESSON_LINKS_MAX, lessonTitle } from '#shared/schemas/course'
-import { ArrowLeftIcon, ArrowRightIcon, LinkIcon } from '@lucide/vue'
+import { canEditCourse, LESSON_LINKS_MAX, lessonTitle, linkType, materialSchema, MATERIALS_MAX, materialType, moveItem } from '#shared/schemas/course'
+import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, LinkIcon, Trash2Icon, UploadIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
+import MaterialView from '~/features/courses/components/MaterialView.vue'
 import { getCourse, listLessons, updateLesson } from '~/features/courses/services/courses'
+import { uploadFile, UploadError } from '~/features/files/services/uploads'
 import { listProblemSets } from '~/features/math/services/problemSets'
 import BlockEditor from '~/features/notes/components/BlockEditor.vue'
 import { listTests } from '~/features/tests/services/tests'
@@ -13,12 +15,12 @@ import { listDecks } from '~/features/vocab/services/decks'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 
-/** CRS-02·10 레슨: 본문(노트 편집기), 단어장·문제집·시험 연결 */
+/** CRS-02·10~16 레슨: 자료(파일·링크), 본문(노트 편집기), 단어장·문제집·시험 연결 */
 const t = ko.courses.lesson
 const space = useSpaceStore()
 const auth = useAuthStore()
 const route = useRoute()
-const { $firestore } = useNuxtApp()
+const { $firestore, $storage, $functions } = useNuxtApp()
 
 const sid = computed(() => space.current!.id)
 const cid = computed(() => String(route.params.courseId))
@@ -31,6 +33,10 @@ const busy = ref(false)
 const title = ref('')
 const linksOpen = ref(false)
 const status = ref<SaveStatus>('saved')
+const uploading = ref(false)
+const linkUrl = ref('')
+const linkTitle = ref('')
+const fileInput = ref<HTMLInputElement>()
 const draft = ref<LessonLinks>({ linkedDeckIds: [], linkedProblemSetIds: [], linkedTestIds: [] })
 const options = ref<{ decks: { id: string, title: string }[], sets: { id: string, title: string }[], tests: { id: string, title: string }[] }>({ decks: [], sets: [], tests: [] })
 
@@ -39,6 +45,7 @@ const idx = computed(() => lessons.value.findIndex(l => l.id === lid.value))
 const prev = computed(() => lessons.value[idx.value - 1])
 const next = computed(() => lessons.value[idx.value + 1])
 const canEdit = computed(() => !!course.value && canEditCourse(course.value, me.value))
+const materials = computed(() => lesson.value?.materials ?? [])
 
 type Kind = 'decks' | 'sets' | 'tests'
 const KINDS: { kind: Kind, key: keyof LessonLinks, path: string }[] = [
@@ -114,6 +121,59 @@ function toggle(key: keyof LessonLinks, id: string) {
   else if (list.length < LESSON_LINKS_MAX) list.push(id)
 }
 
+async function onFiles(e: Event) {
+  const input = e.target as HTMLInputElement
+  const picked = [...(input.files ?? [])]
+  input.value = ''
+  if (!picked.length) return
+  if (materials.value.length + picked.length > MATERIALS_MAX) {
+    toast.error(t.tooMany(MATERIALS_MAX))
+    return
+  }
+  uploading.value = true
+  const added: Material[] = []
+  try {
+    for (const f of picked) {
+      const a = await uploadFile({ db: $firestore, storage: $storage, functions: $functions }, sid.value, me.value, f, { refType: 'lesson', refId: `${cid.value}/${lid.value}` })
+      added.push({ id: a.id, type: materialType(a.contentType, a.name), title: a.name.slice(0, 200), path: a.path, url: null, contentType: a.contentType, size: a.size })
+    }
+  }
+  catch (err) {
+    toast.error(err instanceof UploadError ? err.message : errorMessage(err) ?? ko.errors.unknown)
+  }
+  finally {
+    uploading.value = false
+  }
+  if (added.length) await save({ materials: [...materials.value, ...added] })
+}
+
+async function addLink() {
+  const url = linkUrl.value.trim()
+  const p = materialSchema.safeParse({ id: crypto.randomUUID().slice(0, 20), type: linkType(url), title: linkTitle.value.trim() || url.slice(0, 200), url })
+  if (!p.success) {
+    toast.error(t.badLink)
+    return
+  }
+  if (materials.value.length >= MATERIALS_MAX) {
+    toast.error(t.tooMany(MATERIALS_MAX))
+    return
+  }
+  if (await save({ materials: [...materials.value, p.data] })) {
+    linkUrl.value = ''
+    linkTitle.value = ''
+  }
+}
+
+function moveMaterial(i: number, dir: -1 | 1) {
+  const next = moveItem(materials.value, i, dir)
+  if (next) return save({ materials: next })
+}
+
+async function dropMaterial(m: Material) {
+  if (!(await confirmDialog(t.removeConfirm(m.title), { destructive: true }))) return
+  await save({ materials: materials.value.filter(x => x.id !== m.id) })
+}
+
 async function saveLinks() {
   if (await save(draft.value)) linksOpen.value = false
 }
@@ -144,6 +204,37 @@ async function saveLinks() {
           <Button v-for="o in k.items" :key="o.id" as-child variant="secondary" size="sm">
             <NuxtLink :to="`/s/${sid}/${k.path}/${o.id}`">{{ o.title }}</NuxtLink>
           </Button>
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-2" :aria-label="t.materials">
+        <h2 class="text-sm font-semibold">{{ t.materials }}</h2>
+        <p v-if="!materials.length" class="text-muted-foreground text-sm">{{ t.noMaterials }}</p>
+        <ul v-else class="flex flex-col gap-3" data-testid="materials">
+          <li v-for="(m, i) in materials" :key="m.id" class="flex flex-col gap-2 rounded-lg border p-3">
+            <div class="flex items-center gap-2">
+              <Badge variant="outline">{{ t.type[m.type] }}</Badge>
+              <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ m.title }}</span>
+              <template v-if="canEdit">
+                <Button variant="ghost" size="icon" :disabled="busy || i === 0" :aria-label="`${m.title} ${t.up}`" @click="moveMaterial(i, -1)"><ArrowUpIcon /></Button>
+                <Button variant="ghost" size="icon" :disabled="busy || i === materials.length - 1" :aria-label="`${m.title} ${t.down}`" @click="moveMaterial(i, 1)"><ArrowDownIcon /></Button>
+                <Button variant="ghost" size="icon" :disabled="busy" :aria-label="`${m.title} ${t.remove}`" @click="dropMaterial(m)"><Trash2Icon /></Button>
+              </template>
+            </div>
+            <MaterialView :material="m" />
+          </li>
+        </ul>
+        <div v-if="canEdit" class="flex flex-col gap-2 rounded-md border border-dashed p-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" :disabled="uploading || busy" @click="fileInput?.click()"><UploadIcon /> {{ uploading ? t.uploading : t.addFile }}</Button>
+            <input ref="fileInput" type="file" multiple class="hidden" data-testid="material-file" @change="onFiles">
+            <span class="text-muted-foreground text-xs">{{ t.fileHint }}</span>
+          </div>
+          <form class="flex flex-wrap gap-2" @submit.prevent="addLink">
+            <Input v-model="linkUrl" type="url" class="min-w-48 flex-1" :placeholder="t.linkUrl" :aria-label="t.linkUrl" />
+            <Input v-model="linkTitle" maxlength="200" class="w-40" :placeholder="t.linkTitle" :aria-label="t.linkTitle" />
+            <Button type="submit" variant="outline" size="sm" :disabled="busy || !linkUrl.trim()"><LinkIcon /> {{ t.addLink }}</Button>
+          </form>
         </div>
       </section>
 
