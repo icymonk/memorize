@@ -409,6 +409,8 @@ export const ko = {
       addAnother: '저장하고 계속 추가',
       save: '저장',
       paste: '붙여넣기로 추가',
+      exportCsv: 'CSV 내보내기',
+      exportQuizlet: 'Quizlet 내보내기',
       tableEdit: '표로 편집',
       tableSave: '변경 저장',
       front: '앞면 (단어)',
@@ -437,6 +439,7 @@ export const ko = {
       undoRemove: '되살리기',
     },
     pasteDialog: {
+      fromFile: '파일에서 불러오기 (CSV·Quizlet)',
       description: '엑셀·메모장에서 단어와 뜻을 복사해 붙여 넣으세요. 뜻이 여러 개면 / 로 구분해요.',
       jaReadingHint: '단어 뒤 괄호에 히라가나를 쓰면(예: 勉強(べんきょう)) 읽는 법으로 들어가요.',
       placeholder: 'apple\t사과\nbanana\t바나나 / 반하나',
@@ -457,7 +460,9 @@ export const ko = {
       submit: (n: number) => `${n}장 추가`,
     },
     study: {
-      modes: { flashcards: '낱말카드', learn: '학습하기', write: '쓰기', match: '매칭 게임', review: '복습' } as Record<string, string>,
+      modes: { flashcards: '낱말카드', learn: '학습하기', write: '쓰기', dictation: '받아쓰기', match: '매칭 게임', review: '복습' } as Record<string, string>,
+      listenType: '발음을 듣고 단어를 쓰세요',
+      play: '다시 듣기',
       needCards: (n: number) => `이 모드는 카드가 ${n}장 이상 있어야 해요.`,
       know: '알아요',
       dontKnow: '몰라요',

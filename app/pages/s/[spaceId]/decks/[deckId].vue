@@ -5,7 +5,9 @@ import type { Card } from '~/features/vocab/services/cards'
 import type { Deck, DeckFolder } from '~/features/vocab/services/decks'
 import type { CardState, DeckProgress } from '~/features/vocab/services/srs'
 import { canDeleteContent, canEditContent } from '#shared/permissions'
+import { cardsToCsv, cardsToQuizlet } from '#shared/csv'
 import { STUDY_MODES } from '#shared/study'
+import { DownloadIcon } from '@lucide/vue'
 import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardCheckIcon, ClipboardPasteIcon, CopyIcon, PencilIcon, PlusIcon, StarIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
@@ -51,6 +53,17 @@ const tableMode = ref(false)
 const draft = ref<{ id: string, front: string, reading: string, back: string, removed: boolean, isNew?: boolean }[]>([])
 const saving = ref(false)
 const speech = useSpeech()
+
+/** VOC-12 내보내기: CSV(엑셀용 BOM)와 Quizlet 가져오기 형식(탭·줄바꿈) */
+function exportCards(kind: 'csv' | 'quizlet') {
+  const list = cards.value.map(c => ({ front: c.front, back: c.back, ...(c.reading ? { reading: c.reading } : {}) }))
+  const body = kind === 'csv' ? `\uFEFF${cardsToCsv(list)}` : cardsToQuizlet(list)
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([body], { type: kind === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8' }))
+  a.download = `${deck.value!.title}.${kind === 'csv' ? 'csv' : 'txt'}`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
 const states = ref(new Map<string, CardState>())
 const memberProgress = ref<DeckProgress[]>([])
 const mastered = computed(() => cards.value.filter(c => states.value.get(c.id)?.status === 'mastered').length)
@@ -293,7 +306,7 @@ async function remove() {
       </section>
 
       <nav v-if="cards.length" class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Button v-for="m in STUDY_MODES" :key="m" variant="outline" class="h-12" as-child>
+        <Button v-for="m in STUDY_MODES.filter(x => x !== 'dictation' || speech.supported)" :key="m" variant="outline" class="h-12" as-child>
           <NuxtLink :to="`/s/${sid}/study/${deckId}?mode=${m}`">
             {{ t.study.modes[m] }}
           </NuxtLink>
@@ -328,6 +341,14 @@ async function remove() {
                 {{ v.name }}
               </option>
             </select>
+            <template v-if="!tableMode && cards.length">
+              <Button variant="outline" size="sm" @click="exportCards('csv')">
+                <DownloadIcon />{{ t.cards.exportCsv }}
+              </Button>
+              <Button variant="outline" size="sm" @click="exportCards('quizlet')">
+                <DownloadIcon />{{ t.cards.exportQuizlet }}
+              </Button>
+            </template>
             <template v-if="canEdit && !tableMode">
               <Button variant="outline" size="sm" @click="startTable">
                 <TableIcon />{{ t.cards.tableEdit }}
