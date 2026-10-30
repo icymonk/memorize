@@ -53,6 +53,14 @@ service cloud.firestore {
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notifications'])
         && request.resource.data.notifications is map
         && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group']);
+      // ACC-24 학습 설정: 본인이 study 맵만 ({ dailyNewCards 0~200, dailyReviewCards 10~1000, flashcardFront })
+      allow update: if signedIn() && userId == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['study'])
+        && request.resource.data.study is map
+        && request.resource.data.study.keys().hasOnly(['dailyNewCards', 'dailyReviewCards', 'flashcardFront'])
+        && request.resource.data.study.dailyNewCards is int && request.resource.data.study.dailyNewCards >= 0 && request.resource.data.study.dailyNewCards <= 200
+        && request.resource.data.study.dailyReviewCards is int && request.resource.data.study.dailyReviewCards >= 10 && request.resource.data.study.dailyReviewCards <= 1000
+        && request.resource.data.study.flashcardFront in ['front', 'back'];
       // CMN-30 알림함: 서버가 만들고, 본인은 읽기·읽음 표시·삭제만
       // CMN-62 내 업로드 목록: 서버(registerUpload·deleteUpload)만 쓴다
       match /uploads/{fileId} {

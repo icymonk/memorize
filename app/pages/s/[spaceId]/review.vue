@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { useStudySettings } from '~/features/vocab/composables/useStudySettings'
 import type { ModeResult, ReviewItem } from '~/features/vocab/components/study/types'
-import { DAILY_LIMITS, endOfToday } from '#shared/srs'
+import { endOfToday } from '#shared/srs'
 import { toast } from 'vue-sonner'
 import ReviewResult from '~/features/vocab/components/study/ReviewResult.vue'
 import ReviewSession from '~/features/vocab/components/study/ReviewSession.vue'
 import { attachCards, listDueStates } from '~/features/vocab/services/srs'
 import { recordSession } from '~/features/vocab/services/study'
 import { ko } from '~/locales/ko'
+
+const studySettings = useStudySettings()
 
 definePageMeta({ layout: 'focus' })
 
@@ -23,7 +26,7 @@ const startedAt = new Date()
 
 onMounted(async () => {
   try {
-    items.value = await attachCards($firestore, await listDueStates($firestore, sid.value, uid.value, endOfToday(Date.now()), DAILY_LIMITS.reviewCards))
+    items.value = await attachCards($firestore, await listDueStates($firestore, sid.value, uid.value, endOfToday(Date.now()), (await studySettings.load()).dailyReviewCards))
   }
   finally {
     loading.value = false

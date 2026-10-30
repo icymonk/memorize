@@ -10,7 +10,7 @@ import { useSpeech } from '~/features/vocab/composables/useSpeech'
 import { useStudyResume } from '~/features/vocab/composables/useStudyResume'
 import { ko } from '~/locales/ko'
 
-const props = defineProps<{ cards: Card[], lang: Deck['langFrom'], resumeKey: string }>()
+const props = defineProps<{ cards: Card[], lang: Deck['langFrom'], resumeKey: string, defaultBack?: boolean }>()
 const emit = defineEmits<{ done: [ModeResult] }>()
 const t = ko.vocab.study
 
@@ -20,7 +20,7 @@ const speech = useSpeech()
 const byId = computed(() => new Map(props.cards.map(c => [c.id, c])))
 
 function fresh(): State {
-  return { order: props.cards.map(c => c.id), index: 0, known: [], unknown: [], swapped: false }
+  return { order: props.cards.map(c => c.id), index: 0, known: [], unknown: [], swapped: !!props.defaultBack }
 }
 const saved = resume.load()
 const valid = saved && saved.order.every(id => byId.value.has(id)) && saved.index < saved.order.length

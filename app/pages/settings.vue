@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import type { StudySettings } from '#shared/study-settings'
+import { DEFAULT_STUDY, STUDY_LIMITS, studySettings as studySchema } from '#shared/study-settings'
+import { useStudySettings } from '~/features/vocab/composables/useStudySettings'
 import type { StorageUsage } from '#shared/schemas/upload'
 import type { Upload } from '~/features/files/services/uploads'
 import { formatBytes, storageLevel } from '#shared/schemas/upload'
@@ -92,6 +95,38 @@ function saveName(r: Row) {
 function setHide(r: Row, v: boolean) {
   r.hideProgress = v
   saveMember(r, { hideProgress: v }, () => { r.hideProgress = !v })
+}
+
+// ACC-24 학습 설정
+const studyStore = useStudySettings()
+const study = ref<StudySettings>({ ...DEFAULT_STUDY })
+const studyLoaded = ref(false)
+const studySaving = ref(false)
+const studySaved = ref(false)
+watch(study, () => (studySaved.value = false), { deep: true })
+onMounted(async () => {
+  study.value = { ...(await studyStore.load()) }
+  studyLoaded.value = true
+})
+async function saveStudy() {
+  const p = studySchema.safeParse(study.value)
+  if (!p.success) {
+    toast.error(t.study.invalid(STUDY_LIMITS.newMax, STUDY_LIMITS.reviewMin, STUDY_LIMITS.reviewMax))
+    return
+  }
+  studySaving.value = true
+  try {
+    await updateDoc(doc($firestore, 'users', auth.user!.uid), { study: p.data })
+    studyStore.set(p.data)
+    studySaved.value = true
+    toast.success(t.saved)
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+  finally {
+    studySaving.value = false
+  }
 }
 
 async function toggle(k: Kind, v: boolean) {
@@ -245,6 +280,37 @@ async function toggle(k: Kind, v: boolean) {
           <Switch :disabled="!loaded" :model-value="enabled[k]" :aria-label="t.types[k].label" @update:model-value="(v: boolean) => toggle(k, v)" />
         </li>
       </ul>
+    </section>
+    <section class="space-y-3" data-testid="study-settings">
+      <h2 class="text-lg font-medium">
+        {{ t.study.title }}
+      </h2>
+      <p class="text-sm text-muted-foreground">
+        {{ t.study.desc }}
+      </p>
+      <div class="grid gap-3 sm:grid-cols-3">
+        <div class="space-y-1">
+          <Label for="study-new">{{ t.study.newCards }}</Label>
+          <Input id="study-new" type="number" min="0" :max="STUDY_LIMITS.newMax" :disabled="!studyLoaded" :model-value="study.dailyNewCards" @update:model-value="v => study.dailyNewCards = Number(v)" />
+        </div>
+        <div class="space-y-1">
+          <Label for="study-review">{{ t.study.reviewCards }}</Label>
+          <Input id="study-review" type="number" :min="STUDY_LIMITS.reviewMin" :max="STUDY_LIMITS.reviewMax" :disabled="!studyLoaded" :model-value="study.dailyReviewCards" @update:model-value="v => study.dailyReviewCards = Number(v)" />
+        </div>
+        <div class="space-y-1">
+          <Label for="study-front">{{ t.study.front }}</Label>
+          <select id="study-front" v-model="study.flashcardFront" :disabled="!studyLoaded" class="border-input bg-background h-9 w-full rounded-md border px-3 text-sm">
+            <option value="front">{{ t.study.fronts.front }}</option>
+            <option value="back">{{ t.study.fronts.back }}</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <Button size="sm" :disabled="!studyLoaded || studySaving" @click="saveStudy">
+          {{ t.study.save }}
+        </Button>
+        <span v-if="studySaved" class="text-sm text-muted-foreground">{{ t.study.savedNote }}</span>
+      </div>
     </section>
   </div>
 </template>

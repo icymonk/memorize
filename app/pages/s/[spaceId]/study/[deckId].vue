@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { useStudySettings } from '~/features/vocab/composables/useStudySettings'
 import type { MatchEntry, StudyMode } from '#shared/study'
 import type { Member } from '~/features/space/services/invites'
 import type { ModeResult, ReviewItem } from '~/features/vocab/components/study/types'
 import type { Card } from '~/features/vocab/services/cards'
 import type { Deck } from '~/features/vocab/services/decks'
 import type { CardState } from '~/features/vocab/services/srs'
-import { DAILY_LIMITS, DAY_MS, endOfToday, fixWrong, newState, practice } from '#shared/srs'
+import { DAY_MS, endOfToday, fixWrong, newState, practice } from '#shared/srs'
 import { MATCH_PAIRS, STUDY_MODES } from '#shared/study'
 import { RefreshCwIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
@@ -21,6 +22,9 @@ import { getDeck } from '~/features/vocab/services/decks'
 import { listDeckStates, saveState } from '~/features/vocab/services/srs'
 import { getBestMatchMs, getMatchTop, recordSession } from '~/features/vocab/services/study'
 import { ko } from '~/locales/ko'
+
+const studySettings = useStudySettings()
+const flashBack = ref(false)
 
 definePageMeta({ layout: 'focus' })
 
@@ -75,6 +79,7 @@ onMounted(async () => {
       const starred = new Set((await listDeckStates($firestore, sid.value, uid.value, deckId.value)).filter(s => s.starred).map(s => s.cardId))
       c = c.filter(card => starred.has(card.id))
     }
+    flashBack.value = (await studySettings.load()).flashcardFront === 'back'
     cards.value = c
     if (mode.value === 'learn' || mode.value === 'write' || mode.value === 'dictation') {
       for (const s of await listDeckStates($firestore, sid.value, uid.value, deckId.value)) practiceStates.set(s.cardId, s)
@@ -84,7 +89,7 @@ onMounted(async () => {
       const states = new Map((await listDeckStates($firestore, sid.value, uid.value, deckId.value)).map(s => [s.cardId, s]))
       const until = endOfToday(Date.now())
       const due = c.filter(card => states.get(card.id) && states.get(card.id)!.status !== 'new' && states.get(card.id)!.due <= until).map(card => ({ sid: sid.value, deckId: deckId.value, card, state: states.get(card.id)! }))
-      const fresh = c.filter(card => (states.get(card.id)?.status ?? 'new') === 'new').slice(0, Math.max(0, DAILY_LIMITS.newCards - seenToday(states))).map(card => ({ sid: sid.value, deckId: deckId.value, card, state: states.get(card.id) ?? null }))
+      const fresh = c.filter(card => (states.get(card.id)?.status ?? 'new') === 'new').slice(0, Math.max(0, (await studySettings.load()).dailyNewCards - seenToday(states))).map(card => ({ sid: sid.value, deckId: deckId.value, card, state: states.get(card.id) ?? null }))
       reviewItems.value = [...due.sort((a, b) => a.state.due - b.state.due), ...fresh]
     }
     if (mode.value === 'match') {
@@ -235,7 +240,7 @@ function again() {
   </div>
 
   <template v-else>
-    <FlashcardsMode v-if="mode === 'flashcards'" :key="run" :cards="cards" :lang="deck.langFrom" :resume-key="resumeKey" @done="onDone" />
+    <FlashcardsMode v-if="mode === 'flashcards'" :key="run" :cards="cards" :lang="deck.langFrom" :default-back="flashBack" :resume-key="resumeKey" @done="onDone" />
     <LearnMode v-else-if="mode === 'learn'" :key="run" :cards="cards" :resume-key="resumeKey" @done="onDone" @answer="onAnswer" />
     <WriteMode v-else-if="mode === 'write'" :key="run" :cards="cards" :resume-key="resumeKey" @done="onDone" @answer="onAnswer" />
     <DictationMode v-else-if="mode === 'dictation'" :key="run" :cards="cards" :lang="deck.langFrom" :resume-key="resumeKey" @done="onDone" @answer="onAnswer" />
