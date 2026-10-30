@@ -1232,7 +1232,7 @@ describe('problem solving (MATH-20~22)', () => {
 
 describe('wrong notes (3-C1, WRN-01·03)', () => {
   it('are read only by their owner and written only by the server', async () => {
-    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'wrongNotes', 'bob_card_c1'), { uid: 'bob', refType: 'card', refId: 'c1', wrongCount: 1 }))
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'wrongNotes', 'bob_card_c1'), { uid: 'bob', refType: 'card', refId: 'c1', wrongCount: 1, resolved: false, consecutiveCorrect: 1 }))
     const n = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'wrongNotes', id)
     await assertSucceeds(getDoc(n('bob', 'bob_card_c1')))
     await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'wrongNotes'), where('uid', '==', 'bob'))))
@@ -1240,6 +1240,11 @@ describe('wrong notes (3-C1, WRN-01·03)', () => {
     await assertFails(getDoc(n('lee', 'lee_card_c1')))
     await assertFails(setDoc(n('bob', 'bob_card_c2'), { uid: 'bob', refType: 'card', refId: 'c2', wrongCount: 0 }))
     await assertFails(updateDoc(n('bob', 'bob_card_c1'), { wrongCount: 0 }))
+    await assertSucceeds(updateDoc(n('bob', 'bob_card_c1'), { resolved: true, resolvedAt: serverTimestamp(), consecutiveCorrect: 0 }))
+    await assertSucceeds(updateDoc(n('bob', 'bob_card_c1'), { resolved: false, resolvedAt: null, consecutiveCorrect: 0 }))
+    await assertFails(updateDoc(n('bob', 'bob_card_c1'), { resolved: true, consecutiveCorrect: 2 }))
+    await assertFails(updateDoc(n('alice', 'bob_card_c1'), { resolved: true, consecutiveCorrect: 0 }))
+    await assertFails(deleteDoc(n('bob', 'bob_card_c1')))
   })
 })
 

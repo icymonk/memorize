@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.12 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.13 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -156,6 +156,7 @@
 - v2.6: callable `openTest` (3-B1, TST-10·16)
 - v2.7: callable `startAttempt`·`submitAttempt`·`checkAnswer` (3-B2)
 - v2.8: callable `gradeAttempt`, 알림 종류 `test` (3-B3)
+- v2.13: callable `drawWrong`·`checkWrong` (오답 다시 풀기, 3-C2)
 - v2.12: 오답 노트 자동 추가 — `onCardStateWritten`, `submitAttempt`·`gradeAttempt`(바로·점수만 공개 시험), `checkProblem` (3-C1)
 - v2.11: callable `generateProblems`, `previewTemplate`·`saveGenerated` 구현 (M5)
 - v2.10: callable `checkProblem`·`revealHint` (문제집 풀기, 시험용 `checkAnswer`와 분리)
