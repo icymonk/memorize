@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canEditCourse, courseInput, lessonPageAccess, nextOrder, swapOrder } from './course'
+import { canEditCourse, courseInput, lessonPageAccess, linkType, loopTarget, materialSchema, materialType, moveItem, nextOrder, officePreviewable, swapOrder, youtubeId } from './course'
 
 describe('courses (CRS-01~03)', () => {
   it('drops groups and collaborators that the chosen scope does not use', () => {
@@ -25,5 +25,41 @@ describe('courses (CRS-01~03)', () => {
     expect(swapOrder(l, 'x', -1)).toBeNull()
     expect(nextOrder(l)).toBe(6)
     expect(nextOrder([])).toBe(1)
+  })
+})
+
+describe('lesson materials (CRS-11~16)', () => {
+  it('sorts uploads into material types', () => {
+    expect(materialType('application/pdf', 'a.pdf')).toBe('pdf')
+    expect(materialType('audio/mpeg', 'a.mp3')).toBe('audio')
+    expect(materialType('video/mp4', 'a.mp4')).toBe('video')
+    expect(materialType('image/png', 'a.png')).toBe('image')
+    expect(materialType('application/octet-stream', '보고서.hwp')).toBe('office')
+    expect(materialType('application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'a.docx')).toBe('office')
+    expect(materialType('application/zip', 'a.zip')).toBe('file')
+    expect(officePreviewable('a.pptx')).toBe(true)
+    expect(officePreviewable('a.hwp')).toBe(false)
+  })
+
+  it('recognizes youtube and video links', () => {
+    expect(youtubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1')).toBe('dQw4w9WgXcQ')
+    expect(youtubeId('https://youtu.be/dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ')
+    expect(youtubeId('https://youtube.com/shorts/abcdef123')).toBe('abcdef123')
+    expect(youtubeId('https://youtu.be/"><script>')).toBeNull()
+    expect(youtubeId('nope')).toBeNull()
+    expect(linkType('https://youtu.be/dQw4w9WgXcQ')).toBe('video')
+    expect(linkType('https://cdn.example.com/a.mp4?x=1')).toBe('video')
+    expect(linkType('https://example.com')).toBe('link')
+  })
+
+  it('validates materials, moves them and loops A-B', () => {
+    expect(materialSchema.safeParse({ id: 'm1', type: 'link', title: '사전', url: 'https://dict.example.com' }).success).toBe(true)
+    expect(materialSchema.safeParse({ id: 'm1', type: 'link', title: '사전', url: 'javascript:alert(1)' }).success).toBe(false)
+    expect(materialSchema.safeParse({ id: 'm1', type: 'pdf', title: 'a', path: null, url: null }).success).toBe(false)
+    expect(moveItem(['a', 'b', 'c'], 2, -1)).toEqual(['a', 'c', 'b'])
+    expect(moveItem(['a'], 0, 1)).toBeNull()
+    expect(loopTarget(12, 5, 10)).toBe(5)
+    expect(loopTarget(8, 5, 10)).toBeNull()
+    expect(loopTarget(12, 5, null)).toBeNull()
   })
 })

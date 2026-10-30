@@ -49,3 +49,64 @@ export function swapOrder<T extends { id: string, order: number }>(list: T[], id
 }
 
 export const nextOrder = (list: { order: number }[]) => list.reduce((m, x) => Math.max(m, x.order), 0) + 1
+
+/** CRS-11~16 레슨 자료: 올린 파일(path) 또는 링크(url) */
+export const MATERIALS_MAX = 30
+export const MATERIAL_TYPES = ['pdf', 'audio', 'video', 'image', 'link', 'office', 'file'] as const
+export type MaterialType = typeof MATERIAL_TYPES[number]
+
+export const materialSchema = z.object({
+  id: z.string().min(1).max(40),
+  type: z.enum(MATERIAL_TYPES),
+  title: z.string().trim().min(1).max(200),
+  path: z.string().max(400).nullable().default(null),
+  url: z.string().url().max(2000).refine(u => /^https?:\/\//i.test(u)).nullable().default(null),
+  contentType: z.string().max(120).nullable().default(null),
+  size: z.number().int().nonnegative().nullable().default(null),
+}).refine(m => (m.path == null) !== (m.url == null))
+export type Material = z.infer<typeof materialSchema>
+
+export function materialType(contentType: string, name: string): MaterialType {
+  if (contentType === 'application/pdf' || /\.pdf$/i.test(name)) return 'pdf'
+  if (contentType.startsWith('audio/')) return 'audio'
+  if (contentType.startsWith('video/')) return 'video'
+  if (contentType.startsWith('image/')) return 'image'
+  if (/\.(?:docx?|pptx?|xlsx?|hwpx?)$/i.test(name) || /officedocument|msword|ms-excel|ms-powerpoint|hwp/.test(contentType)) return 'office'
+  return 'file'
+}
+
+/** CRS-15: 화면 안 미리보기는 워드·파워포인트·엑셀만 (한글 파일은 내려받기) */
+export const officePreviewable = (name: string) => /\.(?:docx?|pptx?|xlsx?)$/i.test(name)
+
+/** CRS-13: 유튜브 링크 → 영상 ID (주소에 그대로 넣으므로 글자를 제한한다) */
+export function youtubeId(url: string): string | null {
+  let u: URL
+  try {
+    u = new URL(url)
+  }
+  catch {
+    return null
+  }
+  const host = u.hostname.replace(/^(?:www|m)\./, '')
+  const id = host === 'youtu.be'
+    ? u.pathname.slice(1).split('/')[0]
+    : host === 'youtube.com' ? u.searchParams.get('v') ?? u.pathname.match(/^\/(?:embed|shorts|live)\/([^/?]+)/)?.[1] : null
+  return id && /^[\w-]{6,20}$/.test(id) ? id : null
+}
+
+/** 링크 자료: 유튜브·영상 파일 주소면 영상, 아니면 링크 */
+export function linkType(url: string): MaterialType {
+  return youtubeId(url) || /\.(?:mp4|webm|ogv|mov)(?:[?#]|$)/i.test(url) ? 'video' : 'link'
+}
+
+export function moveItem<T>(list: T[], i: number, dir: -1 | 1): T[] | null {
+  const j = i + dir
+  if (i < 0 || j < 0 || i >= list.length || j >= list.length) return null
+  const out = [...list]
+  ;[out[i], out[j]] = [out[j]!, out[i]!]
+  return out
+}
+
+/** CRS-12 A-B 구간 반복: 재생 위치가 B를 지나면 A로 돌아간다 */
+export const loopTarget = (t: number, a: number | null, b: number | null) => a != null && b != null && b > a && t >= b ? a : null
+export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const

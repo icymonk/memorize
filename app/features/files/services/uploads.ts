@@ -12,7 +12,7 @@ import { ko } from '~/locales/ko'
 
 export interface Upload extends Attachment {
   spaceId: string
-  refType: 'mission' | 'page' | 'card' | null
+  refType: 'mission' | 'page' | 'card' | 'lesson' | null
   createdAt: Timestamp | null
 }
 

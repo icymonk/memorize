@@ -184,10 +184,11 @@ service cloud.firestore {
         function course() { return get(/databases/$(database)/documents/spaces/$(sid)/courses/$(courseId)).data; }
         function nl() { return request.resource.data; }
         function validLesson(x) {
-          return x.keys().hasOnly(['title', 'order', 'bodyPageId', 'linkedDeckIds', 'linkedProblemSetIds', 'linkedTestIds', 'createdBy', 'createdAt', 'updatedAt'])
+          return x.keys().hasOnly(['title', 'order', 'bodyPageId', 'materials', 'linkedDeckIds', 'linkedProblemSetIds', 'linkedTestIds', 'createdBy', 'createdAt', 'updatedAt'])
             && isText(x.title, 1, 80) && x.order is number && (x.bodyPageId == null || isText(x.bodyPageId, 1, 128))
             && x.linkedDeckIds is list && x.linkedDeckIds.size() <= 20 && x.linkedProblemSetIds is list && x.linkedProblemSetIds.size() <= 20
-            && x.linkedTestIds is list && x.linkedTestIds.size() <= 20;
+            && x.linkedTestIds is list && x.linkedTestIds.size() <= 20
+            && x.get('materials', []) is list && x.get('materials', []).size() <= 30;
         }
         function canEdit() { return isMember(sid) && course().deletedAt == null && seesCourse(course()) && editsCourse(course()); }
         allow read: if isMember(sid) && course().deletedAt == null && seesCourse(course());
