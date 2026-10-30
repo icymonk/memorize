@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpenIcon, BookOpenTextIcon, CalendarCheckIcon, ClipboardCheckIcon, FileQuestionIcon, FileTextIcon, FlagIcon, LayersIcon, LayoutDashboardIcon, LibraryIcon, NotebookPenIcon, BookXIcon, PlusIcon, SettingsIcon, SigmaIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, BookOpenTextIcon, CalendarCheckIcon, ClipboardCheckIcon, FileQuestionIcon, FileTextIcon, FlagIcon, GraduationCapIcon, LayersIcon, LayoutDashboardIcon, LibraryIcon, NotebookPenIcon, BookXIcon, PlusIcon, SettingsIcon, SigmaIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
 import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
@@ -125,6 +125,14 @@ watch(() => auth.account, (account) => {
               <NuxtLink :to="`/s/${currentSpace.id}/math`">
                 <SigmaIcon />
                 <span>{{ ko.math.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.courses">
+            <SidebarMenuButton as-child :tooltip="ko.courses.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/courses`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/courses`">
+                <GraduationCapIcon />
+                <span>{{ ko.courses.nav }}</span>
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
