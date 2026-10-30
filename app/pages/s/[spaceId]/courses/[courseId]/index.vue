@@ -2,11 +2,12 @@
 import type { Course, Lesson, LessonProgress } from '~/features/courses/services/courses'
 import type { Member } from '~/features/space/services/invites'
 import { canEditCourse, courseProgress, lessonTitle, nextOrder, swapOrder } from '#shared/schemas/course'
-import { ArrowDownIcon, CheckIcon, ArrowLeftIcon, ArrowUpIcon, PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { ArrowDownIcon, CheckIcon, CopyIcon, ArrowLeftIcon, ArrowUpIcon, PencilIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import CourseFormDialog from '~/features/courses/components/CourseFormDialog.vue'
 import { addLesson, deleteCourse, getCourse, listLessons, listMyProgress, listSharedProgress, removeLesson, reorderLessons } from '~/features/courses/services/courses'
 import { listMembers } from '~/features/space/services/invites'
+import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 
@@ -26,6 +27,7 @@ const loading = ref(true)
 const busy = ref(false)
 const newTitle = ref('')
 const formOpen = ref(false)
+const copyOpen = ref(false)
 const canEdit = computed(() => !!course.value && canEditCourse(course.value, me.value))
 const canRemove = computed(() => course.value?.createdBy === me.value)
 const mine = ref<LessonProgress[]>([])
@@ -125,9 +127,11 @@ async function remove() {
           <div class="flex gap-2 text-xs">
             <Badge v-if="course.level" variant="outline">{{ course.level }}</Badge>
             <Badge variant="secondary">{{ ko.courses.form.vis[course.visibility] }}</Badge>
+            <span v-if="course.copiedFrom" class="text-muted-foreground">{{ ko.vocab.copy.from(course.copiedFrom.spaceName ?? '') }}</span>
           </div>
         </div>
         <div class="flex shrink-0 gap-1">
+          <Button variant="outline" size="sm" @click="copyOpen = true"><CopyIcon /> {{ ko.courses.copy.button }}</Button>
           <Button v-if="canEdit" variant="outline" size="sm" @click="formOpen = true"><PencilIcon /> {{ t.edit }}</Button>
           <Button v-if="canRemove" variant="ghost" size="sm" :disabled="busy" @click="remove"><Trash2Icon /> {{ t.remove }}</Button>
         </div>
@@ -173,6 +177,7 @@ async function remove() {
         </ul>
       </section>
       <CourseFormDialog v-model:open="formOpen" :course="course" @saved="load" />
+      <CopyDeckDialog v-model:open="copyOpen" kind="course" :from-space-id="sid" :content-id="course.id" />
     </template>
   </div>
 </template>
