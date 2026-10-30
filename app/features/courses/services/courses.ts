@@ -1,6 +1,6 @@
 import type { CourseInput, LessonLinks, Material } from '#shared/schemas/course'
 import type { Firestore, Timestamp } from 'firebase/firestore'
-import { lessonPageAccess } from '#shared/schemas/course'
+import { lessonPageAccess, progressId } from '#shared/schemas/course'
 import { addDoc, and, collection, deleteDoc, doc, getDoc, getDocs, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
 
 /** CRS-01 코스 */
@@ -115,3 +115,64 @@ export async function reorderLessons(db: Firestore, sid: string, cid: string, pa
 }
 
 export const removeLesson = (db: Firestore, sid: string, cid: string, id: string) => deleteDoc(doc(lessonsOf(db, sid, cid), id))
+
+/** CRS-21~23 내 레슨 진도·필기. shared: 진도를 숨기지 않은 멤버만 true (멤버 진도에 보인다) */
+export interface LessonProgress {
+  id: string
+  uid: string
+  courseId: string
+  lessonId: string
+  completedAt?: Timestamp | null
+  noteId?: string | null
+  shared: boolean
+}
+
+const progressOf = (db: Firestore, sid: string) => collection(db, 'spaces', sid, 'lessonProgress')
+
+export async function listMyProgress(db: Firestore, sid: string, uid: string, cid: string): Promise<LessonProgress[]> {
+  const snap = await getDocs(query(progressOf(db, sid), where('uid', '==', uid), where('courseId', '==', cid)))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as LessonProgress)
+}
+
+export async function listSharedProgress(db: Firestore, sid: string, cid: string): Promise<LessonProgress[]> {
+  const snap = await getDocs(query(progressOf(db, sid), where('courseId', '==', cid), where('shared', '==', true)))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as LessonProgress)
+}
+
+const writeProgress = (db: Firestore, sid: string, uid: string, cid: string, lid: string, shared: boolean, patch: object) =>
+  setDoc(doc(progressOf(db, sid), progressId(uid, lid)), { uid, courseId: cid, lessonId: lid, shared, ...patch, updatedAt: serverTimestamp() }, { merge: true })
+
+export const setLessonDone = (db: Firestore, sid: string, uid: string, cid: string, lid: string, done: boolean, shared: boolean) =>
+  writeProgress(db, sid, uid, cid, lid, shared, { completedAt: done ? serverTimestamp() : null })
+
+/** CRS-23 레슨 필기: 나만 보는 페이지(type 'lessonNote', 노트 목록에는 안 보임) */
+export async function createLessonNote(db: Firestore, sid: string, uid: string, cid: string, lid: string, title: string, shared: boolean) {
+  const now = serverTimestamp()
+  const page = await addDoc(collection(db, 'spaces', sid, 'pages'), {
+    type: 'lessonNote',
+    title: title.slice(0, 200),
+    icon: '',
+    cover: null,
+    ownerId: uid,
+    root: 'private',
+    parentId: null,
+    order: 'a0',
+    ancestorIds: [],
+    props: {},
+    visibility: 'private',
+    groupIds: [],
+    sharedWith: [],
+    editorIds: [],
+    reviewerIds: [],
+    excerpt: '',
+    blockCount: 0,
+    textLength: 0,
+    lock: null,
+    ownerStatus: 'active',
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  })
+  await writeProgress(db, sid, uid, cid, lid, shared, { noteId: page.id })
+  return page.id
+}

@@ -110,3 +110,12 @@ export function moveItem<T>(list: T[], i: number, dir: -1 | 1): T[] | null {
 /** CRS-12 A-B 구간 반복: 재생 위치가 B를 지나면 A로 돌아간다 */
 export const loopTarget = (t: number, a: number | null, b: number | null) => a != null && b != null && b > a && t >= b ? a : null
 export const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2] as const
+
+/** CRS-21·22 진도: lessonProgress/{uid}_{lessonId} */
+export const progressId = (uid: string, lessonId: string) => `${uid}_${lessonId}`
+
+export function courseProgress(lessonIds: string[], doneIds: Iterable<string>) {
+  const done = new Set(doneIds)
+  const n = lessonIds.filter(id => done.has(id)).length
+  return { done: n, total: lessonIds.length, pct: lessonIds.length ? Math.round(n / lessonIds.length * 100) : 0 }
+}

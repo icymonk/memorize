@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canEditCourse, courseInput, lessonPageAccess, linkType, loopTarget, materialSchema, materialType, moveItem, nextOrder, officePreviewable, swapOrder, youtubeId } from './course'
+import { canEditCourse, courseInput, courseProgress, lessonPageAccess, linkType, loopTarget, materialSchema, materialType, moveItem, nextOrder, officePreviewable, progressId, swapOrder, youtubeId } from './course'
 
 describe('courses (CRS-01~03)', () => {
   it('drops groups and collaborators that the chosen scope does not use', () => {
@@ -61,5 +61,13 @@ describe('lesson materials (CRS-11~16)', () => {
     expect(loopTarget(12, 5, 10)).toBe(5)
     expect(loopTarget(8, 5, 10)).toBeNull()
     expect(loopTarget(12, 5, null)).toBeNull()
+  })
+})
+
+describe('course progress (CRS-22)', () => {
+  it('counts only lessons that still exist', () => {
+    expect(progressId('u1', 'l1')).toBe('u1_l1')
+    expect(courseProgress(['a', 'b', 'c', 'd'], ['a', 'c', 'gone'])).toEqual({ done: 2, total: 4, pct: 50 })
+    expect(courseProgress([], ['a'])).toEqual({ done: 0, total: 0, pct: 0 })
   })
 })
