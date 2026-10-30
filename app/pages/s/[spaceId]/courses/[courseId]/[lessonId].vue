@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import type { LessonLinks, Material } from '#shared/schemas/course'
-import type { Course, Lesson } from '~/features/courses/services/courses'
+import type { Course, Lesson, LessonProgress } from '~/features/courses/services/courses'
 import type { SaveStatus } from '~/features/notes/sync/writer'
 import { canEditCourse, LESSON_LINKS_MAX, lessonTitle, linkType, materialSchema, MATERIALS_MAX, materialType, moveItem } from '#shared/schemas/course'
-import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, LinkIcon, Trash2Icon, UploadIcon } from '@lucide/vue'
+import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CheckIcon, LinkIcon, NotebookPenIcon, Trash2Icon, UploadIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import MaterialView from '~/features/courses/components/MaterialView.vue'
-import { getCourse, listLessons, updateLesson } from '~/features/courses/services/courses'
+import { createLessonNote, getCourse, listLessons, listMyProgress, setLessonDone, updateLesson } from '~/features/courses/services/courses'
 import { uploadFile, UploadError } from '~/features/files/services/uploads'
 import { listProblemSets } from '~/features/math/services/problemSets'
 import BlockEditor from '~/features/notes/components/BlockEditor.vue'
@@ -15,7 +15,7 @@ import { listDecks } from '~/features/vocab/services/decks'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 
-/** CRS-02·10~16 레슨: 자료(파일·링크), 본문(노트 편집기), 단어장·문제집·시험 연결 */
+/** CRS-02·10~16·20·21·23 레슨 학습: 자료(파일·링크), 본문(노트 편집기), 완료 체크, 내 필기, 아래에 단어장·문제집·시험 바로가기 */
 const t = ko.courses.lesson
 const space = useSpaceStore()
 const auth = useAuthStore()
@@ -37,6 +37,9 @@ const uploading = ref(false)
 const linkUrl = ref('')
 const linkTitle = ref('')
 const fileInput = ref<HTMLInputElement>()
+const progress = ref<LessonProgress | null>(null)
+const noteOpen = ref(false)
+const shareProgress = computed(() => space.current?.kind !== 'personal' && !space.membership?.hideProgress)
 const draft = ref<LessonLinks>({ linkedDeckIds: [], linkedProblemSetIds: [], linkedTestIds: [] })
 const options = ref<{ decks: { id: string, title: string }[], sets: { id: string, title: string }[], tests: { id: string, title: string }[] }>({ decks: [], sets: [], tests: [] })
 
@@ -48,10 +51,10 @@ const canEdit = computed(() => !!course.value && canEditCourse(course.value, me.
 const materials = computed(() => lesson.value?.materials ?? [])
 
 type Kind = 'decks' | 'sets' | 'tests'
-const KINDS: { kind: Kind, key: keyof LessonLinks, path: string }[] = [
-  { kind: 'decks', key: 'linkedDeckIds', path: 'decks' },
-  { kind: 'sets', key: 'linkedProblemSetIds', path: 'math' },
-  { kind: 'tests', key: 'linkedTestIds', path: 'tests' },
+const KINDS: { kind: Kind, key: keyof LessonLinks, to: (id: string) => string }[] = [
+  { kind: 'decks', key: 'linkedDeckIds', to: id => `/s/${sid.value}/study/${id}?mode=flashcards` },
+  { kind: 'sets', key: 'linkedProblemSetIds', to: id => `/s/${sid.value}/math/${id}/solve` },
+  { kind: 'tests', key: 'linkedTestIds', to: id => `/s/${sid.value}/tests/${id}` },
 ]
 const linked = computed(() => KINDS.map(k => ({ ...k, items: options.value[k.kind].filter(o => lesson.value?.[k.key].includes(o.id)) })).filter(k => k.items.length))
 
@@ -75,6 +78,7 @@ async function load() {
     lessons.value = c ? await listLessons($firestore, sid.value, cid.value) : []
     course.value = c
     title.value = lesson.value?.title ?? ''
+    progress.value = c ? (await listMyProgress($firestore, sid.value, me.value, cid.value)).find(p => p.lessonId === lid.value) ?? null : null
   }
   catch {
     course.value = null
@@ -174,13 +178,39 @@ async function dropMaterial(m: Material) {
   await save({ materials: materials.value.filter(x => x.id !== m.id) })
 }
 
+async function withBusy(fn: () => Promise<unknown>) {
+  busy.value = true
+  try {
+    await fn()
+    progress.value = (await listMyProgress($firestore, sid.value, me.value, cid.value)).find(p => p.lessonId === lid.value) ?? null
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+  finally {
+    busy.value = false
+  }
+}
+
+const toggleDone = () => withBusy(() => setLessonDone($firestore, sid.value, me.value, cid.value, lid.value, !progress.value?.completedAt, shareProgress.value))
+
+async function toggleNote() {
+  if (noteOpen.value) {
+    noteOpen.value = false
+    return
+  }
+  if (!progress.value?.noteId) await withBusy(() => createLessonNote($firestore, sid.value, me.value, cid.value, lid.value, `${lesson.value!.title} ${t.note}`, shareProgress.value))
+  noteOpen.value = !!progress.value?.noteId
+}
+
 async function saveLinks() {
   if (await save(draft.value)) linksOpen.value = false
 }
 </script>
 
 <template>
-  <div class="mx-auto flex w-full max-w-3xl flex-col gap-4 p-4">
+  <div class="mx-auto flex w-full gap-4 p-4" :class="noteOpen ? 'max-w-6xl flex-col lg:flex-row lg:items-start' : 'max-w-3xl flex-col'">
+    <div class="flex min-w-0 flex-1 flex-col gap-4">
     <Button as-child variant="ghost" size="sm" class="self-start">
       <NuxtLink :to="`/s/${sid}/courses/${cid}`"><ArrowLeftIcon /> {{ course?.title ?? ko.courses.course.back }}</NuxtLink>
     </Button>
@@ -193,19 +223,15 @@ async function saveLinks() {
       </form>
       <h1 v-else class="text-xl font-semibold">{{ lesson.title }}</h1>
 
-      <section class="flex flex-col gap-2" :aria-label="t.links">
-        <div class="flex items-center justify-between gap-2">
-          <h2 class="text-sm font-semibold">{{ t.links }}</h2>
-          <Button v-if="canEdit" variant="outline" size="sm" @click="openLinks"><LinkIcon /> {{ t.editLinks }}</Button>
-        </div>
-        <p v-if="!linked.length" class="text-muted-foreground text-sm">{{ t.noLinks }}</p>
-        <div v-for="k in linked" :key="k.kind" class="flex flex-wrap items-center gap-2 text-sm">
-          <span class="text-muted-foreground w-14">{{ t[k.kind] }}</span>
-          <Button v-for="o in k.items" :key="o.id" as-child variant="secondary" size="sm">
-            <NuxtLink :to="`/s/${sid}/${k.path}/${o.id}`">{{ o.title }}</NuxtLink>
-          </Button>
-        </div>
-      </section>
+      <div class="flex flex-wrap items-center gap-2">
+        <Button :variant="progress?.completedAt ? 'secondary' : 'default'" size="sm" :disabled="busy" @click="toggleDone">
+          <CheckIcon /> {{ progress?.completedAt ? t.undoDone : t.markDone }}
+        </Button>
+        <span v-if="progress?.completedAt" class="text-muted-foreground text-sm">{{ t.doneLabel }}</span>
+        <Button variant="outline" size="sm" :disabled="busy" @click="toggleNote">
+          <NotebookPenIcon /> {{ noteOpen ? t.closeNote : t.note }}
+        </Button>
+      </div>
 
       <section class="flex flex-col gap-2" :aria-label="t.materials">
         <h2 class="text-sm font-semibold">{{ t.materials }}</h2>
@@ -243,6 +269,20 @@ async function saveLinks() {
         <BlockEditor v-if="lesson.bodyPageId" :key="lesson.bodyPageId" :space-id="sid" :page-id="lesson.bodyPageId" :editable="canEdit" @status="status = $event" />
       </section>
 
+      <section class="flex flex-col gap-2" :aria-label="t.study">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold">{{ t.study }}</h2>
+          <Button v-if="canEdit" variant="outline" size="sm" @click="openLinks"><LinkIcon /> {{ t.editLinks }}</Button>
+        </div>
+        <p v-if="!linked.length" class="text-muted-foreground text-sm">{{ t.noLinks }}</p>
+        <div v-for="k in linked" :key="k.kind" class="flex flex-wrap items-center gap-2 text-sm">
+          <span class="text-muted-foreground w-14">{{ t[k.kind] }}</span>
+          <Button v-for="o in k.items" :key="o.id" as-child variant="secondary" size="sm">
+            <NuxtLink :to="k.to(o.id)">{{ t.actions[k.kind] }} · {{ o.title }}</NuxtLink>
+          </Button>
+        </div>
+      </section>
+
       <div class="flex justify-between gap-2">
         <Button v-if="prev" as-child variant="ghost" size="sm">
           <NuxtLink :to="`/s/${sid}/courses/${cid}/${prev.id}`"><ArrowLeftIcon /> {{ t.prev }}</NuxtLink>
@@ -273,5 +313,14 @@ async function saveLinks() {
         </DialogContent>
       </Dialog>
     </template>
+    </div>
+    <aside v-if="noteOpen && progress?.noteId" class="flex w-full flex-col gap-2 rounded-lg border p-3 lg:sticky lg:top-4 lg:w-96" :aria-label="t.note" data-testid="lesson-note">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="text-sm font-semibold">{{ t.note }}</h2>
+        <span class="text-muted-foreground text-xs">{{ t.noteHint }}</span>
+      </div>
+      <BlockEditor :key="progress.noteId" :space-id="sid" :page-id="progress.noteId" :editable="true" />
+    </aside>
   </div>
 </template>
+

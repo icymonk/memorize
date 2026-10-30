@@ -235,7 +235,9 @@ spaces/{sid}/courses/{courseId}/lessons/{lessonId}
   majorRev                                                               # "업데이트됨" 표시용
 
 spaces/{sid}/lessonProgress/{uid}_{lessonId}
-  uid, courseId, lessonId, completedAt?, noteId?, highlights[], seenRev
+  uid, courseId, lessonId, completedAt?, noteId?, shared, updatedAt      # 3-F3. shared = 쓸 때 진도를 숨기지 않았으면 true → 같은 공간 멤버가 읽는다 (멤버 진도)
+  highlights[]?, seenRev?                                                # 이후 단계 (CRS-24, 업데이트 표시)
+  # CRS-23 필기: pages/{noteId} (type 'lessonNote', 나만, 노트 목록에는 안 보임)
 ```
 
 ## 7. 독서 (READ)

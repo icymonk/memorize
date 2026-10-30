@@ -198,6 +198,22 @@ service cloud.firestore {
         allow delete: if canEdit();
       }
 
+      // CRS-21~23 내 레슨 진도·필기. 진도를 숨기지 않은 멤버의 기록(shared)은 같은 공간 멤버가 본다
+      match /lessonProgress/{pid} {
+        function validProgress(x) {
+          return x.keys().hasOnly(['uid', 'courseId', 'lessonId', 'completedAt', 'noteId', 'shared', 'updatedAt'])
+            && x.uid == uid() && pid == uid() + '_' + x.lessonId && isText(x.courseId, 1, 128) && isText(x.lessonId, 1, 128)
+            && (x.get('completedAt', null) == null || x.completedAt is timestamp)
+            && (x.get('noteId', null) == null || isText(x.noteId, 1, 128))
+            && x.shared is bool && x.updatedAt == request.time
+            && exists(/databases/$(database)/documents/spaces/$(sid)/courses/$(x.courseId)/lessons/$(x.lessonId));
+        }
+        allow read: if isMember(sid) && (resource.data.uid == uid() || resource.data.shared == true);
+        allow create: if isMember(sid) && validProgress(request.resource.data);
+        allow update: if isMember(sid) && resource.data.uid == uid() && validProgress(request.resource.data)
+          && request.resource.data.courseId == resource.data.courseId;
+      }
+
       // VOC-03: 폴더는 멤버 누구나 만들고, 만든 사람·매니저가 고치고 지운다
       match /decks/{deckId}/cards/{cardId} {
         function deck() { return get(/databases/$(database)/documents/spaces/$(sid)/decks/$(deckId)).data; }
@@ -582,10 +598,10 @@ service cloud.firestore {
         function pg() { return resource.data; }
         function np() { return request.resource.data; }
         function validPage(x) {
-          return x.type in ['page', 'item', 'journal', 'bookReview', 'lesson'] && (x.type in ['page', 'lesson'] || isText(x.get('collectionId', ''), 1, 128))
-            && (x.type != 'lesson' || x.parentId == null)
-            && (x.type in ['page', 'lesson'] || (x.type == 'journal') == (x.collectionId == 'journal'))
-            && (x.type in ['page', 'lesson'] || (x.type == 'bookReview') == (x.collectionId == 'bookReview'))
+          return x.type in ['page', 'item', 'journal', 'bookReview', 'lesson', 'lessonNote'] && (x.type in ['page', 'lesson', 'lessonNote'] || isText(x.get('collectionId', ''), 1, 128))
+            && (!(x.type in ['lesson', 'lessonNote']) || x.parentId == null)
+            && (x.type in ['page', 'lesson', 'lessonNote'] || (x.type == 'journal') == (x.collectionId == 'journal'))
+            && (x.type in ['page', 'lesson', 'lessonNote'] || (x.type == 'bookReview') == (x.collectionId == 'bookReview'))
             && (x.type != 'bookReview' || (x.book is map && isText(x.book.bookKey, 3, 80) && isText(x.book.title, 1, 200)))
             && x.get('props', {}) is map && x.get('props', {}).size() <= 20 && isText(x.title, 0, 200) && isText(x.icon, 0, 16)
             && x.root in ['private', 'shared'] && (x.parentId == null || x.parentId is string) && isText(x.order, 1, 256)
@@ -606,7 +622,7 @@ service cloud.firestore {
         }
         // NOTE-46·49: 모음 페이지는 맨 위에만, 모음의 갈래(scope = root)를 따른다. 내 모음에는 만든 사람만 추가
         function collectionOk(x) {
-          return x.type in ['page', 'lesson'] || (x.parentId == null
+          return x.type in ['page', 'lesson', 'lessonNote'] || (x.parentId == null
             && get(/databases/$(database)/documents/spaces/$(sid)/collections/$(x.collectionId)).data.scope == x.root
             && (x.root == 'shared' || get(/databases/$(database)/documents/spaces/$(sid)/collections/$(x.collectionId)).data.ownerId == uid()));
         }
@@ -617,7 +633,7 @@ service cloud.firestore {
           || (formerMember(sid) && pg().ownerId == uid() && pg().deletedAt == null);
         // NOTE-30·REV-01: 학습일지·독후감은 모든 멤버가 쓰고, 남은 고칠 수 없게(editPolicy: editors) 만든다
         allow create: if isMember(sid)
-          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || np().type in ['journal', 'bookReview', 'lesson'])
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || np().type in ['journal', 'bookReview', 'lesson', 'lessonNote'])
           && (!(np().type in ['journal', 'bookReview']) || np().get('editPolicy', 'everyone') == 'editors')
           && np().ownerId == uid() && validPage(np()) && np().blockCount == 0 && np().textLength == 0 && np().lock == null
           && np().deletedAt == null && parentOk(np()) && collectionOk(np())

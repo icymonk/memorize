@@ -59,4 +59,17 @@ test('an author builds a course with ordered lessons and a member reads the less
   await expect(pb.getByTestId('materials').locator('li').first()).toContainText('설명 영상')
   await expect(pb.getByTestId('materials')).toContainText('grammar.pdf')
   await expect(pb.getByRole('button', { name: '파일 올리기' })).toHaveCount(0)
+
+  // 3-F3(CRS-21~23): 완료 체크, 내 필기, 내 진도·멤버 진도
+  await pb.getByRole('button', { name: '완료로 표시' }).click()
+  await expect(pb.getByRole('button', { name: '완료 취소' })).toBeVisible()
+  await pb.getByRole('button', { name: '내 필기' }).click()
+  const note = pb.getByTestId('lesson-note')
+  await note.locator('.ProseMirror').click()
+  await pb.keyboard.type('3인칭 단수는 is')
+  await expect(note.locator('.ProseMirror')).toContainText('3인칭 단수는 is')
+  await pb.goto(courseUrl)
+  await expect(pb.getByTestId('my-progress')).toContainText('2개 중 1개 완료')
+  await pa.goto(courseUrl)
+  await expect(pa.getByTestId('member-progress')).toContainText('50%')
 })

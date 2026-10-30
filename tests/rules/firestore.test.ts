@@ -1449,6 +1449,20 @@ describe('courses (CRS-01~03·10)', () => {
     await assertFails(getDoc(lref('mia', 'c1', 'l1')))
   })
 
+  it('progress is mine to write; shared progress is read by members (CRS-21·22)', async () => {
+    await assertSucceeds(setDoc(cref('bob', 'c1'), course('bob')))
+    await assertSucceeds(setDoc(lref('bob', 'c1', 'l1'), lesson('bob')))
+    const pref = (u: string, id: string) => doc(db(u), 'spaces', SID, 'lessonProgress', id)
+    const prog = (u: string, over: object = {}) => ({ uid: u, courseId: 'c1', lessonId: 'l1', completedAt: serverTimestamp(), shared: true, updatedAt: serverTimestamp(), ...over })
+    await assertSucceeds(setDoc(pref('alice', 'alice_l1'), prog('alice')))
+    await assertFails(setDoc(pref('alice', 'bob_l1'), prog('bob')))
+    await assertFails(setDoc(pref('alice', 'alice_l2'), prog('alice', { lessonId: 'l2' })))
+    await assertSucceeds(setDoc(pref('mia', 'mia_l1'), prog('mia', { shared: false })))
+    await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'lessonProgress'), where('courseId', '==', 'c1'), where('shared', '==', true))))
+    await assertFails(getDoc(pref('bob', 'mia_l1')))
+    await assertSucceeds(getDoc(pref('bob', 'alice_l1')))
+  })
+
   it('lesson body pages need no collection and stay top-level', async () => {
     const page = (over: object = {}) => ({ type: 'lesson', title: '1강', icon: '', cover: null, ownerId: 'bob', root: 'shared', parentId: null, order: 'a0', ancestorIds: [], props: {}, visibility: 'space', groupIds: [], editorIds: ['bob'], editPolicy: 'editors', sharedWith: [], reviewerIds: [], excerpt: '', blockCount: 0, textLength: 0, lock: null, ownerStatus: 'active', deletedAt: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
     await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp1'), page()))
