@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.14 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.15 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -157,6 +157,7 @@
 - v2.6: callable `openTest` (3-B1, TST-10·16)
 - v2.7: callable `startAttempt`·`submitAttempt`·`checkAnswer` (3-B2)
 - v2.8: callable `gradeAttempt`, 알림 종류 `test` (3-B3)
+- v2.15: `copyContent` kind `'course'` — 코스·레슨·본문 페이지(type 'lesson')·링크 자료 복사. 올린 파일 자료, 단어장·문제집·시험 연결, 진도·필기는 빼고, 복사본은 전체 공개·만든 사람만 편집 (CRS-07, WS-61)
 - v2.14: callable `createReadingGroupMission`, trigger `onReadingGroupUpdated` (3-E2, READ-44)
 - v2.13: callable `drawWrong`·`checkWrong` (오답 다시 풀기, 3-C2)
 - v2.12: 오답 노트 자동 추가 — `onCardStateWritten`, `submitAttempt`·`gradeAttempt`(바로·점수만 공개 시험), `checkProblem` (3-C1)

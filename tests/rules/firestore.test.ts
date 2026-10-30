@@ -1463,6 +1463,12 @@ describe('courses (CRS-01~03·10)', () => {
     await assertSucceeds(getDoc(pref('bob', 'alice_l1')))
   })
 
+  it('a copied course keeps where it came from (WS-63)', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'courses', 'cc'), { ...course('bob'), createdAt: Timestamp.now(), updatedAt: Timestamp.now(), copiedFrom: { spaceId: 'x', courseId: 'y', spaceName: 'X' } }))
+    await assertSucceeds(updateDoc(cref('bob', 'cc'), { title: '새 제목', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(cref('bob', 'cc'), { copiedFrom: null, updatedAt: serverTimestamp() }))
+  })
+
   it('lesson body pages need no collection and stay top-level', async () => {
     const page = (over: object = {}) => ({ type: 'lesson', title: '1강', icon: '', cover: null, ownerId: 'bob', root: 'shared', parentId: null, order: 'a0', ancestorIds: [], props: {}, visibility: 'space', groupIds: [], editorIds: ['bob'], editPolicy: 'editors', sharedWith: [], reviewerIds: [], excerpt: '', blockCount: 0, textLength: 0, lock: null, ownerStatus: 'active', deletedAt: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
     await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp1'), page()))
