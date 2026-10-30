@@ -19,7 +19,7 @@ export interface PageBook {
 
 export interface Page {
   id: string
-  type: 'page' | 'journal' | 'bookReview' | 'lessonNote' | 'item'
+  type: 'page' | 'journal' | 'bookReview' | 'lessonNote' | 'lesson' | 'item'
   title: string
   icon: string
   ownerId: string

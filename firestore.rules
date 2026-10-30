@@ -159,6 +159,44 @@ service cloud.firestore {
         allow delete: if isMember(sid) && (d().createdBy == uid() || isManager(sid));
       }
 
+      // CRS-01~03·10 강의자료: 공개 대상(나만/그룹/전체)·편집 범위(만든 사람/지정한 사람/모든 멤버). 레슨 본문은 type 'lesson' 페이지
+      match /courses/{courseId} {
+        function c() { return resource.data; }
+        function nc() { return request.resource.data; }
+        function validCourse(x) {
+          return x.keys().hasOnly(['title', 'description', 'level', 'visibility', 'groupIds', 'editPolicy', 'collaboratorIds', 'createdBy', 'deletedAt', 'createdAt', 'updatedAt'])
+            && isText(x.title, 1, 80) && isText(x.description, 0, 500) && isText(x.level, 0, 30)
+            && x.visibility in ['private', 'group', 'space'] && x.groupIds is list && x.groupIds.size() <= 20
+            && (x.visibility != 'group' || x.groupIds.size() > 0)
+            && x.editPolicy in ['author', 'collaborators', 'everyone'] && x.collaboratorIds is list && x.collaboratorIds.size() <= 49
+            && (sid.matches('p_.*') == false || x.visibility == 'private');
+        }
+        allow read: if isMember(sid) && (c().createdBy == uid() || seesCourse(c()));
+        allow create: if isMember(sid)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid))
+          && nc().createdBy == uid() && nc().deletedAt == null && validCourse(nc())
+          && nc().createdAt == request.time && nc().updatedAt == request.time;
+        allow update: if isMember(sid) && c().deletedAt == null && seesCourse(c()) && editsCourse(c()) && validCourse(nc())
+          && nc().createdBy == c().createdBy && nc().createdAt == c().createdAt && nc().updatedAt == request.time
+          && (c().createdBy == uid() || !nc().diff(c()).affectedKeys().hasAny(['visibility', 'groupIds', 'editPolicy', 'collaboratorIds', 'deletedAt']));
+      }
+      match /courses/{courseId}/lessons/{lessonId} {
+        function course() { return get(/databases/$(database)/documents/spaces/$(sid)/courses/$(courseId)).data; }
+        function nl() { return request.resource.data; }
+        function validLesson(x) {
+          return x.keys().hasOnly(['title', 'order', 'bodyPageId', 'linkedDeckIds', 'linkedProblemSetIds', 'linkedTestIds', 'createdBy', 'createdAt', 'updatedAt'])
+            && isText(x.title, 1, 80) && x.order is number && (x.bodyPageId == null || isText(x.bodyPageId, 1, 128))
+            && x.linkedDeckIds is list && x.linkedDeckIds.size() <= 20 && x.linkedProblemSetIds is list && x.linkedProblemSetIds.size() <= 20
+            && x.linkedTestIds is list && x.linkedTestIds.size() <= 20;
+        }
+        function canEdit() { return isMember(sid) && course().deletedAt == null && seesCourse(course()) && editsCourse(course()); }
+        allow read: if isMember(sid) && course().deletedAt == null && seesCourse(course());
+        allow create: if canEdit() && validLesson(nl()) && nl().createdBy == uid() && nl().createdAt == request.time;
+        allow update: if canEdit() && validLesson(nl()) && nl().createdBy == resource.data.createdBy && nl().bodyPageId == resource.data.bodyPageId
+          && nl().createdAt == resource.data.createdAt && nl().updatedAt == request.time;
+        allow delete: if canEdit();
+      }
+
       // VOC-03: 폴더는 멤버 누구나 만들고, 만든 사람·매니저가 고치고 지운다
       match /decks/{deckId}/cards/{cardId} {
         function deck() { return get(/databases/$(database)/documents/spaces/$(sid)/decks/$(deckId)).data; }
@@ -526,6 +564,13 @@ service cloud.firestore {
         return p.deletedAt == null && p.get('ownerStatus', 'active') == 'active' && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds || uid() in p.get('reviewerIds', [])
           || (p.visibility == 'group' && p.groupIds.hasAny(get(memberPath(sid)).data.get('groupIds', []))));
       }
+      function seesCourse(x) {
+        return x.createdBy == uid() || x.visibility == 'space'
+          || (x.visibility == 'group' && x.groupIds.hasAny(get(memberPath(sid)).data.get('groupIds', [])));
+      }
+      function editsCourse(x) {
+        return x.createdBy == uid() || x.editPolicy == 'everyone' || (x.editPolicy == 'collaborators' && uid() in x.collaboratorIds);
+      }
       function editsPage(p) {
         return p.ownerId == uid() || uid() in p.editorIds || (p.root == 'shared' && p.get('editPolicy', 'everyone') == 'everyone');
       }
@@ -536,9 +581,10 @@ service cloud.firestore {
         function pg() { return resource.data; }
         function np() { return request.resource.data; }
         function validPage(x) {
-          return x.type in ['page', 'item', 'journal', 'bookReview'] && (x.type == 'page' || isText(x.get('collectionId', ''), 1, 128))
-            && (x.type == 'page' || (x.type == 'journal') == (x.collectionId == 'journal'))
-            && (x.type == 'page' || (x.type == 'bookReview') == (x.collectionId == 'bookReview'))
+          return x.type in ['page', 'item', 'journal', 'bookReview', 'lesson'] && (x.type in ['page', 'lesson'] || isText(x.get('collectionId', ''), 1, 128))
+            && (x.type != 'lesson' || x.parentId == null)
+            && (x.type in ['page', 'lesson'] || (x.type == 'journal') == (x.collectionId == 'journal'))
+            && (x.type in ['page', 'lesson'] || (x.type == 'bookReview') == (x.collectionId == 'bookReview'))
             && (x.type != 'bookReview' || (x.book is map && isText(x.book.bookKey, 3, 80) && isText(x.book.title, 1, 200)))
             && x.get('props', {}) is map && x.get('props', {}).size() <= 20 && isText(x.title, 0, 200) && isText(x.icon, 0, 16)
             && x.root in ['private', 'shared'] && (x.parentId == null || x.parentId is string) && isText(x.order, 1, 256)
@@ -559,7 +605,7 @@ service cloud.firestore {
         }
         // NOTE-46·49: 모음 페이지는 맨 위에만, 모음의 갈래(scope = root)를 따른다. 내 모음에는 만든 사람만 추가
         function collectionOk(x) {
-          return x.type == 'page' || (x.parentId == null
+          return x.type in ['page', 'lesson'] || (x.parentId == null
             && get(/databases/$(database)/documents/spaces/$(sid)/collections/$(x.collectionId)).data.scope == x.root
             && (x.root == 'shared' || get(/databases/$(database)/documents/spaces/$(sid)/collections/$(x.collectionId)).data.ownerId == uid()));
         }
@@ -570,7 +616,7 @@ service cloud.firestore {
           || (formerMember(sid) && pg().ownerId == uid() && pg().deletedAt == null);
         // NOTE-30·REV-01: 학습일지·독후감은 모든 멤버가 쓰고, 남은 고칠 수 없게(editPolicy: editors) 만든다
         allow create: if isMember(sid)
-          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || np().type in ['journal', 'bookReview'])
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || np().type in ['journal', 'bookReview', 'lesson'])
           && (!(np().type in ['journal', 'bookReview']) || np().get('editPolicy', 'everyone') == 'editors')
           && np().ownerId == uid() && validPage(np()) && np().blockCount == 0 && np().textLength == 0 && np().lock == null
           && np().deletedAt == null && parentOk(np()) && collectionOk(np())

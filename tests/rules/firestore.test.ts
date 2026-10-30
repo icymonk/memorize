@@ -1416,3 +1416,42 @@ describe('attempts and results (3-B2, TST-21~23)', () => {
     await assertSucceeds(getDoc(rRef('alice', 'done')))
   })
 })
+
+describe('courses (CRS-01~03·10)', () => {
+  const course = (uid: string, over: object = {}) => ({ title: '영문법', description: '', level: '', visibility: 'space', groupIds: [], editPolicy: 'author', collaboratorIds: [], createdBy: uid, deletedAt: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
+  const cref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'courses', id)
+  const lesson = (uid: string, over: object = {}) => ({ title: '1강', order: 1, bodyPageId: null, linkedDeckIds: [], linkedProblemSetIds: [], linkedTestIds: [], createdBy: uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
+  const lref = (uid: string, cid: string, id: string) => doc(db(uid), 'spaces', SID, 'courses', cid, 'lessons', id)
+
+  it('private courses stay with the author; space courses are read by members', async () => {
+    await assertSucceeds(setDoc(cref('bob', 'c1'), course('bob', { visibility: 'private' })))
+    await assertSucceeds(setDoc(cref('bob', 'c2'), course('bob')))
+    await assertFails(getDoc(cref('alice', 'c1')))
+    await assertSucceeds(getDoc(cref('alice', 'c2')))
+    await assertFails(getDoc(cref('lee', 'c2')))
+    await assertFails(setDoc(cref('bob', 'c3'), course('alice')))
+    await assertFails(setDoc(cref('bob', 'c4'), course('bob', { visibility: 'group' })))
+    await assertFails(setDoc(cref('bob', 'c5'), course('bob', { extra: 1 })))
+  })
+
+  it('editors add and reorder lessons; only the author changes scope or deletes', async () => {
+    await assertSucceeds(setDoc(cref('bob', 'c1'), course('bob', { editPolicy: 'collaborators', collaboratorIds: ['alice'] })))
+    await assertSucceeds(setDoc(lref('alice', 'c1', 'l1'), lesson('alice')))
+    await assertFails(setDoc(lref('mia', 'c1', 'l2'), lesson('mia')))
+    await assertSucceeds(getDoc(lref('mia', 'c1', 'l1')))
+    await assertSucceeds(updateDoc(lref('alice', 'c1', 'l1'), { order: 2, updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(lref('alice', 'c1', 'l1'), { bodyPageId: 'p9', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(lref('mia', 'c1', 'l1'), { order: 3, updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(cref('alice', 'c1'), { title: '영문법 기초', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(cref('alice', 'c1'), { visibility: 'private', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(cref('alice', 'c1'), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(cref('bob', 'c1'), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await assertFails(getDoc(lref('mia', 'c1', 'l1')))
+  })
+
+  it('lesson body pages need no collection and stay top-level', async () => {
+    const page = (over: object = {}) => ({ type: 'lesson', title: '1강', icon: '', cover: null, ownerId: 'bob', root: 'shared', parentId: null, order: 'a0', ancestorIds: [], props: {}, visibility: 'space', groupIds: [], editorIds: ['bob'], editPolicy: 'editors', sharedWith: [], reviewerIds: [], excerpt: '', blockCount: 0, textLength: 0, lock: null, ownerStatus: 'active', deletedAt: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
+    await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp1'), page()))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp2'), page({ parentId: 'lp1', ancestorIds: ['lp1'] })))
+  })
+})

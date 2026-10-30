@@ -218,16 +218,19 @@ spaces/{sid}/studySessions/{id}
 ## 6. 강의자료 (CRS)
 ```
 spaces/{sid}/courses/{courseId}
-  title, description, cover, subjectId, level
-  visibility: 'group' | 'space', groupIds[]
-  createdBy, editPolicy, collaboratorIds[]
-  lessonCount, order, copiedFrom?, deletedAt?
+  title, description, level, cover?, subjectId?                          # cover·subjectId는 이후 단계
+  visibility: 'private' | 'group' | 'space', groupIds[]                 # 내 공간은 private만
+  createdBy, editPolicy: 'author' | 'collaborators' | 'everyone', collaboratorIds[] (≤49)
+  copiedFrom?, deletedAt                                                 # 삭제는 만든 사람만 (deletedAt), 공개·편집 범위도 만든 사람만
 
 spaces/{sid}/courses/{courseId}/lessons/{lessonId}
-  title, order, publishAt?, requiresPrev: bool
+  title, order(number, 작을수록 앞), bodyPageId                         # CRS-03 순서는 이웃과 order 맞바꾸기
+  createdBy, createdAt, updatedAt                                        # 3-F1
+  publishAt?, requiresPrev?: bool                                        # 이후 단계 (CRS-04·05)
   materials: [{ id, type: 'doc'|'pdf'|'audio'|'video'|'image'|'link'|'office'|'file',
                 title, fileId?, url?, pageId?, size?, contentType?, durationSec? }]
-  linkedDeckIds[], linkedProblemSetIds[], linkedTestIds[], missionId?    # CRS-02·06
+  linkedDeckIds[], linkedProblemSetIds[], linkedTestIds[] (각 ≤20), missionId?    # CRS-02·06
+  # CRS-10 본문: pages/{bodyPageId} (type 'lesson', parentId null, 노트 목록에는 안 보임). 공개·편집 범위는 코스를 따른다(lessonPageAccess)
   completion: 'manual' | 'test' | 'mission'                              # CRS-21
   majorRev                                                               # "업데이트됨" 표시용
 
