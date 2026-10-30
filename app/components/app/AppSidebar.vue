@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpenIcon, ClipboardCheckIcon, FileQuestionIcon, BookOpenTextIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, NotebookPenIcon, FlagIcon, LibraryIcon, PlusIcon, SettingsIcon, SigmaIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, BookOpenTextIcon, CalendarCheckIcon, ClipboardCheckIcon, FileQuestionIcon, FileTextIcon, FlagIcon, LayersIcon, LayoutDashboardIcon, LibraryIcon, NotebookPenIcon, BookXIcon, PlusIcon, SettingsIcon, SigmaIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
 import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
@@ -125,6 +125,14 @@ watch(() => auth.account, (account) => {
               <NuxtLink :to="`/s/${currentSpace.id}/math`">
                 <SigmaIcon />
                 <span>{{ ko.math.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.wrongNotes">
+            <SidebarMenuButton as-child :tooltip="ko.wrongNotes.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/wrong-notes`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/wrong-notes`">
+                <BookXIcon />
+                <span>{{ ko.wrongNotes.nav }}</span>
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>

@@ -1,0 +1,46 @@
+import { expect, test } from '@playwright/test'
+import { workspaceWithMember } from './helpers'
+
+/** 3-C1(WRN-01·03): 수학 문제집에서 틀린 문제가 오답 노트에 모이고, 또 틀리면 횟수만 늘어난다 */
+test('a wrong answer lands in the wrong-notes list with count and source', async ({ browser }) => {
+  test.setTimeout(150_000)
+  const { pa, ws } = await workspaceWithMember(browser, 'yuna', 'ho', '오답 반')
+
+  await pa.goto(`/s/${ws}/settings`)
+  await pa.getByRole('switch', { name: '테스트' }).click()
+  await pa.getByRole('switch', { name: '수학' }).click()
+  await pa.getByRole('switch', { name: '오답 노트' }).click()
+  await pa.getByRole('button', { name: '저장' }).nth(1).click()
+  await pa.getByRole('link', { name: '수학' }).first().click()
+  await pa.waitForURL(/\/math$/)
+  await pa.getByRole('button', { name: '문제집 만들기' }).click()
+  await pa.getByRole('dialog').locator('#set-title').fill('덧셈 연습')
+  await pa.getByRole('dialog').getByRole('button', { name: '확인' }).click()
+  await pa.waitForURL(/\/math\/[^/]+$/)
+  await pa.getByRole('button', { name: '새 문제' }).click()
+  const q = pa.getByRole('dialog')
+  await q.getByRole('button', { name: '단답형' }).click()
+  await q.locator('#q-prompt').fill('2 + 3 = ?')
+  await q.locator('#q-accepted').fill('5')
+  await q.getByRole('button', { name: '확인' }).click()
+  await expect(pa.locator('ol > li')).toHaveCount(1)
+
+  await pa.getByRole('link', { name: '풀기' }).click()
+  const input = pa.getByRole('textbox', { name: '답을 입력하세요' })
+  await input.fill('6')
+  await pa.getByRole('button', { name: '채점' }).click()
+  await expect(pa.getByText('틀렸어요. 다시 해 보세요 (1번째)')).toBeVisible()
+  await input.fill('7')
+  await pa.getByRole('button', { name: '채점' }).click()
+  await expect(pa.getByText('틀렸어요. 다시 해 보세요 (2번째)')).toBeVisible()
+
+  await pa.getByRole('link', { name: '오답 노트' }).first().click()
+  await pa.waitForURL(/\/wrong-notes$/)
+  const note = pa.getByTestId('wrong-note')
+  await expect(note).toHaveCount(1)
+  await expect(note.getByText('2 + 3 = ?')).toBeVisible()
+  await expect(note.getByText('2번 틀림')).toBeVisible()
+  await expect(note.getByText('· 문제집 덧셈 연습')).toBeVisible()
+  await pa.getByRole('button', { name: '단어' }).click()
+  await expect(note).toHaveCount(0)
+})

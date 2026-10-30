@@ -1230,6 +1230,19 @@ describe('problem solving (MATH-20~22)', () => {
   })
 })
 
+describe('wrong notes (3-C1, WRN-01·03)', () => {
+  it('are read only by their owner and written only by the server', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'wrongNotes', 'bob_card_c1'), { uid: 'bob', refType: 'card', refId: 'c1', wrongCount: 1 }))
+    const n = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'wrongNotes', id)
+    await assertSucceeds(getDoc(n('bob', 'bob_card_c1')))
+    await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'wrongNotes'), where('uid', '==', 'bob'))))
+    await assertFails(getDoc(n('alice', 'bob_card_c1')))
+    await assertFails(getDoc(n('lee', 'lee_card_c1')))
+    await assertFails(setDoc(n('bob', 'bob_card_c2'), { uid: 'bob', refType: 'card', refId: 'c2', wrongCount: 0 }))
+    await assertFails(updateDoc(n('bob', 'bob_card_c1'), { wrongCount: 0 }))
+  })
+})
+
 describe('tests (3-B1, TST-10~16)', () => {
   const settings = { timeLimitMin: null, openAt: null, closeAt: null, maxAttempts: 1, scoring: 'best', shuffleQuestions: false, shuffleChoices: false, resultRelease: 'instant', practice: false }
   const t = (uid: string, over: object = {}) => ({ title: '1단원', description: '', questionRefs: [{ questionId: 'q1', points: 10 }], settings, assignees: { all: true, uids: [], groupIds: [] }, status: 'draft', createdBy: uid, hostIds: [uid], deletedAt: null, ...over })

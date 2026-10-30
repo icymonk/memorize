@@ -1205,6 +1205,18 @@ export const ko = {
     loadFailed: '시험을 불러오지 못했어요.',
     loading: '불러오는 중…',
   },
+  wrongNotes: {
+    nav: '오답 노트',
+    title: '오답 노트',
+    intro: '단어 학습·시험·수학 문제집에서 틀린 것을 자동으로 모아요. 같은 것을 또 틀리면 횟수만 늘어요.',
+    empty: '아직 틀린 것이 없어요.',
+    loadFailed: '오답 노트를 불러오지 못했어요.',
+    kinds: { all: '전체', card: '단어', question: '문제' } as Record<string, string>,
+    count: (n: number) => `${n}번 틀림`,
+    often: '자주 틀림',
+    last: (d: string) => `마지막: ${d}`,
+    sources: { deck: '단어장', test: '시험', problemSet: '문제집' } as Record<string, string>,
+  },
   math: {
     nav: '수학',
     home: {

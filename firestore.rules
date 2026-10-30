@@ -315,6 +315,11 @@ service cloud.firestore {
         allow read: if isMember(sid) && attemptId.split('_')[0] == uid();
         allow write: if false;
       }
+      // 3-C1 오답 노트 (WRN-01·03): 서버가 쓰고 본인만 읽는다 ({uid}_{refType}_{refId}). 공유(WRN-13)는 3단계 이후
+      match /wrongNotes/{noteId} {
+        allow read: if isMember(sid) && (resource == null ? noteId.split('_')[0] == uid() : resource.data.uid == uid());
+        allow write: if false;
+      }
       // MATH-22 풀이 메모: 문제마다 내 메모 하나 ({uid}_{questionId})
       match /problemNotes/{noteId} {
         function validNote(x) {

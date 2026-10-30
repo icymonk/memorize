@@ -5,6 +5,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { checkProblemInput, drawProblemInput, hintScore, judge, problemRefInput, resolveProblem } from '../../../shared/math/solve'
 import { newSeed } from '../../../shared/math/template'
 import { authedCallable } from '../lib/callable'
+import { recordWrong } from '../lib/wrongNotes'
 
 /**
  * MATH-20~24 문제집 풀기. 정답·정답 식은 서버에만 있고, 풀이자에게는 숫자를 채운 지문·보기와
@@ -30,6 +31,7 @@ async function loadProblem(uid: string, data: ProblemRefInput) {
     question: q.data() as StoredQuestion & { createdBy: string, media?: ProblemView['media'] },
     key: (k.data() ?? null) as StoredKey | null,
     penalty: Number(set.get('hintPenalty') ?? 0),
+    setTitle: (set.get('title') as string | undefined) ?? '',
     attemptRef: spaceRef.collection('problemAttempts').doc(`${uid}_${data.questionId}`),
   }
 }
@@ -82,12 +84,12 @@ export const drawProblem = authedCallable(drawProblemInput, async ({ uid, data }
 
 /** MATH-20·23 바로 채점: 틀리면 다시, 맞히거나 포기하면 정답·해설. 서술형은 내고 해설로 스스로 확인 */
 export const checkProblem = authedCallable(checkProblemInput, async ({ uid, data }): Promise<ProblemResult> => {
-  const { db, question: q, key, penalty, attemptRef } = await loadProblem(uid, data)
-  return db.runTransaction(async (tx) => {
+  const { db, question: q, key, penalty, setTitle, attemptRef } = await loadProblem(uid, data)
+  const out = await db.runTransaction(async (tx) => {
     const a = await tx.get(attemptRef)
     if (!a.exists) throw new HttpsError('failed-precondition', 'draw first')
     const r = resolveProblem(q, key, a.get('seed') ?? null)
-    if (a.get('done')) return result(a, r)
+    if (a.get('done')) return { ...result(a, r), wrongPrompt: null }
     let patch: Record<string, unknown>
     if (data.giveUp) {
       patch = { done: true, gaveUp: true, correct: false, score: 0 }
@@ -103,8 +105,11 @@ export const checkProblem = authedCallable(checkProblemInput, async ({ uid, data
     }
     patch.lastAt = FieldValue.serverTimestamp()
     tx.update(attemptRef, patch)
-    return result({ ...a.data(), ...patch }, r)
+    return { ...result({ ...a.data(), ...patch }, r), wrongPrompt: data.giveUp || !patch.done ? r.prompt : null }
   })
+  const { wrongPrompt, ...res } = out
+  if (wrongPrompt != null) await recordWrong(data.spaceId, uid, 'question', data.questionId, { type: 'problemSet', id: data.setId, name: setTitle }, { prompt: wrongPrompt })
+  return res
 })
 
 /** MATH-21 힌트 한 단계 더 열기 (사용 수를 기록하고, 문제집 설정에 따라 감점) */
