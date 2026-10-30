@@ -3,7 +3,7 @@ import type { ShelfStatus } from '#shared/schemas/book'
 import type { BookGroup, ShelfItem } from '~/features/reading/services/shelf'
 import type { Member } from '~/features/space/services/invites'
 import { logUnit, positionKey, SHELF_STATUS } from '#shared/schemas/book'
-import { LayoutGridIcon, ListIcon, PencilLineIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
+import { LayoutGridIcon, ListIcon, PencilLineIcon, PlusIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { dateKey } from '#shared/dates'
 import { recommendBooks } from '#shared/reading'
@@ -174,10 +174,17 @@ async function remove(b: ShelfItem) {
       <h1 class="text-2xl font-semibold">
         {{ t.title }}
       </h1>
-      <Button @click="addOpen = true">
-        <PlusIcon />
-        {{ t.add }}
-      </Button>
+      <div class="flex gap-2">
+        <Button v-if="workspace" variant="outline" as-child>
+          <NuxtLink :to="`/s/${sid}/reading/groups`">
+            <UsersIcon />{{ t.groups.title }}
+          </NuxtLink>
+        </Button>
+        <Button @click="addOpen = true">
+          <PlusIcon />
+          {{ t.add }}
+        </Button>
+      </div>
     </div>
 
     <Tabs v-model="tab">

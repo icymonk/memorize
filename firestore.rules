@@ -237,6 +237,35 @@ service cloud.firestore {
           && request.resource.data.bookKey == resource.data.bookKey;
         allow delete: if isMember(sid) && resource.data.uid == uid();
       }
+      // READ-40·41·45 함께 읽기 (워크스페이스만). 진행자가 설정·일정을 바꾸고, 멤버는 자기만 넣고 뺀다
+      match /readingGroups/{gid} {
+        function validGroup(x) {
+          return isText(x.bookKey, 3, 80) && isText(x.book.title, 1, 200) && x.book.authors is list && x.book.authors.size() <= 10
+            && x.unit in ['page', 'percent', 'minute'] && x.startAt is string && x.endAt is string && x.endAt >= x.startAt
+            && x.assignees.all is bool && x.assignees.uids is list && x.assignees.uids.size() <= 200
+            && x.assignees.groupIds is list && x.assignees.groupIds.size() <= 20
+            && x.joinable is bool && x.participantIds is list && x.participantIds.size() <= 500
+            && x.hostIds is list && x.hostIds.size() >= 1 && x.hostIds.size() <= 11
+            && x.schedule is list && x.schedule.size() <= 52;
+        }
+        function canJoin(x) {
+          return x.joinable || x.assignees.all || uid() in x.assignees.uids
+            || get(memberPath(sid)).data.get('groupIds', []).hasAny(x.assignees.groupIds);
+        }
+        allow read: if isMember(sid);
+        allow create: if isMember(sid) && space(sid).kind == 'workspace' && request.resource.data.createdBy == uid()
+          && request.resource.data.hostIds == [uid()] && request.resource.data.participantIds == [uid()]
+          && request.resource.data.closedAt == null && validGroup(request.resource.data);
+        allow update: if isMember(sid) && uid() in resource.data.hostIds && uid() in request.resource.data.hostIds
+          && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.bookKey == resource.data.bookKey
+          && request.resource.data.participantIds == resource.data.participantIds && validGroup(request.resource.data);
+        allow update: if isMember(sid) && resource.data.closedAt == null && onlyChanges(['participantIds'])
+          && ((!(uid() in resource.data.participantIds) && canJoin(resource.data)
+              && request.resource.data.participantIds == resource.data.participantIds.concat([uid()]))
+            || (uid() in resource.data.participantIds && !(uid() in resource.data.hostIds)
+              && request.resource.data.participantIds == resource.data.participantIds.removeAll([uid()])));
+        allow delete: if isMember(sid) && resource.data.createdBy == uid();
+      }
       match /books/{key} {
         allow read: if isMember(sid);
       }
