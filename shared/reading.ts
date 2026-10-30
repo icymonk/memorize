@@ -64,3 +64,16 @@ export function readingStats(shelf: ShelfLike[], logs: LogLike[], year: number):
     formats,
   }
 }
+
+/** READ-15 책 추천 묶음: 요즘 많이 읽는 책·멤버 별점이 높은 책(4점 이상)·내가 읽은 책과 같은 저자의 책 */
+export interface BookGroupLike { bookKey: string, authors: string[], readerUids: string[], readingCount: number, avgRating: number | null }
+export function recommendBooks<T extends BookGroupLike>(books: T[], mine: { bookKey: string, authors: string[] }[], limit = 6) {
+  const own = new Set(mine.map(m => m.bookKey))
+  const authors = new Set(mine.flatMap(m => m.authors).map(a => a.trim()).filter(Boolean))
+  const byReaders = (a: T, b: T) => b.readerUids.length - a.readerUids.length
+  return {
+    popular: books.filter(b => b.readingCount > 0).sort((a, b) => b.readingCount - a.readingCount || byReaders(a, b)).slice(0, limit),
+    topRated: books.filter(b => b.avgRating != null && b.avgRating >= 4).sort((a, b) => b.avgRating! - a.avgRating! || byReaders(a, b)).slice(0, limit),
+    similar: books.filter(b => !own.has(b.bookKey) && b.authors.some(a => authors.has(a.trim()))).sort(byReaders).slice(0, limit),
+  }
+}

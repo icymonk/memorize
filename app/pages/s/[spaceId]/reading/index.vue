@@ -6,6 +6,7 @@ import { logUnit, positionKey, SHELF_STATUS } from '#shared/schemas/book'
 import { LayoutGridIcon, ListIcon, PencilLineIcon, PlusIcon, Trash2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { dateKey } from '#shared/dates'
+import { recommendBooks } from '#shared/reading'
 import AddBookDialog from '~/features/reading/components/AddBookDialog.vue'
 import BookDetailDialog from '~/features/reading/components/BookDetailDialog.vue'
 import NewReviewDialog from '~/features/notes/components/NewReviewDialog.vue'
@@ -32,6 +33,10 @@ if (!space.current?.modules?.reading) {
 const sid = computed(() => space.current!.id)
 const workspace = computed(() => space.current?.kind === 'workspace')
 const mine = ref<ShelfItem[]>([])
+const recSections = computed(() => {
+  const r = recommendBooks(books.value, mine.value)
+  return (['popular', 'topRated', 'similar'] as const).map(key => ({ key, items: r[key] })).filter(x => x.items.length)
+})
 const books = ref<BookGroup[]>([])
 const members = ref<Member[]>([])
 const loading = ref(true)
@@ -229,6 +234,21 @@ async function remove(b: ShelfItem) {
       …
     </p>
     <template v-else-if="tab === 'space'">
+      <section v-for="r in recSections" :key="r.key" class="mb-4 flex flex-col gap-2" :data-testid="`rec-${r.key}`">
+        <h2 class="text-sm font-medium">
+          {{ t.recs[r.key] }}
+        </h2>
+        <ul class="flex gap-3 overflow-x-auto pb-1">
+          <li v-for="b in r.items" :key="b.id" class="flex w-24 shrink-0 flex-col gap-1">
+            <img v-if="b.cover" :src="b.cover" alt="" class="aspect-[2/3] w-full rounded-md border object-cover">
+            <div v-else class="bg-muted flex aspect-[2/3] w-full items-center justify-center rounded-md border p-1 text-center text-xs">
+              {{ b.title }}
+            </div>
+            <span class="truncate text-xs font-medium">{{ b.title }}</span>
+            <span v-if="r.key === 'topRated'" class="text-muted-foreground text-xs">★ {{ b.avgRating?.toFixed(1) }}</span>
+          </li>
+        </ul>
+      </section>
       <p v-if="!books.length" class="text-muted-foreground py-10 text-center text-sm">
         {{ t.spaceEmpty }}
       </p>

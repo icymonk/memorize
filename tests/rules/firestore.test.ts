@@ -784,6 +784,16 @@ describe('study settings (ACC-24)', () => {
   })
 })
 
+describe('reading goal (READ-51)', () => {
+  it('lets a user set only their own valid yearly goal', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia'), { kind: 'standard', displayName: 'Mia' }))
+    await assertSucceeds(updateDoc(doc(db('mia'), 'users', 'mia'), { readingGoal: { year: 2026, books: 24 } }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { readingGoal: { year: 2026, books: 0 } }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { readingGoal: { year: 2026, books: 24, extra: 1 } }))
+    await assertFails(updateDoc(doc(db('bob'), 'users', 'mia'), { readingGoal: { year: 2026, books: 24 } }))
+  })
+})
+
 describe('notifications (CMN-30)', () => {
   it('only the recipient reads, marks read, deletes; clients cannot create', async () => {
     await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia/notifications/n1'), {

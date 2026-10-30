@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Quote } from '../services/quotes'
-import { LockIcon, Trash2Icon } from '@lucide/vue'
+import { ImageIcon, LockIcon, Trash2Icon } from '@lucide/vue'
+import QuoteCardDialog from './QuoteCardDialog.vue'
 import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
@@ -12,6 +13,7 @@ const emit = defineEmits<{ removed: [id: string] }>()
 const t = ko.reading
 const auth = useAuthStore()
 const { $firestore } = useNuxtApp()
+const card = ref<Quote | null>(null)
 
 async function remove(q: Quote) {
   if (!await confirmDialog(t.quotes.removeConfirm)) return
@@ -40,9 +42,13 @@ async function remove(q: Quote) {
           <span>{{ [showTitle ? `『${q.title}』` : '', q.position != null ? `${q.position}${t.log.units[q.unit]}` : '', nameOf && q.uid !== auth.user?.uid ? nameOf(q.uid) : ''].filter(Boolean).join(' · ') }}</span>
         </p>
       </div>
+      <Button variant="ghost" size="icon" class="size-7 shrink-0" :aria-label="t.quotes.card" @click="card = q">
+        <ImageIcon />
+      </Button>
       <Button v-if="q.uid === auth.user?.uid" variant="ghost" size="icon" class="size-7 shrink-0" :aria-label="t.quotes.remove" @click="remove(q)">
         <Trash2Icon />
       </Button>
     </li>
   </ul>
+  <QuoteCardDialog :quote="card" @close="card = null" />
 </template>
