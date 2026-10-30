@@ -8,7 +8,7 @@ export interface Mission extends Omit<MissionInput, 'coHostIds' | 'type'> {
   id: string
   /** 'auto'는 MIS-16 시험 연결 미션 (서버가 만들고 응시 결과로 완료) */
   type: MissionInput['type'] | 'auto'
-  autoRule?: { kind: 'test', targetId: string, threshold: number | null }
+  autoRule?: { kind: 'test' | 'readingFinish', targetId: string, threshold: number | null }
   linked?: { type: 'readingGroup' | 'lesson' | 'test', id: string }
   createdBy: string
   hostIds: string[]

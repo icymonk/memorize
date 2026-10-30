@@ -12,6 +12,7 @@ import ScheduleEditor from '~/features/reading/components/ScheduleEditor.vue'
 import { addGroupComment, deleteReadingGroup, getParticipantShelves, getReadingGroup, joinReadingGroup, leaveReadingGroup, removeGroupComment, updateReadingGroup, watchGroupComments } from '~/features/reading/services/groups'
 import { listMembers } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
+import { callFn } from '~/lib/functions'
 import { ko } from '~/locales/ko'
 
 /** READ-40~45 함께 읽기: 참여하기·나가기, 진행 현황, 챕터 일정(진행자만 수정)·챕터별 이야기 */
@@ -19,7 +20,7 @@ const t = ko.reading.groups
 const space = useSpaceStore()
 const auth = useAuthStore()
 const route = useRoute()
-const { $firestore } = useNuxtApp()
+const { $firestore, $functions } = useNuxtApp()
 const sid = computed(() => space.current!.id)
 const gid = computed(() => String(route.params.groupId))
 const me = computed(() => auth.user!.uid)
@@ -91,6 +92,8 @@ async function run(fn: () => Promise<unknown>, done: string) {
     busy.value = false
   }
 }
+const missionsOn = computed(() => !!space.current?.modules?.missions)
+const createMission = () => run(() => callFn($functions, 'createReadingGroupMission', { spaceId: sid.value, groupId: gid.value }), t.missionCreated)
 const join = () => run(() => joinReadingGroup($firestore, sid.value, me.value, g.value!, !!shelves.value[me.value], today), t.joined)
 const leave = () => run(() => leaveReadingGroup($firestore, sid.value, me.value, g.value!.id), t.left)
 
@@ -168,6 +171,12 @@ async function removeTalk(c: GroupComment) {
           </Button>
           <Button v-else-if="joined && !isHost" variant="outline" :disabled="busy" @click="leave">
             {{ t.leave }}
+          </Button>
+          <Button v-if="g.missionId" variant="outline" as-child>
+            <NuxtLink :to="`/s/${sid}/missions/${g.missionId}`">{{ t.missionView }}</NuxtLink>
+          </Button>
+          <Button v-else-if="isHost && missionsOn && !g.closedAt" variant="outline" :disabled="busy" @click="createMission">
+            {{ t.missionCreate }}
           </Button>
           <Button v-if="g.createdBy === me" variant="ghost" :disabled="busy" @click="remove">
             {{ t.remove }}

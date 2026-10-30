@@ -109,7 +109,7 @@ async function join(v: boolean) {
     </div>
 
     <p v-if="joined && m.type === 'auto'" class="text-muted-foreground text-sm">
-      {{ t.mine.testRule(m.autoRule?.threshold ?? null) }}
+      {{ m.autoRule?.kind === 'readingFinish' ? t.mine.readingRule : t.mine.testRule(m.autoRule?.threshold ?? null) }}
     </p>
 
     <div v-if="!joined" class="flex items-center gap-3 rounded-lg border p-4 text-sm">
@@ -139,6 +139,9 @@ async function join(v: boolean) {
             </Badge>
             <Button v-if="m.linked?.type === 'test' && !subs.has(p)" size="sm" variant="outline" as-child>
               <NuxtLink :to="`/s/${sid}/tests/${m.linked.id}`">{{ t.mine.goTest }}</NuxtLink>
+            </Button>
+            <Button v-else-if="m.linked?.type === 'readingGroup' && !subs.has(p)" size="sm" variant="outline" as-child>
+              <NuxtLink :to="`/s/${sid}/reading/groups/${m.linked.id}`">{{ t.mine.goGroup }}</NuxtLink>
             </Button>
           </template>
           <template v-else>

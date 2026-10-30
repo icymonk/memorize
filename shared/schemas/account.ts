@@ -1,3 +1,4 @@
+import type { CreateGroupMissionInput, CreateGroupMissionOutput } from '../reading-groups'
 import type { BookSearchInput, BookSearchOutput } from './book'
 import type { CreateInviteInput, CreateInviteOutput, DecideJoinRequestInput, InviteCodeInput, InvitePreview, JoinSpaceOutput } from './invite'
 import type { CancelSpaceDeletionInput, CreateWorkspaceInput, CreateWorkspaceOutput, MemberTargetInput, RespondOwnershipInput, ScheduleSpaceDeletionInput, SetManagerInput, TransferOwnershipInput } from './space'
@@ -51,6 +52,7 @@ export interface Callables {
   respondOwnership: { input: RespondOwnershipInput, output: { ok: true } }
   copyContent: { input: CopyContentInput, output: CopyContentOutput }
   openTest: { input: OpenTestInput, output: OpenTestOutput }
+  createReadingGroupMission: { input: CreateGroupMissionInput, output: CreateGroupMissionOutput }
   startAttempt: { input: StartAttemptInput, output: StartAttemptOutput }
   submitAttempt: { input: AttemptRefInput, output: SubmitAttemptOutput }
   checkAnswer: { input: CheckAnswerInput, output: CheckAnswerOutput }

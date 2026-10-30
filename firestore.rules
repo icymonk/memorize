@@ -258,7 +258,8 @@ service cloud.firestore {
           && request.resource.data.closedAt == null && validGroup(request.resource.data);
         allow update: if isMember(sid) && uid() in resource.data.hostIds && uid() in request.resource.data.hostIds
           && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.bookKey == resource.data.bookKey
-          && request.resource.data.participantIds == resource.data.participantIds && validGroup(request.resource.data);
+          && request.resource.data.participantIds == resource.data.participantIds
+          && request.resource.data.get('missionId', null) == resource.data.get('missionId', null) && validGroup(request.resource.data);
         allow update: if isMember(sid) && resource.data.closedAt == null && onlyChanges(['participantIds'])
           && ((!(uid() in resource.data.participantIds) && canJoin(resource.data)
               && request.resource.data.participantIds == resource.data.participantIds.concat([uid()]))

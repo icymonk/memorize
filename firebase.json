@@ -212,6 +212,13 @@
         }
       },
       {
+        "source": "/fn/createReadingGroupMission",
+        "function": {
+          "functionId": "createReadingGroupMission",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/openTest",
         "function": {
           "functionId": "openTest",
