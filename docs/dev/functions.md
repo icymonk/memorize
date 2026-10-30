@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.11 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.12 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -120,7 +120,7 @@
 | 트리거 | 하는 일 | 단계 |
 | --- | --- | --- |
 | `onStudySessionCreated` | 단어 학습 활동 생성, 매칭 기록이면 `matchTop` 갱신 | 1 |
-| `onCardStateWritten` | 진도(`deckProgress`) 집계, 틀린 카드 → 오답 노트 | 1 / 3 |
+| `onCardStateWritten` | 진도(`deckProgress`) 집계, 틀린 카드 → 오답 노트 (3-C1 적용) | 1 / 3 |
 | `onCardWritten` | 카드 수 집계, 뜻 크게 변경 시 `contentRev` 처리 | 1 |
 | `onPageWritten` | 독후감 발행·일지 작성 활동, 역링크(`pageLinks`) 갱신, 편집 잠금 해제 시 버전 스냅샷 | 1 / 2 / 3 |
 | `onReadingLogCreated` · `onShelfWritten` | 독서 활동, 워크스페이스 책장 묶음(`books`) 갱신, 함께 읽기 진행 | 2 |
@@ -156,6 +156,7 @@
 - v2.6: callable `openTest` (3-B1, TST-10·16)
 - v2.7: callable `startAttempt`·`submitAttempt`·`checkAnswer` (3-B2)
 - v2.8: callable `gradeAttempt`, 알림 종류 `test` (3-B3)
+- v2.12: 오답 노트 자동 추가 — `onCardStateWritten`, `submitAttempt`·`gradeAttempt`(바로·점수만 공개 시험), `checkProblem` (3-C1)
 - v2.11: callable `generateProblems`, `previewTemplate`·`saveGenerated` 구현 (M5)
 - v2.10: callable `checkProblem`·`revealHint` (문제집 풀기, 시험용 `checkAnswer`와 분리)
 - v2.9: callable `drawProblem`·`previewTemplate`·`saveGenerated`, 변형 문제 채점 (MATH-14·15)

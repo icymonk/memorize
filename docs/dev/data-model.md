@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.26 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.27 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -399,6 +399,7 @@ spaces/{sid}/wrongNotes/{uid}_{refType}_{refId}
   memo?                                             # WRN-12
   snapshot: { front?, back?, prompt?, answer? }     # 원본 삭제 대비 (WRN 예외)
 ```
+- 3-C1: 문서 전체를 서버가 쓴다(카드 `onCardStateWritten`, 시험 제출·채점, 수학 `checkProblem`). sources는 같은 출처면 합쳐지고, 다시 틀리면 resolved=false·consecutiveCorrect=0. snapshot은 카드 front·back(쉼표로 이음), 문제 prompt만 (정답은 넣지 않음).
 - 공유(WRN-13)는 작성자 멤버 문서의 `wrongNoteShare`로 판정.
 
 ## 12. Storage 경로
@@ -472,6 +473,7 @@ users/{uid}/avatar/{fileName}
 - v2.21: 시험 `mission`·`missionId`, 시험 연결 미션(type 'auto', autoRule·linked) (3-B4, TST-19·MIS-16)
 - v2.24: 변형 문제 `questions.variant`, `template.vars` 종류별 의미 (MATH-14)
 - v2.23: 문제집 필드 확정(description·editPolicy·questionIds 최대 100), 문제 unit, 정답 tolerance 의미, 교육과정은 저장소 원본을 직접 읽음 (MATH-10·12·13)
+- v2.27: 오답 노트 3-C1 쓰기 경로·snapshot 범위 (WRN-01·03)
 - v2.26: 단원별 만들기 저장 규칙(내장 틀 위치, 다른 사람 틀 복사 시 authorIds) (MATH-15)
 - v2.25: 문제집 풀기 `problemAttempts` 필드 확정, `problemNotes`, `questionKeys.hints`, `problemSets.hintPenalty` (MATH-20~24)
 - v2.22: 변형 문제 `questionKeys.template`, `problemAttempts.seed`, `curricula` 영역 단계·원본 위치, 내장 문제 틀 위치 (MATH-14·15·17)

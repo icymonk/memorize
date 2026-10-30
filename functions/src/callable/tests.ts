@@ -8,6 +8,7 @@ import { applyGrades, attemptDeadline, attemptRefInput, canStart, checkAnswerInp
 import { shuffle } from '../../../shared/study'
 import { authedCallable } from '../lib/callable'
 import { notifyMembers } from '../lib/notify'
+import { recordTestWrongs } from '../lib/wrongNotes'
 
 /**
  * TST-10·16 시험 열기: 진행자가 고른 문제를 시험지 사본(paper)과 서버 전용 정답 사본(secret)으로 굳히고 대상자를 정한다.
@@ -158,6 +159,7 @@ async function finalize(testRef: FirebaseFirestore.DocumentReference, test: Fire
   if (!isPractice) batch.update(testRef, { 'stats.attempts': FieldValue.increment(1), 'stats.scoreSum': FieldValue.increment(score) })
   await batch.commit()
   await completeTestMission(test, attempt.get('uid'), { isPractice, score, gradingStatus })
+  await recordTestWrongs(testRef, test, attempt.get('uid'), Object.entries(results).filter(([, r]) => r.score === 0).map(([q]) => q))
   return { score, maxScore, gradingStatus }
 }
 
@@ -236,6 +238,7 @@ export const gradeAttempt = authedCallable(gradeAttemptInput, async ({ uid, data
     return { ...next, maxScore: r.get('maxScore') as number, taker: r.get('uid') as string, isPractice: !!r.get('isPractice'), justDone: !wasDone && next.gradingStatus === 'done' }
   })
   await completeTestMission(test, res.taker, res)
+  await recordTestWrongs(testRef, test, res.taker, Object.entries(data.scores).filter(([, s]) => s === 0).map(([q]) => q))
   if (res.justDone) {
     await notifyMembers(data.spaceId, [{
       uid: res.taker, type: 'test', actorId: uid, refPath: `/s/${data.spaceId}/tests/${data.testId}/attempts/${data.attemptId}`,
