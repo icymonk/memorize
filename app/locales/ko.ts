@@ -48,6 +48,17 @@ export const ko = {
     unread: (n: number) => `읽지 않은 알림 ${n}개`,
   },
   accountSettings: {
+    study: {
+      title: '학습',
+      desc: '모든 단어장의 복습과 낱말카드에 적용돼요.',
+      newCards: '하루 새 카드 수',
+      reviewCards: '하루 복습 카드 상한',
+      front: '낱말카드 처음 보이는 면',
+      fronts: { front: '단어', back: '뜻' } as Record<string, string>,
+      save: '학습 설정 저장',
+      savedNote: '저장됨',
+      invalid: (n: number, rMin: number, rMax: number) => `새 카드는 0~${n}장, 복습 카드는 ${rMin}~${rMax}장으로 정해 주세요.`,
+    },
     title: '설정',
     appearance: '화면',
     appearanceHint: '이 기기에만 저장돼요.',

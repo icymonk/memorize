@@ -772,6 +772,18 @@ describe('uploads (CMN-62)', () => {
   })
 })
 
+describe('study settings (ACC-24)', () => {
+  it('lets a user change only their own valid study map', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia'), { kind: 'standard', displayName: 'Mia' }))
+    const ok = { dailyNewCards: 5, dailyReviewCards: 50, flashcardFront: 'back' }
+    await assertSucceeds(updateDoc(doc(db('mia'), 'users', 'mia'), { study: ok }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { study: { ...ok, dailyNewCards: 500 } }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { study: { ...ok, flashcardFront: 'side' } }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { study: ok, displayName: 'x' }))
+    await assertFails(updateDoc(doc(db('bob'), 'users', 'mia'), { study: ok }))
+  })
+})
+
 describe('notifications (CMN-30)', () => {
   it('only the recipient reads, marks read, deletes; clients cannot create', async () => {
     await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia/notifications/n1'), {
