@@ -265,7 +265,7 @@ spaces/{sid}/readingGroups/{id}               # READ-40~45
   assignees: { all, groupIds[], uids[] }, joinable, participantIds[]
   createdBy, hostIds[]
   schedule: [{ id, label, from, to, dueDate }]   # READ-45
-  missionId?, closedAt?
+  missionId?, closedAt?                                       # READ-44. missionId는 createReadingGroupMission만 쓴다 (진행자도 못 바꿈)
 
 spaces/{sid}/readingGroups/{id}/comments/{cid}   # READ-43 챕터별 이야기 (참여자만)
   uid, itemId (schedule[].id), body, createdAt
@@ -281,7 +281,7 @@ spaces/{sid}/readingGroups/{id}/comments/{cid}   # READ-43 챕터별 이야기 (
 spaces/{sid}/missions/{missionId}
   title, descriptionPageId?
   type: 'check' | 'submission' | 'auto'
-  autoRule?: { kind, targetId?, threshold? }                 # MIS-03. 시험 연결은 { kind: 'test', targetId: testId, threshold: 목표 점수|null }
+  autoRule?: { kind, targetId?, threshold? }                 # MIS-03. 시험 연결은 { kind: 'test', targetId: testId, threshold: 목표 점수|null }, 함께 읽기 완독은 { kind: 'readingFinish', targetId: groupId, threshold: null }
   recurrence: { kind: 'once'|'daily'|'weekly', weekdays?[] }  # MIS-11
   startAt, endAt?, allowLate
   assignees: { all, groupIds[], uids[] }, includeSelf, joinable, participantIds[]

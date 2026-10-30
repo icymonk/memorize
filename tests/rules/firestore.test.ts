@@ -820,6 +820,7 @@ describe('reading groups (READ-40·41·45)', () => {
     await assertFails(updateDoc(ref('bob'), { participantIds: [] }))
     await assertFails(updateDoc(ref('mia'), { schedule: [] }))
     await assertSucceeds(updateDoc(ref('bob'), { schedule: [], joinable: true }))
+    await assertFails(updateDoc(ref('bob'), { missionId: 'm1' }))
     await assertSucceeds(updateDoc(ref('alice'), { participantIds: ['bob', 'alice'] }))
     await assertFails(deleteDoc(ref('alice')))
     await assertSucceeds(deleteDoc(ref('bob')))

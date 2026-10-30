@@ -11,6 +11,7 @@ export interface ReadingGroup extends ReadingGroupInput {
   hostIds: string[]
   participantIds: string[]
   closedAt: Timestamp | null
+  missionId?: string | null
   createdAt?: Timestamp
 }
 

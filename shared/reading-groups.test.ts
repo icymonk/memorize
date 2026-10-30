@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { currentItem, evenSchedule, expectedPosition, isAssigned, isSpoiler, pace, readerPosition, readingGroupInput, scheduleEnd } from './reading-groups'
+import { currentItem, evenSchedule, expectedPosition,
+  finishedInPeriod, isAssigned, isSpoiler, pace, readerPosition, readingGroupInput, scheduleEnd } from './reading-groups'
 
 describe('reading groups (READ-40·41·45)', () => {
   it('splits a range evenly by week and clamps the last due date to the end', () => {
@@ -50,6 +51,13 @@ describe('progress and spoilers (READ-42·43)', () => {
     expect(readerPosition({ status: 'done', position: {} }, 'page', 100)).toBe(100)
     expect(readerPosition(null, 'page', 100)).toBe(0)
   })
+  it('counts a finish inside the group period for the mission (READ-44)', () => {
+    const g = { startAt: '2026-11-01', endAt: '2026-11-28' }
+    expect(finishedInPeriod('2026-11-28', g)).toBe(true)
+    expect(finishedInPeriod('2026-11-29', g)).toBe(false)
+    expect(finishedInPeriod('2026-10-31', g)).toBe(false)
+  })
+
   it('hides chapter talk until the range is read', () => {
     expect(isSpoiler({ to: 25 }, 10, false)).toBe(true)
     expect(isSpoiler({ to: 25 }, 25, false)).toBe(false)

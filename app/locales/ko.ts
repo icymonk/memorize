@@ -900,6 +900,9 @@ export const ko = {
       joinToTalk: '참여하면 챕터별 이야기를 보고 남길 수 있어요.',
       removeComment: '이야기 지우기',
       removeCommentConfirm: '이 이야기를 지울까요?',
+      missionCreate: '완독 미션 만들기',
+      missionCreated: '미션을 만들었어요. 기간 안에 다 읽으면 자동으로 완료돼요.',
+      missionView: '완독 미션 보기',
       removed: '지웠어요.',
     },
     recs: { popular: '요즘 많이 읽는 책', topRated: '멤버 별점이 높은 책', similar: '내가 읽은 책과 비슷한 책' },
@@ -1074,6 +1077,8 @@ export const ko = {
       reason: (r: string) => `반려 사유: ${r}`,
       testRule: (min: number | null) => min == null ? '시험에 응시하면 자동으로 완료돼요.' : `시험에서 ${min}점 이상 받으면 자동으로 완료돼요. 서술형은 채점이 끝난 뒤 반영돼요.`,
       goTest: '시험 보기',
+      readingRule: '함께 읽는 책을 기간 안에 다 읽으면 자동으로 완료돼요.',
+      goGroup: '함께 읽기 보기',
     },
     board: {
       title: '현황판',

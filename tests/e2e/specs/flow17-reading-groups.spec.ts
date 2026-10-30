@@ -46,4 +46,13 @@ test('host opens a reading group with an even schedule and a member joins', asyn
 
   await pb.goto(`/s/${ws}/reading`)
   await expect(pb.getByRole('button', { name: /함께 책/ }).first()).toBeVisible()
+
+  // READ-44 완독 미션: 진행자가 만들면 참여자 모두 미션 화면에서 자동 완료 안내를 본다
+  await pa.getByRole('button', { name: '완독 미션 만들기' }).click()
+  await pa.getByRole('link', { name: '완독 미션 보기' }).click()
+  await pa.waitForURL(/\/missions\/[^/]+$/)
+  const rule = '함께 읽는 책을 기간 안에 다 읽으면 자동으로 완료돼요.'
+  await expect(pa.getByText(rule)).toBeVisible()
+  await pb.goto(pa.url())
+  await expect(pb.getByText(rule)).toBeVisible()
 })

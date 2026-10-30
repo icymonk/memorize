@@ -1,5 +1,6 @@
 import { FieldValue, getFirestore } from 'firebase-admin/firestore'
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { completeReadingMissions } from '../lib/readingMissions'
 import { addActivity } from './activity'
 
 /** READ-03·13: 워크스페이스 책장 묶음 `books/{bookKey}`는 멤버 책장에서 다시 계산한다. 내 공간은 건너뛴다 */
@@ -9,6 +10,9 @@ export const onShelfWritten = onDocumentWritten('spaces/{sid}/shelf/{id}', async
   if (!s?.bookKey) return
   const db = getFirestore()
   if ((await db.doc(`spaces/${sid}`).get()).get('kind') !== 'workspace') return
+  const a = event.data?.after.data()
+  if (a?.status === 'done' && event.data?.before.data()?.status !== 'done' && typeof a.finishedAt === 'string')
+    await completeReadingMissions(sid, a.uid, a.bookKey, a.finishedAt)
   const ref = db.doc(`spaces/${sid}/books/${s.bookKey}`)
   const all = (await db.collection(`spaces/${sid}/shelf`).where('bookKey', '==', s.bookKey).get()).docs.map(d => d.data())
   if (!all.length) {

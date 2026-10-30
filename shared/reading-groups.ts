@@ -95,3 +95,10 @@ export function readerPosition(s: ShelfPos | null | undefined, unit: ReadingGrou
 
 /** READ-43 스포일러 가리기: 그 일정 범위를 다 읽기 전에는 이야기를 가린다 */
 export const isSpoiler = (item: Pick<ScheduleItem, 'to'>, myPos: number, done: boolean) => !done && item.to != null && myPos < item.to
+
+/** READ-44·MIS-16 함께 읽기 미션 "기간 내 완독": 진행자가 만들고, 기간 안에 다 읽으면 서버가 완료 처리 */
+export const createGroupMissionInput = z.object({ spaceId: z.string().min(1).max(128), groupId: z.string().min(1).max(128) })
+export type CreateGroupMissionInput = z.infer<typeof createGroupMissionInput>
+export interface CreateGroupMissionOutput { missionId: string }
+
+export const finishedInPeriod = (finishedAt: string, g: Pick<ReadingGroupInput, 'startAt' | 'endAt'>) => finishedAt >= g.startAt && finishedAt <= g.endAt
