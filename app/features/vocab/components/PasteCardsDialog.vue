@@ -2,7 +2,9 @@
 import type { CardInput } from '#shared/schemas/card'
 import type { CardSeparator, TermSeparator } from '#shared/paste'
 import type { Deck } from '../services/decks'
+import { csvToPaste } from '#shared/csv'
 import { detectTermSeparator, parsePaste, splitKanaReading } from '#shared/paste'
+import { UploadIcon } from '@lucide/vue'
 import { cardInput, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
 import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
@@ -25,6 +27,23 @@ const cardSep = ref<CardSeparator>('newline')
 const pending = ref(false)
 const selectClass = 'border-input bg-background h-9 rounded-md border px-3 text-sm'
 const PREVIEW = 50
+
+/** VOC-12 파일 가져오기: CSV는 붙여넣기 형식으로 바꾸고, Quizlet 내보내기(.txt)는 그대로 넣는다 */
+const fileInput = ref<HTMLInputElement | null>(null)
+async function onFile(e: Event) {
+  const el = e.target as HTMLInputElement
+  const f = el.files?.[0]
+  if (!f) return
+  const raw = await f.text()
+  if (/\.csv$/i.test(f.name)) {
+    text.value = csvToPaste(raw)
+    termMode.value = 'tab'
+  }
+  else {
+    text.value = raw
+  }
+  el.value = ''
+}
 
 watch(open, (value) => {
   if (value) text.value = ''
@@ -76,6 +95,10 @@ async function submit() {
       </DialogHeader>
 
       <div class="flex flex-col gap-4">
+        <input ref="fileInput" type="file" accept=".csv,.txt,.tsv,text/csv,text/plain" class="hidden" data-testid="cards-file" @change="onFile">
+        <Button type="button" variant="outline" size="sm" class="self-start" @click="fileInput?.click()">
+          <UploadIcon />{{ t.fromFile }}
+        </Button>
         <Textarea v-model="text" rows="8" class="font-mono text-sm" :placeholder="t.placeholder.replaceAll('\\t', '\t').replaceAll('\\n', '\n')" />
 
         <div class="flex flex-wrap gap-4">

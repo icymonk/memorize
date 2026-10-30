@@ -15,6 +15,7 @@ import LearnMode from '~/features/vocab/components/study/LearnMode.vue'
 import MatchMode from '~/features/vocab/components/study/MatchMode.vue'
 import ReviewSession from '~/features/vocab/components/study/ReviewSession.vue'
 import WriteMode from '~/features/vocab/components/study/WriteMode.vue'
+import DictationMode from '~/features/vocab/components/study/DictationMode.vue'
 import { listCards } from '~/features/vocab/services/cards'
 import { getDeck } from '~/features/vocab/services/decks'
 import { listDeckStates, saveState } from '~/features/vocab/services/srs'
@@ -33,7 +34,7 @@ const sid = computed(() => space.current!.id)
 const uid = computed(() => auth.user!.uid)
 const deckId = computed(() => route.params.deckId as string)
 const mode = computed<StudyMode>(() => (STUDY_MODES as readonly string[]).includes(route.query.mode as string) ? route.query.mode as StudyMode : 'flashcards')
-const minCards = computed(() => ({ flashcards: 1, learn: 4, write: 1, match: MATCH_PAIRS.min, review: 1 })[mode.value])
+const minCards = computed(() => ({ flashcards: 1, learn: 4, write: 1, dictation: 1, match: MATCH_PAIRS.min, review: 1 })[mode.value])
 
 const deck = ref<Deck | null>(null)
 const cards = ref<Card[]>([])
@@ -75,7 +76,7 @@ onMounted(async () => {
       c = c.filter(card => starred.has(card.id))
     }
     cards.value = c
-    if (mode.value === 'learn' || mode.value === 'write') {
+    if (mode.value === 'learn' || mode.value === 'write' || mode.value === 'dictation') {
       for (const s of await listDeckStates($firestore, sid.value, uid.value, deckId.value)) practiceStates.set(s.cardId, s)
     }
     if (mode.value === 'review') {
@@ -237,6 +238,7 @@ function again() {
     <FlashcardsMode v-if="mode === 'flashcards'" :key="run" :cards="cards" :lang="deck.langFrom" :resume-key="resumeKey" @done="onDone" />
     <LearnMode v-else-if="mode === 'learn'" :key="run" :cards="cards" :resume-key="resumeKey" @done="onDone" @answer="onAnswer" />
     <WriteMode v-else-if="mode === 'write'" :key="run" :cards="cards" :resume-key="resumeKey" @done="onDone" @answer="onAnswer" />
+    <DictationMode v-else-if="mode === 'dictation'" :key="run" :cards="cards" :lang="deck.langFrom" :resume-key="resumeKey" @done="onDone" @answer="onAnswer" />
     <ReviewSession v-else-if="mode === 'review'" :items="reviewItems" :uid="uid" @done="onDone" />
     <div v-else class="flex flex-col">
       <div v-if="pairOptions.length > 1" class="flex items-center justify-center gap-1 pt-3 text-sm" role="radiogroup" :aria-label="t.match.pairs">
