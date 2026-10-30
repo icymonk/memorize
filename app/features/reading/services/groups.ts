@@ -1,6 +1,8 @@
 import type { ReadingGroupInput } from '#shared/reading-groups'
 import type { Firestore, Timestamp } from 'firebase/firestore'
-import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, serverTimestamp, updateDoc } from 'firebase/firestore'
+import type { ShelfItem } from './shelf'
+import { shelfId } from '#shared/schemas/book'
+import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { addToShelf } from './shelf'
 
 export interface ReadingGroup extends ReadingGroupInput {
@@ -55,3 +57,29 @@ export async function joinReadingGroup(db: Firestore, sid: string, uid: string, 
 
 export const leaveReadingGroup = (db: Firestore, sid: string, uid: string, id: string) =>
   updateDoc(doc(groupsOf(db, sid), id), { participantIds: arrayRemove(uid) })
+
+/** READ-42 참여자마다 그 공간 책장의 이 책 기록 (없으면 null) */
+export async function getParticipantShelves(db: Firestore, sid: string, bookKey: string, uids: string[]): Promise<Record<string, ShelfItem | null>> {
+  const snaps = await Promise.all(uids.map(u => getDoc(doc(db, 'spaces', sid, 'shelf', shelfId(u, bookKey)))))
+  return Object.fromEntries(snaps.map((x, i) => [uids[i]!, x.exists() ? ({ id: x.id, ...x.data() }) as ShelfItem : null]))
+}
+
+/** READ-43 챕터별 이야기 — `readingGroups/{id}/comments` */
+export interface GroupComment {
+  id: string
+  uid: string
+  itemId: string
+  body: string
+  createdAt?: Timestamp
+}
+
+const commentsOf = (db: Firestore, sid: string, gid: string) => collection(db, 'spaces', sid, 'readingGroups', gid, 'comments')
+
+export const watchGroupComments = (db: Firestore, sid: string, gid: string, cb: (list: GroupComment[]) => void, onError: (e: unknown) => void) =>
+  onSnapshot(commentsOf(db, sid, gid), snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }) as GroupComment)
+    .sort((a, b) => (a.createdAt?.toMillis() ?? Date.now()) - (b.createdAt?.toMillis() ?? Date.now()))), onError)
+
+export const addGroupComment = (db: Firestore, sid: string, gid: string, uid: string, itemId: string, body: string) =>
+  addDoc(commentsOf(db, sid, gid), { uid, itemId, body, createdAt: serverTimestamp() })
+
+export const removeGroupComment = (db: Firestore, sid: string, gid: string, id: string) => deleteDoc(doc(commentsOf(db, sid, gid), id))

@@ -824,6 +824,20 @@ describe('reading groups (READ-40·41·45)', () => {
     await assertFails(deleteDoc(ref('alice')))
     await assertSucceeds(deleteDoc(ref('bob')))
   })
+
+  it('participants talk per chapter; authors and hosts delete (READ-43)', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'readingGroups', 'g1'), group({ participantIds: ['bob', 'mia'] })))
+    const c = (uid: string, id = 'c1') => doc(db(uid), 'spaces', SID, 'readingGroups', 'g1', 'comments', id)
+    const body = (uid: string, over: object = {}) => ({ uid, itemId: 'w1', body: '좋았어요', createdAt: serverTimestamp(), ...over })
+    await assertSucceeds(setDoc(c('mia'), body('mia')))
+    await assertFails(setDoc(c('alice', 'c2'), body('alice')))
+    await assertFails(setDoc(c('mia', 'c3'), body('bob')))
+    await assertFails(setDoc(c('mia', 'c4'), body('mia', { extra: 1 })))
+    await assertSucceeds(getDoc(c('bob')))
+    await assertFails(getDoc(c('alice')))
+    await assertFails(deleteDoc(c('alice')))
+    await assertSucceeds(deleteDoc(c('bob')))
+  })
 })
 
 describe('reading goal (READ-51)', () => {

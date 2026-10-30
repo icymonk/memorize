@@ -266,6 +266,9 @@ spaces/{sid}/readingGroups/{id}               # READ-40~45
   createdBy, hostIds[]
   schedule: [{ id, label, from, to, dueDate }]   # READ-45
   missionId?, closedAt?
+
+spaces/{sid}/readingGroups/{id}/comments/{cid}   # READ-43 챕터별 이야기 (참여자만)
+  uid, itemId (schedule[].id), body, createdAt
 ```
 - 함께 읽기 이야기 나누기(READ-43): `comments` with `targetType: 'readingGroup'`, `attrs.scheduleId`, `spoilerPosition`.
 

@@ -53,3 +53,45 @@ export function isAssigned(g: Pick<ReadingGroupInput, 'assignees'>, uid: string,
 
 /** 오늘 읽을 일정: 마감일이 오늘 이후인 첫 일정 */
 export const currentItem = (schedule: ScheduleItem[], today: string) => [...schedule].sort((a, b) => a.dueDate.localeCompare(b.dueDate)).find(s => s.dueDate >= today) ?? null
+
+export type Pace = 'ahead' | 'onTrack' | 'behind'
+
+/** 일정의 마지막 위치 (진행률 막대의 끝) */
+export const scheduleEnd = (schedule: ScheduleItem[]) => Math.max(0, ...schedule.map(s => s.to ?? 0)) || null
+
+/** READ-42 오늘까지 읽었어야 할 위치: 지난 일정은 끝까지, 이번 일정은 지난 날수만큼 */
+export function expectedPosition(schedule: ScheduleItem[], startAt: string, today: string): number | null {
+  const items = schedule.filter(s => s.to != null).sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+  if (!items.length) return null
+  let prevTo = Math.max(0, (items[0]!.from ?? 1) - 1)
+  let winStart = startAt
+  for (const s of items) {
+    if (today > s.dueDate) {
+      prevTo = s.to!
+      winStart = addDays(s.dueDate, 1)
+      continue
+    }
+    const len = Math.max(1, daysBetween(winStart, s.dueDate) + 1)
+    const d = Math.max(0, daysBetween(winStart, today))
+    return Math.round(prevTo + ((s.to! - prevTo) * d) / len)
+  }
+  return prevTo
+}
+
+/** 일정 대비 앞섬/뒤처짐. 전체의 5%(최소 1)까지는 일정대로 */
+export function pace(pos: number, expected: number | null, total: number | null): Pace | null {
+  if (expected == null) return null
+  const tol = Math.max(1, Math.round((total ?? 0) * 0.05))
+  return pos > expected + tol ? 'ahead' : pos < expected - tol ? 'behind' : 'onTrack'
+}
+
+interface ShelfPos { status?: string, position?: { page?: number | null, percent?: number | null, minutes?: number | null } }
+/** 책장 기록에서 모임 단위의 현재 위치. 다 읽었으면 끝까지 */
+export function readerPosition(s: ShelfPos | null | undefined, unit: ReadingGroupInput['unit'], total: number | null): number {
+  if (!s) return 0
+  const v = (unit === 'page' ? s.position?.page : unit === 'percent' ? s.position?.percent : s.position?.minutes) ?? 0
+  return s.status === 'done' ? Math.max(v, total ?? 0) : v
+}
+
+/** READ-43 스포일러 가리기: 그 일정 범위를 다 읽기 전에는 이야기를 가린다 */
+export const isSpoiler = (item: Pick<ScheduleItem, 'to'>, myPos: number, done: boolean) => !done && item.to != null && myPos < item.to
