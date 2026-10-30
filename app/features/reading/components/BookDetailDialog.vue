@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { PauseIcon, TimerIcon } from '@lucide/vue'
+import { clock, useReadingTimer } from '../composables/useReadingTimer'
 import type { ReadingLog } from '../services/logs'
 import type { Quote } from '../services/quotes'
 import type { ShelfItem } from '../services/shelf'
@@ -28,6 +30,16 @@ const rating = ref<number | null>(null)
 const pending = ref(false)
 const auth = useAuthStore()
 const L = t.log
+const { load: loadTimer, running: timerRunning, elapsed: timerElapsed, minutes: timerMinutes, start: startTimer, stop: stopTimer, reset: resetTimer } = useReadingTimer(() => `${props.sid}:${props.book?.bookKey ?? ''}`)
+function toggleTimer() {
+  if (timerRunning.value) {
+    stopTimer()
+    logMinutes.value = Math.max(1, timerMinutes.value)
+  }
+  else {
+    startTimer()
+  }
+}
 const logs = ref<ReadingLog[]>([])
 const logDate = ref('')
 const logTo = ref<number | null>(null)
@@ -61,6 +73,7 @@ watch(open, (v) => {
   logDate.value = props.today
   logTo.value = null
   logMinutes.value = null
+  loadTimer()
   logMemo.value = ''
   logs.value = []
   listBookLogs($firestore, props.sid, auth.user!.uid, b.bookKey).then(l => logs.value = l).catch(() => {})
@@ -119,6 +132,7 @@ async function addLog() {
     logTo.value = null
     logMinutes.value = null
     logMemo.value = ''
+    if (!timerRunning.value) resetTimer()
     logs.value = await listBookLogs($firestore, props.sid, auth.user!.uid, b.bookKey)
     emit('saved')
   }
@@ -206,6 +220,15 @@ async function save() {
         <h3 class="text-sm font-medium">
           {{ L.title }}
         </h3>
+        <div class="flex items-center gap-2" data-testid="reading-timer">
+          <span class="font-mono text-lg tabular-nums">{{ clock(timerElapsed) }}</span>
+          <Button type="button" size="sm" :variant="timerRunning ? 'default' : 'outline'" @click="toggleTimer">
+            <PauseIcon v-if="timerRunning" /><TimerIcon v-else />{{ timerRunning ? L.timer.stop : L.timer.start }}
+          </Button>
+          <Button v-if="!timerRunning && timerElapsed" type="button" size="sm" variant="ghost" @click="resetTimer">
+            {{ L.timer.reset }}
+          </Button>
+        </div>
         <form class="grid grid-cols-2 gap-2" @submit.prevent="addLog">
           <Input v-model="logDate" type="date" :aria-label="L.date" />
           <Input type="number" min="0" :placeholder="L.to(L.units[unit] ?? '')" :aria-label="L.to(L.units[unit] ?? '')" :model-value="logTo ?? undefined" @update:model-value="v => logTo = num(v)" />

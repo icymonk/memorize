@@ -61,6 +61,13 @@ service cloud.firestore {
         && request.resource.data.study.dailyNewCards is int && request.resource.data.study.dailyNewCards >= 0 && request.resource.data.study.dailyNewCards <= 200
         && request.resource.data.study.dailyReviewCards is int && request.resource.data.study.dailyReviewCards >= 10 && request.resource.data.study.dailyReviewCards <= 1000
         && request.resource.data.study.flashcardFront in ['front', 'back'];
+      // READ-51 연간 독서 목표: 본인이 readingGoal 맵만 ({ year, books 1~365 })
+      allow update: if signedIn() && userId == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readingGoal'])
+        && request.resource.data.readingGoal is map
+        && request.resource.data.readingGoal.keys().hasOnly(['year', 'books'])
+        && request.resource.data.readingGoal.year is int && request.resource.data.readingGoal.year >= 2000 && request.resource.data.readingGoal.year <= 2100
+        && request.resource.data.readingGoal.books is int && request.resource.data.readingGoal.books >= 1 && request.resource.data.readingGoal.books <= 365;
       // CMN-30 알림함: 서버가 만들고, 본인은 읽기·읽음 표시·삭제만
       // CMN-62 내 업로드 목록: 서버(registerUpload·deleteUpload)만 쓴다
       match /uploads/{fileId} {
