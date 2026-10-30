@@ -1,6 +1,6 @@
 # 보안 규칙
 
-> 상태: 확정 · v2.9 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기), `invites`(만든 사람·매니저 읽기·끄기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
+> 상태: 확정 · v2.10 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기), `invites`(만든 사람·매니저 읽기·끄기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
 
 ## 1. 원칙
 - **화면의 권한 표시는 편의, 실제 강제는 규칙과 서버 기능.**
@@ -89,7 +89,7 @@ function onlyChanges(fields) { return request.resource.data.diff(resource.data).
 | 동작 | 조건 |
 | --- | --- |
 | 읽기 | 본인, 보호자, 작성자의 `wrongNoteShare`에 해당하는 멤버 (`get` 1회) |
-| 쓰기 | 본인: `memo`·`resolved`(직접 해결)·`manual` 추가만 / 나머지 서버. 3-C1 적용: 본인 읽기만, 쓰기는 서버만 (본인 쓰기는 3-C2부터) |
+| 쓰기 | 본인: `memo`·`resolved`(직접 해결)·`manual` 추가만 / 나머지 서버. 3-C1 적용: 본인 읽기, 쓰기는 서버. 3-C2: 본인은 `resolved`·`resolvedAt`만(`consecutiveCorrect`는 0으로) 바꿀 수 있고 만들기·지우기는 안 됨 |
 
 ### 노트 · 블록
 ```
@@ -219,6 +219,7 @@ match /b/{bucket}/o {
 - 없음
 
 ## 8. 변경 이력
+- v2.10: `wrongNotes` 본인 직접 해결·되돌리기
 - v2.9: `wrongNotes` 규칙 적용 (본인 읽기, 서버만 씀)
 - v2.8: 단원별 만들기(`saveGenerated`): 서버가 `whoCanCreate`·문제집 편집 권한을 확인하고, 정답을 볼 수 없던 틀의 복사본은 정답 문서를 원래 출제자만 읽는다
 - v2.7: 문제집 풀이 기록 `problemAttempts`(서버만 씀)·풀이 메모 `problemNotes`, `questionKeys.hints`, `problemSets.hintPenalty`

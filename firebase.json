@@ -191,6 +191,20 @@
         }
       },
       {
+        "source": "/fn/drawWrong",
+        "function": {
+          "functionId": "drawWrong",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/checkWrong",
+        "function": {
+          "functionId": "checkWrong",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/gradeAttempt",
         "function": {
           "functionId": "gradeAttempt",

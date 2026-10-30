@@ -43,4 +43,27 @@ test('a wrong answer lands in the wrong-notes list with count and source', async
   await expect(note.getByText('· 문제집 덧셈 연습')).toBeVisible()
   await pa.getByRole('button', { name: '단어' }).click()
   await expect(note).toHaveCount(0)
+  await pa.getByRole('button', { name: '전체' }).click()
+
+  // 3-C2(WRN-20~22): 다시 풀기 — 연속 2번 맞히면 해결, 직접 되돌리기
+  for (const n of [1, 2]) {
+    await pa.getByRole('button', { name: '전부 다시 풀기' }).click()
+    await pa.waitForURL(/\/wrong-notes\/retry/)
+    await expect(pa.getByTestId('retry-prompt')).toHaveText('2 + 3 = ?')
+    await pa.getByRole('textbox', { name: '답을 입력하세요' }).fill('5')
+    await pa.getByRole('button', { name: '채점' }).click()
+    await expect(pa.getByText('맞았어요!')).toBeVisible()
+    await expect(pa.getByText(n === 1 ? '연속 1/2번 맞힘' : '연속으로 맞혀서 해결됐어요')).toBeVisible()
+    await pa.getByRole('button', { name: '다음' }).click()
+    await expect(pa.getByText(`1개 중 ${n - 1}개를 해결했어요`)).toBeVisible()
+    await pa.getByRole('link', { name: '오답 노트로' }).last().click()
+    await pa.waitForURL(/\/wrong-notes$/)
+  }
+  await expect(note).toHaveCount(0)
+  await pa.getByRole('tab', { name: '해결' }).click()
+  await expect(note).toHaveCount(1)
+  await note.getByRole('button', { name: '오답으로 되돌리기' }).click()
+  await expect(note).toHaveCount(0)
+  await pa.getByRole('tab', { name: '오답' }).click()
+  await expect(note).toHaveCount(1)
 })
