@@ -8,6 +8,8 @@ export interface Course extends CourseInput {
   id: string
   createdBy: string
   deletedAt: Timestamp | null
+  /** WS-63 복사해 온 코스 */
+  copiedFrom?: { spaceId: string, courseId: string, spaceName?: string }
   createdAt?: Timestamp
   updatedAt?: Timestamp
 }
@@ -45,7 +47,8 @@ export async function getCourse(db: Firestore, sid: string, id: string): Promise
 export async function saveCourse(db: Firestore, sid: string, uid: string, v: CourseInput, existing?: Course | null) {
   const ref = existing ? doc(coursesOf(db, sid), existing.id) : doc(coursesOf(db, sid))
   const now = serverTimestamp()
-  await setDoc(ref, { ...v, createdBy: existing?.createdBy ?? uid, deletedAt: null, createdAt: existing?.createdAt ?? now, updatedAt: now })
+  if (existing) await updateDoc(ref, { ...v, updatedAt: now })
+  else await setDoc(ref, { ...v, createdBy: uid, deletedAt: null, createdAt: now, updatedAt: now })
   if (existing && existing.createdBy === uid) {
     const access = lessonPageAccess({ ...v, createdBy: uid })
     const lessons = await listLessons(db, sid, existing.id)

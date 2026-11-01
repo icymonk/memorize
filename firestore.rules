@@ -164,7 +164,7 @@ service cloud.firestore {
         function c() { return resource.data; }
         function nc() { return request.resource.data; }
         function validCourse(x) {
-          return x.keys().hasOnly(['title', 'description', 'level', 'visibility', 'groupIds', 'editPolicy', 'collaboratorIds', 'createdBy', 'deletedAt', 'createdAt', 'updatedAt'])
+          return x.keys().hasOnly(['title', 'description', 'level', 'visibility', 'groupIds', 'editPolicy', 'collaboratorIds', 'createdBy', 'deletedAt', 'copiedFrom', 'createdAt', 'updatedAt'])
             && isText(x.title, 1, 80) && isText(x.description, 0, 500) && isText(x.level, 0, 30)
             && x.visibility in ['private', 'group', 'space'] && x.groupIds is list && x.groupIds.size() <= 20
             && (x.visibility != 'group' || x.groupIds.size() > 0)
@@ -178,6 +178,7 @@ service cloud.firestore {
           && nc().createdAt == request.time && nc().updatedAt == request.time;
         allow update: if isMember(sid) && c().deletedAt == null && seesCourse(c()) && editsCourse(c()) && validCourse(nc())
           && nc().createdBy == c().createdBy && nc().createdAt == c().createdAt && nc().updatedAt == request.time
+          && nc().get('copiedFrom', null) == c().get('copiedFrom', null)
           && (c().createdBy == uid() || !nc().diff(c()).affectedKeys().hasAny(['visibility', 'groupIds', 'editPolicy', 'collaboratorIds', 'deletedAt']));
       }
       match /courses/{courseId}/lessons/{lessonId} {

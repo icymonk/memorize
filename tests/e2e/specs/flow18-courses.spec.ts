@@ -72,4 +72,16 @@ test('an author builds a course with ordered lessons and a member reads the less
   await expect(pb.getByTestId('my-progress')).toContainText('2개 중 1개 완료')
   await pa.goto(courseUrl)
   await expect(pa.getByTestId('member-progress')).toContainText('50%')
+
+  // CRS-07·WS-61 코스 복사: 레슨·본문·링크 자료는 가고, 올린 파일은 안 간다
+  await pa.getByRole('button', { name: '다른 공간으로 복사' }).click()
+  await pa.getByRole('radio', { name: /내 공간/ }).click()
+  await pa.getByRole('button', { name: '복사하기' }).click()
+  await pa.waitForURL(url => !url.pathname.startsWith(`/s/${ws}`) && /\/courses\/[^/]+$/.test(url.pathname))
+  await expect(pa.getByText('영어 반에서 복사함')).toBeVisible()
+  await expect(pa.getByTestId('lesson-list').locator('li').first()).toContainText('일반동사')
+  await pa.getByRole('link', { name: 'be동사' }).click()
+  await expect(pa.locator('.ProseMirror').first()).toContainText('am, are, is를 배워요')
+  await expect(pa.getByTestId('materials')).toContainText('설명 영상')
+  await expect(pa.getByTestId('materials')).not.toContainText('grammar.pdf')
 })

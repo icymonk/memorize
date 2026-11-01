@@ -6,14 +6,14 @@ import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
 
-/** VOC-04, NOTE-27, TST-40, WS-60~64: 단어장·페이지·모음·문제를 다른 공간으로 복사 */
+/** VOC-04, NOTE-27, TST-40, CRS-07, WS-60~64: 단어장·페이지·모음·문제·코스를 다른 공간으로 복사 */
 const props = withDefaults(defineProps<{ fromSpaceId: string, contentId: string, kind?: CopyKind }>(), { kind: 'deck' })
 const open = defineModel<boolean>('open', { default: false })
 const t = ko.vocab.copy
 const n = ko.notes.copy
-const title = computed(() => ({ deck: t.title, page: n.pageTitle, collection: n.collectionTitle, question: ko.tests.copyTitle })[props.kind])
-const description = computed(() => ({ deck: t.description, page: n.pageDescription, collection: n.collectionDescription, question: ko.tests.copyDescription })[props.kind])
-const PATH = { deck: 'decks', page: 'notes', collection: 'collections', question: 'questions' } as const
+const title = computed(() => ({ deck: t.title, page: n.pageTitle, collection: n.collectionTitle, question: ko.tests.copyTitle, course: ko.courses.copy.title })[props.kind])
+const description = computed(() => ({ deck: t.description, page: n.pageDescription, collection: n.collectionDescription, question: ko.tests.copyDescription, course: ko.courses.copy.description })[props.kind])
+const PATH = { deck: 'decks', page: 'notes', collection: 'collections', question: 'questions', course: 'courses' } as const
 const space = useSpaceStore()
 const { $functions } = useNuxtApp()
 const targets = computed(() => space.spaces.filter(s => s.id !== props.fromSpaceId && !s.deleteScheduledAt))
