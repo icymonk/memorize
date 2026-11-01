@@ -713,6 +713,14 @@ describe('comments (CMN-20·22)', () => {
     await assertSucceeds(getDoc(ref('alice', 'c1')))
   })
 
+  it('NOTE-62: block comments carry blockId and quote together', async () => {
+    await seed('pages/p1', pageData())
+    await assertSucceeds(setDoc(ref('mia', 'b1'), c('mia', { blockId: 'blk1', quote: '둘째 문단' })))
+    await assertFails(setDoc(ref('mia', 'b2'), c('mia', { blockId: 'blk1' })))
+    await assertFails(setDoc(ref('mia', 'b3'), c('mia', { quote: '둘째 문단' })))
+    await assertFails(setDoc(ref('mia', 'b4'), c('mia', { blockId: 'blk1', quote: 'x'.repeat(301) })))
+  })
+
   it('author edits; author or manager deletes', async () => {
     await seed('pages/p1', pageData())
     await seed('comments/c1', { targetType: 'page', targetId: 'p1', uid: 'bob', kind: 'comment', body: 'a', mentions: [], createdAt: new Date() })

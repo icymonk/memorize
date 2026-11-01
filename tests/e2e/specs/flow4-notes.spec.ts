@@ -54,6 +54,14 @@ test('a note survives reload and is read-only for another member while locked', 
   await expect(pa.getByText('저장됨')).toBeVisible()
   await expect(pb.locator('.ProseMirror')).toContainText('셋째 문단')
 
+  // NOTE-62 블록 댓글: 읽기 전용인 멤버도 문장을 골라 댓글을 단다
+  await pb.locator('.ProseMirror p', { hasText: '둘째 문단' }).click({ clickCount: 3 })
+  await pb.getByRole('button', { name: '댓글 달기' }).click()
+  await pb.locator('#page-comment-draft').fill('여기 좋아요')
+  await pb.getByRole('button', { name: '남기기' }).click()
+  await expect(pa.getByTestId('comment-quote')).toContainText('둘째 문단')
+  await expect(pa.getByText('여기 좋아요')).toBeVisible()
+
   // 작성자가 피드백을 요청하면, 요청받은 멤버가 스탬프와 총평을 남긴다 (CMN-23·24)
   await pa.getByRole('button', { name: '피드백 요청' }).click()
   await pa.getByLabel('dori').check()

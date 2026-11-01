@@ -5,7 +5,7 @@ import type { LinkBlock } from '../extensions/link-card'
 import type { SlashItem } from '../extensions/slash'
 import type { SaveStatus } from '../sync/writer'
 import { computePosition, flip, offset, shift } from '@floating-ui/dom'
-import { BoldIcon, CodeIcon, GripVerticalIcon, HighlighterIcon, ItalicIcon, LinkIcon, StrikethroughIcon, UnderlineIcon } from '@lucide/vue'
+import { BoldIcon, CodeIcon, GripVerticalIcon, HighlighterIcon, ItalicIcon, LinkIcon, MessageSquareIcon, StrikethroughIcon, UnderlineIcon } from '@lucide/vue'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { Editor, EditorContent, VueRenderer } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
@@ -31,8 +31,8 @@ import SlashMenu from './SlashMenu.vue'
 import 'katex/dist/katex.min.css'
 
 /** 블록 편집기: 불러오기 → 편집 → 0.8초 뒤 바뀐 블록만 저장 (docs/dev/editor.md 3·4절) */
-const props = defineProps<{ spaceId: string, pageId: string, editable: boolean, bookKey?: string }>()
-const emit = defineEmits<{ status: [SaveStatus], loaded: [blockCount: number], error: [unknown], headings: [{ id: string, level: number, text: string }[]] }>()
+const props = defineProps<{ commentable?: boolean,  spaceId: string, pageId: string, editable: boolean, bookKey?: string }>()
+const emit = defineEmits<{ comment: [{ blockId: string, quote: string }], status: [SaveStatus], loaded: [blockCount: number], error: [unknown], headings: [{ id: string, level: number, text: string }[]] }>()
 const t = ko.notes
 
 const { $firestore } = useNuxtApp()
@@ -214,7 +214,18 @@ async function setLink() {
 }
 const bubbleOptions = { placement: 'top' as const, offset: 6 }
 const showBubble = ({ editor: e, from, to }: { editor: CoreEditor, from: number, to: number }) =>
-  e.isEditable && from !== to && !(e.state.selection instanceof NodeSelection) && !e.isActive('codeBlock')
+  (e.isEditable || !!props.commentable) && from !== to && !(e.state.selection instanceof NodeSelection) && !e.isActive('codeBlock')
+
+/** NOTE-62·REV-13: 고른 문장에 댓글. 가장 안쪽의 ID 있는 블록에 단다 */
+function commentSelection() {
+  const e = editor.value
+  if (!e) return
+  const { $from, from, to } = e.state.selection
+  let blockId = ''
+  for (let d = $from.depth; d > 0 && !blockId; d--) blockId = ($from.node(d).attrs.id as string | undefined) ?? ''
+  const quote = e.state.doc.textBetween(from, to, ' ').trim().slice(0, 300)
+  if (blockId && quote) emit('comment', { blockId, quote })
+}
 
 // 끌기 손잡이 + 블록 메뉴 (NOTE-01)
 const hovered = ref<{ id: string, top: number, left: number } | null>(null)
@@ -272,6 +283,7 @@ defineExpose({ flush, focus: () => editor.value?.commands.focus('start') })
     <template v-if="editor">
       <BubbleMenu :editor="editor" :options="bubbleOptions" :should-show="showBubble">
         <div class="bg-popover flex items-center gap-0.5 rounded-md border p-1 shadow-md">
+          <template v-if="editor.isEditable">
           <button
             v-for="m in marks"
             :key="m.key"
@@ -293,6 +305,13 @@ defineExpose({ flush, focus: () => editor.value?.commands.focus('start') })
           <span class="bg-border mx-1 h-5 w-px" />
           <HighlighterIcon class="text-muted-foreground size-4" :aria-label="t.format.highlight" />
           <button v-for="c in HIGHLIGHTS" :key="c" type="button" class="size-4 rounded-sm border" :style="{ background: c }" :aria-label="`${t.format.highlight} ${c}`" @click="chain().setHighlight({ color: c }).run()" />
+          </template>
+          <template v-if="commentable">
+            <span v-if="editor.isEditable" class="bg-border mx-1 h-5 w-px" />
+            <button type="button" class="hover:bg-accent rounded p-1.5" :title="ko.notes.comments.onSelection" :aria-label="ko.notes.comments.onSelection" @click="commentSelection">
+              <MessageSquareIcon class="size-4" />
+            </button>
+          </template>
         </div>
       </BubbleMenu>
 
