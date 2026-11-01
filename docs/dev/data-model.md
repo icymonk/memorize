@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.5 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.28 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -20,6 +20,7 @@ users/{uid}
   timezone, locale, birthYear?
   personalSpaceId: 'p_{uid}'
   spaceIds: string[]                        # 서버 관리 (참여 중인 공간)
+  formerSpaces: map<spaceId, { name, leftAt }>  # 서버 관리 (나가거나 내보내진 워크스페이스, 다시 들어오면 지움. ACC-32)
   guardianIds: string[]                     # 아이 계정: 보호자 uid (ACC-06~09)
   wardIds: string[]                         # 보호자 계정: 관리 중인 아이 uid
   settings: {
@@ -78,7 +79,7 @@ spaces/{spaceId}/members/{uid}
   stats: { created, hosted, feedbackGiven } # 서버 관리
   joinedAt, leftAt?
 
-spaces/{spaceId}/groups/{groupId}    name, color, joinable, createdBy, memberCount, deletedAt?   # WS-30~33
+spaces/{spaceId}/groups/{groupId}    name, color, joinable, createdBy, deletedAt, deletedBy?, createdAt, updatedAt   # WS-30~33. 소속은 members.groupIds, 삭제 30일 뒤 서버가 지움
 spaces/{spaceId}/invites/{code}      code, createdBy, expiresAt?, maxUses?, uses, disabled        # WS-10~11 (code: 컬렉션 그룹 조회용, 문서 ID와 같음)
 spaces/{spaceId}/emailInvites/{id}   email, createdBy, expiresAt                                  # WS-12
 spaces/{spaceId}/tags/{tagId}        name, color                                                  # CMN-51
@@ -98,10 +99,10 @@ spaces/{sid}/feedDigests/{uid}_{date}     # 작은 활동 묶음 (CMN-13), 서�
 spaces/{sid}/comments/{id}
   targetType, targetId, blockId?, uid
   kind: 'comment' | 'feedback'
-  body, stamp?, score?                      # feedback일 때 (CMN-24)
+  body, stamp?, score?                      # feedback일 때 (CMN-24). score: { format: '100'|'grade'|'stars', value } — 남길 때의 형식을 함께 저장
   mentions[], createdAt, editedAt?
 
-spaces/{sid}/reactions/{targetType}_{targetId}_{uid}   targetType, targetId, uid, emoji
+spaces/{sid}/reactions/{targetType}_{targetId}_{uid}   targetType, targetId, uid, emoji   # targetType: page(CMN-21) | feed(CMN-12, targetId = 활동 ID 또는 같은 날 묶음 d_{uid}_{date})
 
 spaces/{sid}/feedbackRequests/{id}        # CMN-23
   targetType, targetId, requesterId, reviewerUid, status: 'open'|'done'|'cancelled', createdAt
@@ -129,12 +130,13 @@ spaces/{sid}/pages/{pageId}
   visibility: 'private' | 'people' | 'group' | 'space'                # NOTE-50
   groupIds[], sharedWith[], editorIds[], reviewerIds[]                 # NOTE-53·54
   missionIds[]                          # 제출된 미션 (서버 관리)
-  status: 'draft' | 'published'         # 독후감
+  publishedAt?, rewriteRequestedAt?, rewriteRequestedBy?   # 독후감 발행·다시 쓰기 요청 (REV-10·14). 임시저장 = visibility 'private'
   excerpt                               # 목록 미리보기 200자
   blockCount, textLength
   lock: { uid, at } | null              # NOTE-60
   ownerStatus: 'active' | 'left'        # 작성자가 나가면 'left' → 본인 외 숨김 (WS-23)
   copiedFrom?: { spaceId, pageId }
+  book?: { bookKey, title, authors[], cover }   # 독후감의 책 (REV-02·03). 책장에서 복사, 만든 뒤 바꿀 수 없음. 표지는 cover에도
   commentCount, feedbackCount, reactionCounts   # 서버 관리
   deletedAt: Timestamp | null, deletedBy?, trashRootId?   # NOTE-22 휴지통 (함께 버린 하위 페이지는 같은 trashRootId)
   createdAt, updatedAt
@@ -187,13 +189,14 @@ spaces/{sid}/decks/{deckId}/cards/{cardId}
   audio?: { fileId?, tts: bool }
   examples: [{ text, translation? }]
   forms?: map                           # 복수형, 과거형 …
-  synonyms: [{ text, cardId? }], antonyms: [{ text, cardId? }]
+  synonyms: [{ text, cardId? }], antonyms: [{ text, cardId? }]   # cardId: 저장할 때 같은 단어장에서 앞면이 같은 카드와 자동 연결 (VOC-10)
   collocations[], imageFileId?, tip?, tags[], difficulty?
   order, contentRev                     # 뜻이 크게 바뀌면 +1 (VOC 예외 상황)
 
 spaces/{sid}/deckFolders/{folderId}     name, order, ownerId
 
 spaces/{sid}/cardStates/{uid}_{cardId}  # VOC-40
+  firstSeenAt?                              # 처음 학습한 시각(ms) — 하루 새 카드 상한을 날짜로 센다 (VOC-44)
   uid, deckId, cardId
   status: 'new' | 'learning' | 'review' | 'mastered'
   ease, intervalDays, due, reps, lapses, correct, wrong
@@ -206,6 +209,7 @@ spaces/{sid}/decks/{deckId}/matchTop/top  # VOC-23 상위 10명, 서버 관리
   entries: [{ uid, ms, at }]
 
 spaces/{sid}/studySessions/{id}
+  pairs?                                    # 매칭 쌍 수 (VOC-23). 순위는 기본 6쌍 기록만
   uid, deckId?, mode, cards, correct, newlyMastered, durationSec, startedAt, endedAt
 ```
 - 전체 오늘의 복습(WS-53): `collectionGroup('cardStates')` where `uid == me` and `due <= now` orderBy `due`.
@@ -214,21 +218,26 @@ spaces/{sid}/studySessions/{id}
 ## 6. 강의자료 (CRS)
 ```
 spaces/{sid}/courses/{courseId}
-  title, description, cover, subjectId, level
-  visibility: 'group' | 'space', groupIds[]
-  createdBy, editPolicy, collaboratorIds[]
-  lessonCount, order, copiedFrom?, deletedAt?
+  title, description, level, cover?, subjectId?                          # cover·subjectId는 이후 단계
+  visibility: 'private' | 'group' | 'space', groupIds[]                 # 내 공간은 private만
+  createdBy, editPolicy: 'author' | 'collaborators' | 'everyone', collaboratorIds[] (≤49)
+  copiedFrom?, deletedAt                                                 # 삭제는 만든 사람만 (deletedAt), 공개·편집 범위도 만든 사람만
 
 spaces/{sid}/courses/{courseId}/lessons/{lessonId}
-  title, order, publishAt?, requiresPrev: bool
-  materials: [{ id, type: 'doc'|'pdf'|'audio'|'video'|'image'|'link'|'office'|'file',
-                title, fileId?, url?, pageId?, size?, contentType?, durationSec? }]
-  linkedDeckIds[], linkedProblemSetIds[], linkedTestIds[], missionId?    # CRS-02·06
+  title, order(number, 작을수록 앞), bodyPageId                         # CRS-03 순서는 이웃과 order 맞바꾸기
+  createdBy, createdAt, updatedAt                                        # 3-F1
+  publishAt?, requiresPrev?: bool                                        # 이후 단계 (CRS-04·05)
+  materials: [{ id, type: 'pdf'|'audio'|'video'|'image'|'link'|'office'|'file',     # CRS-11~16 (≤30, 3-F2)
+                title, path? (올린 파일), url? (링크·유튜브), contentType?, size? }]   # path·url 중 하나. 파일 업로드는 refType 'lesson', refId '{courseId}/{lessonId}'
+  linkedDeckIds[], linkedProblemSetIds[], linkedTestIds[] (각 ≤20), missionId?    # CRS-02·06
+  # CRS-10 본문: pages/{bodyPageId} (type 'lesson', parentId null, 노트 목록에는 안 보임). 공개·편집 범위는 코스를 따른다(lessonPageAccess)
   completion: 'manual' | 'test' | 'mission'                              # CRS-21
   majorRev                                                               # "업데이트됨" 표시용
 
 spaces/{sid}/lessonProgress/{uid}_{lessonId}
-  uid, courseId, lessonId, completedAt?, noteId?, highlights[], seenRev
+  uid, courseId, lessonId, completedAt?, noteId?, shared, updatedAt      # 3-F3. shared = 쓸 때 진도를 숨기지 않았으면 true → 같은 공간 멤버가 읽는다 (멤버 진도)
+  highlights[]?, seenRev?                                                # 이후 단계 (CRS-24, 업데이트 표시)
+  # CRS-23 필기: pages/{noteId} (type 'lessonNote', 나만, 노트 목록에는 안 보임)
 ```
 
 ## 7. 독서 (READ)
@@ -253,15 +262,18 @@ spaces/{sid}/readingLogs/{id}                 # READ-20
   uid, bookKey, date, from?, to?, unit: 'page'|'percent'|'minute', minutes, memo?
 
 spaces/{sid}/quotes/{id}                      # READ-30
-  uid, bookKey, position, text, visibility: 'private' | 'space'
+  uid, bookKey, title, date, unit, position, text, visibility: 'private' | 'space'   # title·date: 모아 보기·학습일지 요약용 복사본
 
 spaces/{sid}/readingGroups/{id}               # READ-40~45
-  bookKey, book: { title, authors, cover }
-  startAt, endAt
+  bookKey, book: { title, authors, cover }, unit: 'page' | 'percent' | 'minute'
+  startAt, endAt                               # 'YYYY-MM-DD'
   assignees: { all, groupIds[], uids[] }, joinable, participantIds[]
   createdBy, hostIds[]
   schedule: [{ id, label, from, to, dueDate }]   # READ-45
-  missionId?, closedAt?
+  missionId?, closedAt?                                       # READ-44. missionId는 createReadingGroupMission만 쓴다 (진행자도 못 바꿈)
+
+spaces/{sid}/readingGroups/{id}/comments/{cid}   # READ-43 챕터별 이야기 (참여자만)
+  uid, itemId (schedule[].id), body, createdAt
 ```
 - 함께 읽기 이야기 나누기(READ-43): `comments` with `targetType: 'readingGroup'`, `attrs.scheduleId`, `spoilerPosition`.
 
@@ -274,13 +286,13 @@ spaces/{sid}/readingGroups/{id}               # READ-40~45
 spaces/{sid}/missions/{missionId}
   title, descriptionPageId?
   type: 'check' | 'submission' | 'auto'
-  autoRule?: { kind, targetId?, threshold? }                 # MIS-03
+  autoRule?: { kind, targetId?, threshold? }                 # MIS-03. 시험 연결은 { kind: 'test', targetId: testId, threshold: 목표 점수|null }, 함께 읽기 완독은 { kind: 'readingFinish', targetId: groupId, threshold: null }
   recurrence: { kind: 'once'|'daily'|'weekly', weekdays?[] }  # MIS-11
   startAt, endAt?, allowLate
   assignees: { all, groupIds[], uids[] }, includeSelf, joinable, participantIds[]
   reward?: { points, badgeId? }
   isPersonal: bool                                            # MIS-14
-  linked?: { type: 'readingGroup'|'lesson'|'test', id }       # MIS-16
+  linked?: { type: 'readingGroup'|'lesson'|'test', id }       # MIS-16. 시험 연결 미션은 openTest가 type 'auto'로 만들고, 진행자는 종료만 바꾼다
   notifyOnComplete: 'feed' | 'all' | 'none'                   # MIS-17
   peerReview?: { enabled, perSubmission, requiredReviews, anonymous: false }   # MIS-35·36
   createdBy, hostIds[], reviewerIds[]
@@ -289,7 +301,7 @@ spaces/{sid}/missions/{missionId}
 spaces/{sid}/missions/{missionId}/submissions/{uid}_{periodKey}
   uid, periodKey                         # 'once' | '2026-10-06' | '2026-W41'
   status: 'pending' | 'submitted' | 'approved' | 'rejected' | 'done'
-  content?, attachments: [fileId], pageId?
+  content?, attachments: [{ id, name, path, contentType, size }], pageId?   # 첨부 최대 10개 (파일 정보 복사본)
   late: bool, submittedAt?
   reviewerUids[]                         # 진행자·리뷰어 복사본 − 본인 (서버 관리)
   peerReviewerUids[]                     # 배정된 동료 검토자
@@ -303,50 +315,86 @@ spaces/{sid}/missions/{missionId}/peerReviews/{id}
 ```
 spaces/{sid}/questions/{questionId}
   type, subject: 'language'|'math'|'general', subjectId?
-  prompt: blocks[], choices?[], media?[]
-  tags[], unit?, difficulty, defaultPoints, hints?[]
+  prompt: string, choices[], media[] (첨부, 최대 5)    # type: single|multi|ox|short|essay (3-A1 지문은 글자)
+  tags[], unit?: { code|null, custom|null }, variant?: bool, difficulty, defaultPoints, hints?[]   # unit: MATH-13 교육과정 code 또는 자유 입력
   createdBy, collaboratorIds[]
   sharing: 'private' | 'space'            # TST-08 (기본 private)
   answerVisibility: 'authors' | 'space'   # TST-07 (기본 authors)
   setIds[]                                # 문제 묶음
-  copiedFrom?: { spaceId, questionId, rev }, rev
+  copiedFrom?: { spaceId, questionId, rev, spaceName }, rev   # 복사본은 정답을 볼 수 있던 경우만 정답 포함, 파일·과목 제외
   deletedAt?
 
 spaces/{sid}/questionKeys/{questionId}     # 정답 (규칙: authorIds 또는 공개 설정만 읽기)
-  answer, acceptable[], tolerance?, explanation: blocks[], rubric?
+  answer: (number|bool|string)[]         # 객관식=보기 번호, OX=[bool], 단답=허용 답, 서술형=[]
+  ignoreCase, ignoreSpaces, tolerance?, explanation, rubric, hints[] (MATH-21, 5개까지, 서버가 한 단계씩 연다)   # tolerance: 단답형 숫자 정답(MATH-12). null=글자 비교, 숫자=그 오차까지 정답, 분수=소수 동치 (shared/math/number)
   authorIds[], answerVisibility           # 검사용 복사본
+  template?: {                            # MATH-14 변형 문제. 있으면 questions.prompt·choices·hints는 목록용 예시 1개
+    prompt, hints[], explanation          # `{name}` 자리 표시 (수식 안에서도 사용)
+    vars: [{ name, kind: 'int'|'dec'|'frac'|'pick', min?, max?, step?, digits?, exclude?[], options?[] }]
+                                          # int: min~max(step 간격) · dec: 소수 digits자리 · frac: 분모 min~max(2~99)의 진분수 · pick: options 중 하나(숫자면 계산에도 씀)
+    calc: [{ name, expr }]                # 계산값 (shared/math/expr 문법, eval 없음)
+    conds: string[]                       # 모두 참일 때까지 다시 뽑기 (최대 200번)
+    answerExpr, wrongExprs[]              # 숫자 정답 / 객관식이면 오답 식 (겹치면 다른 값으로 바꿈)
+  }
 
 spaces/{sid}/questionSets/{setId}          title, questionIds[], createdBy, sharing
 
 spaces/{sid}/tests/{testId}
   title, description
-  questionRefs: [{ questionId, points }], pickRule?
-  settings: { timeLimitSec?, openAt, closeAt, maxAttempts, scoring: 'best'|'last',
-              shuffleQuestions, shuffleChoices,
+  questionRefs: [{ questionId, points }]   # 조건 무작위(TST-10)는 만들 때 골라 여기에 넣는다
+  settings: { timeLimitMin|null, openAt|null, closeAt|null (epoch ms), maxAttempts (0=무제한),
+              scoring: 'best'|'last', shuffleQuestions, shuffleChoices,
               resultRelease: 'instant'|'afterClose'|'scoreOnly'|'hidden', practice }
-  assignees, missionId?                   # TST-19
-  createdBy, hostIds[]
-  stats: { attempts, avg }                # 서버 관리 (연습 응시 제외)
+  assignees: { all, uids[], groupIds[] }   # TST-16
+  mission: { enabled, minScore|null }      # TST-19 미션으로도 배정. minScore가 없으면 응시만 해도 완료
+  missionId?                               # openTest가 연결 미션을 만들고 채움. 완료 제출({uid}_once)은 제출·채점 함수가 남긴다
+  status: 'draft'|'open'|'closed'         # draft만 진행자가 고친다. open은 openTest만
+  participantIds[], maxScore, openedAt    # openTest가 채움 (대상자 확정)
+  createdBy, hostIds[], deletedAt
+  stats: { attempts, scoreSum }           # 서버 관리 (연습 응시 제외). 평균 = scoreSum / attempts
+
+spaces/{sid}/tests/{testId}/paper/main     # 시험지 사본 (정답 없음). 진행자 + 시작 시각 이후 대상자 읽기
+  items: [{ questionId, type, prompt, choices, media, points }], hostIds[]
+spaces/{sid}/tests/{testId}/secret/key     # 정답 사본. 클라이언트 접근 불가 (채점 함수 전용)
+  items: { [questionId]: { answer, ignoreCase, ignoreSpaces, explanation, rubric } }
 
 spaces/{sid}/tests/{testId}/attempts/{attemptId}
   uid, isPractice, startedAt, deadlineAt?, submittedAt?
-  order[], answers: map
-  score?, maxScore, itemResults: map, gradingStatus: 'auto'|'pending'|'done'
+  order[], choiceOrder: { [questionId]: number[] }, answers: map   # 답은 원래 보기 번호. 응시자는 answers만, deadlineAt+30초 전까지 저장
+  maxScore, gradingStatus: null|'pending'|'done'
   hostIds[]                               # 검사용 복사본
+  # 시작·제출은 startAttempt / submitAttempt (서버 시각). 시간이 지난 미제출 응시는 다음 startAttempt에서 제출 처리
+
+spaces/{sid}/tests/{testId}/results/{attemptId}   # 서버만 씀. 진행자, 또는 결과 공개 설정에 맞을 때 응시자 읽기 (TST-15·32)
+  uid, isPractice, score, maxScore, gradingStatus, items: { [questionId]: { score|null, points } }, comments: map, hostIds[]
+  gradedBy?, gradedAt?                    # 진행자 채점(gradeAttempt, TST-31). 부분 점수는 배점 안에서, 다 채점되면 'done'
+  # secret/key는 서버와 진행자만 읽는다 (채점 기준 보기)
 
 spaces/{sid}/problemSets/{setId}           # MATH-10·13
-  title, grade?, unit: { curriculumCode?, custom? }, questionIds[]
-  visibility, createdBy, editPolicy, collaboratorIds[], hintPenalty?
+  title, description, grade|null, unit: { code|null, custom|null }|null, questionIds[] (최대 100)
+  visibility: 'private'|'space', editPolicy: 'owner'|'members'   # members: 공개 문제집에 멤버도 questionIds만 고침
+  createdBy, deletedAt, createdAt, updatedAt, hintPenalty (0~50, 힌트 하나당 깎는 점수, 100점 만점)
 
 spaces/{sid}/problemAttempts/{uid}_{questionId}
-  uid, questionId, tries, correct, hintsUsed, lastAnswer, isPractice, lastAt
+  uid, questionId, setId, tries, done, correct|null, gaveUp, score|null, hintsUsed, lastAnswer, isPractice, rounds, lastAt
+  seed|null                               # 변형 문제: 지금 풀고 있는 숫자 (drawProblem이 정함, 서버만 씀). "다시 풀기"는 새 seed로 처음부터
+  # 문서 전체를 서버만 쓰고 본인만 읽는다. score는 맞혔을 때 100 - hintsUsed × hintPenalty, 포기 0, 서술형 null
+
+spaces/{sid}/problemNotes/{uid}_{questionId}   # MATH-22 풀이 메모
+  uid, questionId, text (5000자, $…$ 수식), updatedAt
+  # 시험 응시의 변형 문제는 시험지 사본을 만들 때 seed를 정한다 (MATH-17: 응시자마다 / 시험마다 하나)
 
 spaces/{sid}/drillRecords/{id}             uid, kind, config, score, durationSec, createdAt
 spaces/{sid}/drillTop/{kind}               entries[] (서버 관리)
 spaces/{sid}/answerAppeals/{id}            questionId, uid, answer, status, createdAt   # MATH 이의 신청
 
-curricula/{curriculumId}                   # 전역 참고 데이터 (읽기 전용)
-  name, grades: [{ grade, units: [{ code, name, children[] }] }]
+curricula/{curriculumId}                   # 전역 참고 데이터 (읽기 전용). 'kr-2022': 2022 개정 초1~고1
+  name, grades: [{ grade, areas: [{ name, units: [{ code, name, children: [{ code, name }] }] }] }]
+  # 원본은 저장소 shared/math/curricula/*.json. M2부터 앱·서버가 이 원본을 직접 읽고 Firestore 복사본은 두지 않는다
+  # code: 단원 `m1-04`, 세부 개념 `m1-04-2` (학년 e1~e6·m1~m3·h1)
+# MATH-15 내장 문제 틀은 Firestore가 아니라 shared/math/library.ts (세부 개념 code → 문제 틀 목록, 앱·서버 공용)
+# 단원별 만들기로 저장한 문제는 내 변형 문제(questions.variant, unit=틀의 세부 개념)로 복사된다. 다른 사람 틀이면 copiedFrom을 남기고
+# 정답을 볼 수 없던 틀은 questionKeys.authorIds를 원래 출제자로 둔다 (나는 풀 수만 있고 정답 식은 못 본다)
 ```
 
 ## 11. 통합 오답 노트 (WRN)
@@ -359,6 +407,8 @@ spaces/{sid}/wrongNotes/{uid}_{refType}_{refId}
   memo?                                             # WRN-12
   snapshot: { front?, back?, prompt?, answer? }     # 원본 삭제 대비 (WRN 예외)
 ```
+- 3-C1: 문서 전체를 서버가 쓴다(카드 `onCardStateWritten`, 시험 제출·채점, 수학 `checkProblem`). sources는 같은 출처면 합쳐지고, 다시 틀리면 resolved=false·consecutiveCorrect=0. snapshot은 카드 front·back(쉼표로 이음), 문제 prompt만 (정답은 넣지 않음).
+- 3-C2: `retrySeed`(변형 문제 다시 풀기 숫자, 서버만 씀). 연속 2번(`RESOLVE_STREAK`) 맞히면 resolved=true·resolvedAt. 본인은 resolved·resolvedAt만(consecutiveCorrect=0) 직접 바꾼다.
 - 공유(WRN-13)는 작성자 멤버 문서의 `wrongNoteShare`로 판정.
 
 ## 12. Storage 경로
@@ -368,7 +418,7 @@ spaces/{sid}/derived/{fileId}/...                # 썸네일, PDF 변환본 (서
 spaces/{sid}/pageVersions/{pageId}/{versionId}.json
 users/{uid}/avatar/{fileName}
 ```
-- 업로드 완료 시 서버 트리거가 `users/{uid}/uploads`와 `storage.usedBytes`를 갱신한다.
+- 업로드 후 클라이언트가 `registerUpload`를 부르면 서버가 `users/{uid}/uploads`와 `storage.usedBytes`를 갱신한다. 계정 총량을 넘으면 파일을 지우고 거절한다. 지우기는 `deleteUpload`.
 
 ## 13. 주요 쿼리 · 복합 인덱스
 | 용도 | 쿼리 | 인덱스 |
@@ -408,9 +458,32 @@ users/{uid}/avatar/{fileName}
 - 없음
 
 ## 16. 변경 이력
+- v2.10: `users.formerSpaces`(ACC-32 이전 워크스페이스 기록)
+- v2.9: 독후감 `status` 대신 `publishedAt`·`rewriteRequestedAt`(임시저장은 나만 보기)
+- v2.8: `groups`에서 `memberCount` 빼고 `deletedBy`, 소속은 `members.groupIds`
+- v2.7: 독후감 페이지의 `book`, 기본 모음 `collections/bookReview`
+- v2.6: `quotes`에 `title`·`date`·`unit`, `readingLogs`는 진도 공유 규칙으로 멤버가 읽음
 - v2.5: 페이지 휴지통 필드(`deletedAt`은 항상 기록, `deletedBy`·`trashRootId`), `userPrefs` 추가
 - v2.4: `decks.copiedFrom.spaceName`(WS-63, 원본 공간을 나간 뒤에도 표시)
 - v2.3: `spaces.ownershipTransfer`(WS-25)
 - v2.2: `invites`에 `code` 필드(컬렉션 그룹 조회용)
 - v2.1: 확정 — 내 공간에 개인 독서·독후감 추가, 최대 인원 기본 100명 확정
 - v2.0: 확정 기능명세 기준으로 새로 작성
+- v2.11: 제출 `attachments`를 파일 정보 복사본으로, 업로드 집계를 callable(`registerUpload`·`deleteUpload`)로
+- v2.12: 피드 반응(CMN-12) — reactions targetType `feed`
+- v2.13: 피드백 `score`를 `{ format, value }`로 (CMN-24)
+- v2.14: cardStates `firstSeenAt`, studySessions `pairs` (VOC-23·40·44 1단계 마무리)
+- v2.15: 유의어·반의어 `cardId` 자동 연결 (VOC-10)
+- v2.16: 문제·정답 문서 형태 확정 (3-A1, TST-01·02)
+- v2.17: 문제 media·copiedFrom 형태 (3-A2, TST-01·40)
+- v2.18: 시험 status·participantIds, 시험지·정답 사본 (3-B1, TST-10~16)
+- v2.19: 응시 choiceOrder, 결과 문서 `results` 분리 (3-B2, TST-21~23·30)
+- v2.20: 결과 gradedBy·gradedAt, 진행자의 secret/key 읽기 (3-B3, TST-31)
+- v2.21: 시험 `mission`·`missionId`, 시험 연결 미션(type 'auto', autoRule·linked) (3-B4, TST-19·MIS-16)
+- v2.24: 변형 문제 `questions.variant`, `template.vars` 종류별 의미 (MATH-14)
+- v2.23: 문제집 필드 확정(description·editPolicy·questionIds 최대 100), 문제 unit, 정답 tolerance 의미, 교육과정은 저장소 원본을 직접 읽음 (MATH-10·12·13)
+- v2.28: 오답 노트 `retrySeed`, 해결 기준 (WRN-20~22)
+- v2.27: 오답 노트 3-C1 쓰기 경로·snapshot 범위 (WRN-01·03)
+- v2.26: 단원별 만들기 저장 규칙(내장 틀 위치, 다른 사람 틀 복사 시 authorIds) (MATH-15)
+- v2.25: 문제집 풀기 `problemAttempts` 필드 확정, `problemNotes`, `questionKeys.hints`, `problemSets.hintPenalty` (MATH-20~24)
+- v2.22: 변형 문제 `questionKeys.template`, `problemAttempts.seed`, `curricula` 영역 단계·원본 위치, 내장 문제 틀 위치 (MATH-14·15·17)

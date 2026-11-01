@@ -5,14 +5,18 @@ import type { Card } from '~/features/vocab/services/cards'
 import type { Deck, DeckFolder } from '~/features/vocab/services/decks'
 import type { CardState, DeckProgress } from '~/features/vocab/services/srs'
 import { canDeleteContent, canEditContent } from '#shared/permissions'
+import { cardsToCsv, cardsToQuizlet } from '#shared/csv'
 import { STUDY_MODES } from '#shared/study'
-import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardPasteIcon, CopyIcon, PencilIcon, PlusIcon, StarIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
+import { DownloadIcon } from '@lucide/vue'
+import { ArrowDownIcon, ArrowLeftIcon, ArrowUpIcon, ClipboardCheckIcon, ClipboardPasteIcon, CopyIcon, PencilIcon, PlusIcon, StarIcon, TableIcon, Trash2Icon, Undo2Icon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
 import CardFormDialog from '~/features/vocab/components/CardFormDialog.vue'
+import RelatedWords from '~/features/vocab/components/RelatedWords.vue'
 import CopyDeckDialog from '~/features/vocab/components/CopyDeckDialog.vue'
 import DeckFormDialog from '~/features/vocab/components/DeckFormDialog.vue'
 import PasteCardsDialog from '~/features/vocab/components/PasteCardsDialog.vue'
+import DeckQuestionsDialog from '~/features/tests/components/DeckQuestionsDialog.vue'
 import { useSpeech } from '~/features/vocab/composables/useSpeech'
 import { cardInput, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
 import { listCards, newCardId, saveCards } from '~/features/vocab/services/cards'
@@ -42,10 +46,24 @@ const cards = ref<Card[]>([])
 const cardOpen = ref(false)
 const editingCard = ref<Card | null>(null)
 const pasteOpen = ref(false)
+const testOpen = ref(false)
+/** VOC-25 시험 기능이 켜져 있고 문제를 만들고 시험을 열 수 있을 때 */
+const canTest = computed(() => !!space.current?.modules?.tests && (space.current.kind === 'personal' || (space.can('create') && space.can('host'))))
 const tableMode = ref(false)
 const draft = ref<{ id: string, front: string, reading: string, back: string, removed: boolean, isNew?: boolean }[]>([])
 const saving = ref(false)
 const speech = useSpeech()
+
+/** VOC-12 내보내기: CSV(엑셀용 BOM)와 Quizlet 가져오기 형식(탭·줄바꿈) */
+function exportCards(kind: 'csv' | 'quizlet') {
+  const list = cards.value.map(c => ({ front: c.front, back: c.back, ...(c.reading ? { reading: c.reading } : {}) }))
+  const body = kind === 'csv' ? `\uFEFF${cardsToCsv(list)}` : cardsToQuizlet(list)
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([body], { type: kind === 'csv' ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8' }))
+  a.download = `${deck.value!.title}.${kind === 'csv' ? 'csv' : 'txt'}`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
 const states = ref(new Map<string, CardState>())
 const memberProgress = ref<DeckProgress[]>([])
 const mastered = computed(() => cards.value.filter(c => states.value.get(c.id)?.status === 'mastered').length)
@@ -288,7 +306,7 @@ async function remove() {
       </section>
 
       <nav v-if="cards.length" class="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Button v-for="m in STUDY_MODES" :key="m" variant="outline" class="h-12" as-child>
+        <Button v-for="m in STUDY_MODES.filter(x => x !== 'dictation' || speech.supported)" :key="m" variant="outline" class="h-12" as-child>
           <NuxtLink :to="`/s/${sid}/study/${deckId}?mode=${m}`">
             {{ t.study.modes[m] }}
           </NuxtLink>
@@ -298,7 +316,11 @@ async function remove() {
             <StarIcon class="fill-amber-400 text-amber-400" />{{ t.progress.starredOnly }}
           </NuxtLink>
         </Button>
+        <Button v-if="canTest" variant="outline" class="h-12" @click="testOpen = true">
+          <ClipboardCheckIcon />{{ ko.tests.gen.testOpen }}
+        </Button>
       </nav>
+      <DeckQuestionsDialog v-if="canTest" v-model:open="testOpen" :test-deck-id="deckId" />
 
       <section class="flex flex-col gap-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -319,6 +341,14 @@ async function remove() {
                 {{ v.name }}
               </option>
             </select>
+            <template v-if="!tableMode && cards.length">
+              <Button variant="outline" size="sm" @click="exportCards('csv')">
+                <DownloadIcon />{{ t.cards.exportCsv }}
+              </Button>
+              <Button variant="outline" size="sm" @click="exportCards('quizlet')">
+                <DownloadIcon />{{ t.cards.exportQuizlet }}
+              </Button>
+            </template>
             <template v-if="canEdit && !tableMode">
               <Button variant="outline" size="sm" @click="startTable">
                 <TableIcon />{{ t.cards.tableEdit }}
@@ -413,6 +443,7 @@ async function remove() {
               </div>
               <span class="text-sm">{{ card.back.join(', ') }}</span>
               <span v-if="card.examples[0]" class="text-muted-foreground truncate text-xs">{{ card.examples[0].text }}</span>
+              <RelatedWords :card="card" :cards="cards" class="text-xs" />
               <span v-if="states.get(card.id) && states.get(card.id)!.reps + states.get(card.id)!.wrong > 0" class="text-muted-foreground flex flex-wrap gap-x-2 text-xs">
                 <Badge variant="secondary" class="px-1.5 py-0 text-[10px]">{{ t.progress.status[states.get(card.id)!.status] }}</Badge>
                 <span>{{ t.progress.counts(states.get(card.id)!.correct, states.get(card.id)!.wrong) }}</span>
@@ -440,8 +471,8 @@ async function remove() {
       </section>
 
       <CopyDeckDialog v-model:open="copyOpen" :from-space-id="sid" :content-id="deckId" />
-      <CardFormDialog v-model:open="cardOpen" :deck="deck" :card="editingCard" :next-order="nextOrder" :count="cards.length" @saved="reloadCards" />
-      <PasteCardsDialog v-model:open="pasteOpen" :deck="deck" :next-order="nextOrder" :count="cards.length" @saved="reloadCards" />
+      <CardFormDialog v-model:open="cardOpen" :deck="deck" :card="editingCard" :next-order="nextOrder" :count="cards.length" :cards="cards" @saved="reloadCards" />
+      <PasteCardsDialog v-model:open="pasteOpen" :deck="deck" :next-order="nextOrder" :count="cards.length" :cards="cards" @saved="reloadCards" />
 
       <DeckFormDialog v-model:open="editOpen" :deck="deck" :folders="folders" :members="members" @saved="load" />
     </template>

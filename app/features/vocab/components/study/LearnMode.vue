@@ -9,7 +9,7 @@ import { ko } from '~/locales/ko'
 import AnswerFeedback from './AnswerFeedback.vue'
 
 const props = defineProps<{ cards: Card[], resumeKey: string }>()
-const emit = defineEmits<{ done: [ModeResult] }>()
+const emit = defineEmits<{ done: [ModeResult], answer: [cardId: string, correct: boolean, fix?: boolean] }>()
 const t = ko.vocab.study
 
 interface State { items: LearnItem[], missed: string[], roundNo: number, round: string[], pos: number, roundCorrect: number }
@@ -45,6 +45,7 @@ function record(correct: boolean) {
   if (correct) state.value.roundCorrect++
   else if (!state.value.missed.includes(item.value.id)) state.value.missed.push(item.value.id)
   item.value.stage = nextLearnStage(item.value.stage, correct)
+  emit('answer', item.value.id, correct)
 }
 
 function choose(c: string) {
@@ -64,6 +65,7 @@ function override() {
   state.value.missed = state.value.missed.filter(id => id !== item.value.id)
   state.value.roundCorrect++
   item.value.stage = nextLearnStage(item.value.stage, true)
+  emit('answer', item.value.id, true, true)
 }
 
 function next() {

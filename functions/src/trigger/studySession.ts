@@ -1,4 +1,5 @@
 import type { MatchEntry } from '../../../shared/study'
+import { MATCH_PAIRS } from '../../../shared/study'
 import { getFirestore } from 'firebase-admin/firestore'
 import { onDocumentCreated } from 'firebase-functions/v2/firestore'
 import { mergeMatchTop } from '../../../shared/study'
@@ -32,7 +33,8 @@ async function sessionActivity(sid: string, s: FirebaseFirestore.DocumentData) {
 }
 
 async function updateMatchTop(sid: string, s: FirebaseFirestore.DocumentData) {
-  if (s.mode !== 'match' || typeof s.deckId !== 'string' || !(s.durationSec > 0) || s.correct !== s.cards) return
+  // VOC-23 순위는 기본 쌍 수 기록만 비교한다
+  if (s.mode !== 'match' || (s.pairs ?? MATCH_PAIRS.default) !== MATCH_PAIRS.default || typeof s.deckId !== 'string' || !(s.durationSec > 0) || s.correct !== s.cards) return
   const ms = Math.round(s.durationSec * 1000)
   const db = getFirestore()
   const topRef = db.doc(`spaces/${sid}/decks/${s.deckId}/matchTop/top`)

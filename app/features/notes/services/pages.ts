@@ -9,9 +9,17 @@ import { pageStats } from '../sync/serialize'
 
 export type PageVisibility = 'private' | 'people' | 'group' | 'space'
 
+/** REV-02·03: 독후감의 책 (책장에서 복사) */
+export interface PageBook {
+  bookKey: string
+  title: string
+  authors: string[]
+  cover: string
+}
+
 export interface Page {
   id: string
-  type: 'page' | 'journal' | 'bookReview' | 'lessonNote' | 'item'
+  type: 'page' | 'journal' | 'bookReview' | 'lessonNote' | 'lesson' | 'item'
   title: string
   icon: string
   ownerId: string
@@ -22,11 +30,16 @@ export interface Page {
   visibility: PageVisibility
   editorIds: string[]
   sharedWith?: string[]
+  groupIds?: string[]
   reviewerIds?: string[]
   editPolicy?: 'everyone' | 'editors'
   lock?: { uid: string, name: string, at: Timestamp } | null
   collectionId?: string
   copiedFrom?: { spaceId: string, pageId: string, spaceName?: string }
+  book?: PageBook
+  publishedAt?: Timestamp | null
+  rewriteRequestedAt?: Timestamp | null
+  cover?: string | null
   props?: Record<string, PropValue>
   excerpt: string
   blockCount: number
@@ -45,13 +58,15 @@ export const canEditPage = (p: Pick<Page, 'ownerId' | 'editorIds' | 'root' | 'ed
   p.ownerId === uid || (p.editorIds ?? []).includes(uid) || (p.root === 'shared' && (p.editPolicy ?? 'everyone') === 'everyone')
 
 /** 규칙이 허용하는 것만 조회: 휴지통이 아닌 내 페이지 + 나간 멤버 것이 아닌 공개·공유 페이지 (WS-23) */
-const visiblePages = (db: Firestore, sid: string, uid: string) => {
+const visiblePages = (db: Firestore, sid: string, uid: string, groupIds: string[] = []) => {
   const active = where('ownerStatus', '==', 'active')
+  const byGroup = groupIds.length ? [and(where('visibility', '==', 'group'), where('groupIds', 'array-contains-any', groupIds.slice(0, 10)), active)] : []
   return query(pagesOf(db, sid), and(where('deletedAt', '==', null), or(
     and(where('visibility', '==', 'space'), active),
     where('ownerId', '==', uid),
     and(where('sharedWith', 'array-contains', uid), active),
     and(where('editorIds', 'array-contains', uid), active),
+    ...byGroup,
   )))
 }
 
@@ -61,8 +76,8 @@ export async function listPages(db: Firestore, sid: string, uid: string): Promis
 }
 
 /** 사이드바 페이지 트리: 제목·이동이 바로 보이도록 구독 */
-export function watchPages(db: Firestore, sid: string, uid: string, cb: (pages: Page[]) => void, onError: (e: unknown) => void) {
-  return onSnapshot(visiblePages(db, sid, uid), snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Page)), onError)
+export function watchPages(db: Firestore, sid: string, uid: string, cb: (pages: Page[]) => void, onError: (e: unknown) => void, groupIds: string[] = []) {
+  return onSnapshot(visiblePages(db, sid, uid, groupIds), snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }) as Page)), onError)
 }
 
 /** NOTE-22: 내가 버린 페이지 */
@@ -94,18 +109,19 @@ export async function getPage(db: Firestore, sid: string, pageId: string): Promi
 }
 
 /** NOTE-20: 공유 페이지(공간 전체) 또는 내 페이지(나만). 하위 페이지는 부모의 갈래·공개 범위를 따른다 */
-export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue>, journal?: boolean, visibility?: 'private' | 'space' }): Promise<string> {
+export async function createPage(db: Firestore, sid: string, uid: string, opts: { root: 'private' | 'shared', parent?: Page | null, after?: string | null, collection?: { id: string, scope: 'private' | 'shared' }, props?: Record<string, PropValue>, journal?: boolean, book?: PageBook, visibility?: 'private' | 'space' }): Promise<string> {
   const now = serverTimestamp()
   const col = opts.collection
   const parent = col ? null : opts.parent ?? null
   const root = col?.scope ?? parent?.root ?? opts.root
   const ref = await addDoc(pagesOf(db, sid), {
-    type: col ? (opts.journal ? 'journal' : 'item') : 'page',
-    ...(opts.journal ? { editPolicy: 'editors' } : {}),
+    type: col ? (opts.journal ? 'journal' : opts.book ? 'bookReview' : 'item') : 'page',
+    ...(opts.journal || opts.book ? { editPolicy: 'editors' } : {}),
+    ...(opts.book ? { book: opts.book } : {}),
     ...(col ? { collectionId: col.id } : {}),
     title: '',
     icon: '',
-    cover: null,
+    cover: opts.book?.cover || null,
     ownerId: uid,
     root,
     parentId: parent?.id ?? null,
@@ -183,11 +199,16 @@ export async function writeBlocks(db: Firestore, sid: string, uid: string, pageI
 }
 
 /** NOTE-50·54: 공개 범위·공유 대상·공동 편집자·편집 정책 (작성자만) */
-export async function updateSharing(db: Firestore, sid: string, pageId: string, patch: Pick<Page, 'visibility' | 'editorIds'> & { sharedWith: string[], editPolicy: 'everyone' | 'editors' }) {
+export async function updateSharing(db: Firestore, sid: string, pageId: string, patch: Pick<Page, 'visibility' | 'editorIds'> & { sharedWith: string[], groupIds: string[], editPolicy: 'everyone' | 'editors' }) {
   await updateDoc(doc(pagesOf(db, sid), pageId), { ...patch, updatedAt: serverTimestamp() })
 }
 
 /** NOTE-60: 편집 잠금. 30초마다 갱신, 90초 넘게 갱신이 없으면 다른 사람이 가져갈 수 있다 */
+/** REV-10: 독후감 발행 — 공간 전체 공개 */
+export async function publishPage(db: Firestore, sid: string, pageId: string) {
+  await updateDoc(doc(pagesOf(db, sid), pageId), { visibility: 'space', publishedAt: serverTimestamp(), rewriteRequestedAt: null, updatedAt: serverTimestamp() })
+}
+
 export const LOCK_REFRESH_MS = 30_000
 export async function setLock(db: Firestore, sid: string, pageId: string, lock: { uid: string, name: string } | null) {
   const now = serverTimestamp()

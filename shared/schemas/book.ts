@@ -98,3 +98,16 @@ export function reachedEnd(unit: LogUnit, to: number | null, total: { pages: num
   const end = unit === 'percent' ? 100 : unit === 'minute' ? total.minutes : total.pages
   return !!end && to != null && to >= end
 }
+
+/** READ-30: 구절 — 위치 + 문장, 공개 여부 */
+export const QUOTE_VISIBILITY = ['private', 'space'] as const
+export type QuoteVisibility = typeof QUOTE_VISIBILITY[number]
+export const quoteInput = z.object({
+  bookKey: z.string().min(3).max(80),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  unit: z.enum(LOG_UNITS),
+  position: spot,
+  text: z.string().trim().min(1).max(1000),
+  visibility: z.enum(QUOTE_VISIBILITY).default('private'),
+})
+export type QuoteInput = z.infer<typeof quoteInput>

@@ -1,6 +1,6 @@
 import type { DeckInput, DeckVisibility, EditPolicy, Lang } from '#shared/schemas/deck'
 import type { Firestore, Timestamp } from 'firebase/firestore'
-import { addDoc, collection, deleteDoc, doc, getDoc, getDocs, or, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
+import { addDoc, and, collection, deleteDoc, doc, getDoc, getDocs, or, orderBy, query, serverTimestamp, updateDoc, where } from 'firebase/firestore'
 
 export interface Deck extends DeckInput {
   id: string
@@ -17,9 +17,10 @@ export interface DeckFolder { id: string, name: string, order: number, ownerId: 
 
 const decksOf = (db: Firestore, sid: string) => collection(db, 'spaces', sid, 'decks')
 
-/** 규칙이 허용하는 것만 조회: 공간 전체 공개 + 내가 만든 것 (그룹 공개는 그룹 기능과 함께) */
-export async function listDecks(db: Firestore, sid: string, uid: string): Promise<Deck[]> {
-  const snap = await getDocs(query(decksOf(db, sid), or(where('visibility', '==', 'space'), where('createdBy', '==', uid))))
+/** 규칙이 허용하는 것만 조회: 공간 전체 공개 + 내가 만든 것 + 내 그룹에 공개된 것 (WS-32, 그룹은 10개까지) */
+export async function listDecks(db: Firestore, sid: string, uid: string, groupIds: string[] = []): Promise<Deck[]> {
+  const byGroup = groupIds.length ? [and(where('visibility', '==', 'group'), where('groupIds', 'array-contains-any', groupIds.slice(0, 10)))] : []
+  const snap = await getDocs(query(decksOf(db, sid), or(where('visibility', '==', 'space'), where('createdBy', '==', uid), ...byGroup)))
   return snap.docs.map(d => ({ id: d.id, ...d.data() }) as Deck)
 }
 

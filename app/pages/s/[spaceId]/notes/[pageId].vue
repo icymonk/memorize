@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { withSubjects } from '~/features/space/services/subjects'
 import type { Page } from '~/features/notes/services/pages'
 import type { SaveStatus } from '~/features/notes/sync/writer'
 import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon, CopyIcon } from '@lucide/vue'
@@ -18,7 +19,7 @@ import PropCell from '~/features/notes/components/PropCell.vue'
 import { useTags } from '~/features/space/composables/useTags'
 import { ensureTags, isTagProp, tagAwareDef, withTags } from '~/features/space/services/tags'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
-import { canEditPage, getPage, LOCK_REFRESH_MS, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
+import { canEditPage, getPage, LOCK_REFRESH_MS, publishPage, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
@@ -26,12 +27,24 @@ import { ko } from '~/locales/ko'
 
 /** NOTE-01·10: 페이지 편집 — 블록 편집기와 자동 저장 상태 */
 const t = ko.notes
+/** REV-10: 독후감 발행 */
+const me = useAuthStore().user?.uid
+const publishing = ref(false)
+async function publish() {
+  publishing.value = true
+  try {
+    await publishPage(useNuxtApp().$firestore, unref(sid), unref(pageId))
+    toast.success(t.review.published)
+  }
+  catch (e) { toast.error(errorMessage(e) ?? ko.errors.unknown) }
+  finally { publishing.value = false }
+}
 const route = useRoute()
 const space = useSpaceStore()
 const auth = useAuthStore()
 const { $firestore } = useNuxtApp()
 const spaceTags = useTags()
-const defs = computed(() => (collection.value?.schema ?? []).map(d => withTags(d, spaceTags.value)))
+const defs = computed(() => (collection.value?.schema ?? []).map(d => withSubjects(withTags(d, spaceTags.value), space.current?.subjects ?? [])))
 
 const sid = computed(() => space.current!.id)
 /** 페이지마다 새로 마운트해서 편집기·잠금·자동 저장 상태가 이전 페이지와 섞이지 않게 한다 */
@@ -242,6 +255,24 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
       <p v-if="live?.copiedFrom" class="text-muted-foreground -mt-2 text-xs">
         {{ t.copy.from(live.copiedFrom.spaceName ?? '') }}
       </p>
+      <div v-if="live?.type === 'bookReview' && live.book" class="flex items-center gap-3 rounded-lg border p-3">
+        <img v-if="live.book.cover" :src="live.book.cover" alt="" class="h-16 w-11 rounded-sm object-cover">
+        <div class="min-w-0 flex-1 text-sm">
+          <p class="font-medium">
+            {{ live.book.title }}
+          </p>
+          <p class="text-muted-foreground text-xs">
+            {{ live.book.authors.join(', ') }}
+          </p>
+        </div>
+        <span class="text-muted-foreground shrink-0 text-xs tabular-nums">{{ t.review.chars(live.textLength ?? 0) }}</span>
+      </div>
+      <div v-if="live?.type === 'bookReview' && live.visibility === 'private'" class="-mt-2 flex items-center gap-2 text-xs" :class="live.rewriteRequestedAt ? 'rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-amber-900 dark:bg-amber-950 dark:text-amber-100' : 'text-muted-foreground'">
+        <span class="flex-1">{{ live.rewriteRequestedAt ? t.review.rewriteRequested : t.review.draftHint }}</span>
+        <Button v-if="live.ownerId === me && space.current?.kind === 'workspace'" size="sm" class="h-7" :disabled="publishing" @click="publish">
+          {{ t.review.publish }}
+        </Button>
+      </div>
       <dl v-if="collection?.schema.length" class="grid grid-cols-[8rem_1fr] items-center gap-x-3 gap-y-1 text-sm">
         <template v-for="d in defs" :key="d.key">
           <dt class="text-muted-foreground truncate">{{ d.name }}</dt>
@@ -267,6 +298,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         :space-id="sid"
         :page-id="pageId"
         :editable="editable"
+        :book-key="live?.type === 'bookReview' ? live.book?.bookKey : undefined"
         @status="blockStatus = $event"
         @loaded="blockCount = $event"
         @error="loadError = true"

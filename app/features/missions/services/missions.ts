@@ -1,10 +1,15 @@
+import type { Attachment } from '#shared/schemas/upload'
 import type { MissionInput, SubmissionInput, SubmissionStatus } from '#shared/schemas/mission'
 import type { Firestore, Timestamp } from 'firebase/firestore'
 import { initialStatus, isLate, participantsOf, reviewersFor, submissionId } from '#shared/schemas/mission'
 import { addDoc, arrayUnion, collection, deleteDoc, deleteField, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where } from 'firebase/firestore'
 
-export interface Mission extends Omit<MissionInput, 'coHostIds'> {
+export interface Mission extends Omit<MissionInput, 'coHostIds' | 'type'> {
   id: string
+  /** 'auto'는 MIS-16 시험 연결 미션 (서버가 만들고 응시 결과로 완료) */
+  type: MissionInput['type'] | 'auto'
+  autoRule?: { kind: 'test' | 'readingFinish', targetId: string, threshold: number | null }
+  linked?: { type: 'readingGroup' | 'lesson' | 'test', id: string }
   createdBy: string
   hostIds: string[]
   participantIds: string[]
@@ -26,26 +31,26 @@ export async function getMission(db: Firestore, sid: string, id: string): Promis
   return snap.exists() ? { id: snap.id, ...snap.data() } as Mission : null
 }
 
-function toDoc(input: MissionInput, host: string, activeMembers: string[]) {
+function toDoc(input: MissionInput, host: string, activeMembers: string[], memberGroups: Record<string, string[]>) {
   const { coHostIds, ...rest } = input
   return {
     ...rest,
     reviewerIds: input.isPersonal ? [] : input.reviewerIds,
     hostIds: input.isPersonal ? [host] : [...new Set([host, ...coHostIds])],
-    participantIds: participantsOf(input, host, activeMembers),
+    participantIds: participantsOf(input, host, activeMembers, memberGroups),
   }
 }
 
-export async function createMission(db: Firestore, sid: string, uid: string, input: MissionInput, activeMembers: string[]) {
+export async function createMission(db: Firestore, sid: string, uid: string, input: MissionInput, activeMembers: string[], memberGroups: Record<string, string[]> = {}) {
   const now = serverTimestamp()
-  const ref = await addDoc(missionsOf(db, sid), { ...toDoc(input, uid, activeMembers), createdBy: uid, closedAt: null, createdAt: now, updatedAt: now })
+  const ref = await addDoc(missionsOf(db, sid), { ...toDoc(input, uid, activeMembers, memberGroups), createdBy: uid, closedAt: null, createdAt: now, updatedAt: now })
   return ref.id
 }
 
 /** MIS-34: 수정. 참여자는 대상 설정으로 다시 계산하되, 이미 합류한 사람(열린 미션)은 남긴다 */
-export async function updateMission(db: Firestore, sid: string, m: Mission, input: MissionInput, activeMembers: string[]) {
-  const next = toDoc(input, m.createdBy, activeMembers)
-  const joined = m.participantIds.filter(u => !participantsOf(m, m.createdBy, activeMembers).includes(u))
+export async function updateMission(db: Firestore, sid: string, m: Mission, input: MissionInput, activeMembers: string[], memberGroups: Record<string, string[]> = {}) {
+  const next = toDoc(input, m.createdBy, activeMembers, memberGroups)
+  const joined = m.participantIds.filter(u => !participantsOf(m, m.createdBy, activeMembers, memberGroups).includes(u))
   await updateDoc(doc(missionsOf(db, sid), m.id), {
     ...next,
     hostIds: m.isPersonal ? [m.createdBy] : [...new Set([m.createdBy, ...input.coHostIds])],
@@ -73,6 +78,7 @@ export interface Submission {
   status: SubmissionStatus
   content: string
   pageId: string | null
+  attachments?: Attachment[]
   late: boolean
   reviewerUids: string[]
   reason?: string
@@ -88,7 +94,7 @@ export async function listMySubmissions(db: Firestore, sid: string, mid: string,
 }
 
 /** MIS-01·22·23·32: 완료 체크 또는 제출. 반려된 회차는 같은 문서로 다시 제출. 노트를 내면 진행자·리뷰어가 볼 수 있게 피드백 요청자에 더한다 */
-export async function submit(db: Firestore, sid: string, m: Mission, uid: string, period: string, today: string, input: SubmissionInput = { content: '', pageId: null }) {
+export async function submit(db: Firestore, sid: string, m: Mission, uid: string, period: string, today: string, input: SubmissionInput & { attachments?: Attachment[] } = { content: '', pageId: null }) {
   const reviewerUids = reviewersFor(m, uid)
   const ref = doc(subsOf(db, sid, m.id), submissionId(uid, period))
   await setDoc(ref, {
@@ -97,6 +103,7 @@ export async function submit(db: Firestore, sid: string, m: Mission, uid: string
     status: initialStatus(m.type, reviewerUids),
     content: input.content,
     pageId: input.pageId,
+    attachments: input.attachments ?? [],
     late: isLate(m, period, today),
     reviewerUids,
     submittedAt: serverTimestamp(),

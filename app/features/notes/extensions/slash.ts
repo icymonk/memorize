@@ -26,7 +26,11 @@ export const SLASH_ITEMS: SlashItem[] = [
   { key: 'callout', keywords: ['callout', '강조', '상자'], run: e => turnInto(e, 'callout') },
   { key: 'codeBlock', keywords: ['code', '코드'], run: e => turnInto(e, 'codeBlock') },
   { key: 'horizontalRule', keywords: ['divider', 'hr', 'line', '구분선'], run: e => insertBlock(e, 'horizontalRule') },
+  { key: 'inlineMath', keywords: ['math', 'latex', 'tex', '수식', '수학'], run: () => false },
+  { key: 'blockMath', keywords: ['math', 'latex', 'equation', '수식', '수학'], run: () => false },
   { key: 'video', keywords: ['youtube', 'video', '유튜브', '영상'], run: () => false },
+  { key: 'link', keywords: ['link', 'page', 'deck', 'book', 'mission', 'summary', '연결', '페이지', '단어장', '책', '미션', '요약'], run: () => false },
+  { key: 'quote', keywords: ['quote', 'phrase', '구절', '인용'], run: () => false },
 ]
 
 export function filterSlash(query: string, labels: Record<string, string>, items = SLASH_ITEMS): SlashItem[] {
@@ -41,6 +45,8 @@ export interface SlashCommandOptions {
   render?: SuggestionOptions<SlashItem>['render']
   /** 유튜브처럼 입력이 더 필요한 항목 */
   onItem?: (key: string, editor: Editor) => boolean
+  /** 이 페이지에서 쓸 수 없는 항목 (구절은 독후감에서만) */
+  exclude?: string[]
 }
 
 export const slashPluginKey = new PluginKey('slashCommand')
@@ -53,7 +59,7 @@ export const SlashCommand = Extension.create<SlashCommandOptions>({
       editor: this.editor,
       pluginKey: slashPluginKey,
       char: '/',
-      items: ({ query }) => filterSlash(query, this.options.labels),
+      items: ({ query }) => filterSlash(query, this.options.labels, SLASH_ITEMS.filter(i => !this.options.exclude?.includes(i.key))),
       allow: ({ state, range }) => state.doc.resolve(range.from).parent.type.name !== 'codeBlock',
       command: ({ editor, range, props }: { editor: Editor, range: Range, props: SlashItem }) => {
         editor.chain().focus().deleteRange(range).run()

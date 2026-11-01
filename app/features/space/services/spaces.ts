@@ -2,6 +2,9 @@ import type { Firestore, Timestamp } from 'firebase/firestore'
 import type { MemberStatus, Modules, SpaceAccess, SpaceColor, SpaceGeneral, SpaceSettings } from '#shared/schemas/space'
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore'
 
+/** WS-09 공통 과목 */
+export interface Subject { id: string, name: string, color: string }
+
 export interface Space {
   id: string
   kind: 'workspace' | 'personal'
@@ -13,6 +16,7 @@ export interface Space {
   modules: Modules
   settings?: SpaceSettings & { ranking?: { enabled: boolean } }
   memberCount: number
+  subjects?: Subject[]
   maxMembers?: number
   deleteScheduledAt?: Timestamp | null
   ownershipTransfer?: { from: string, to: string } | null
@@ -26,6 +30,12 @@ export interface Membership {
   displayName: string
   photoURL: string | null
   groupIds?: string[]
+  hideProgress?: boolean
+}
+
+/** ACC-11·22: 워크스페이스마다 내 표시 이름과 진도 숨기기 */
+export async function updateMyMembership(db: Firestore, spaceId: string, uid: string, patch: { displayName?: string, hideProgress?: boolean }) {
+  await updateDoc(doc(db, 'spaces', spaceId, 'members', uid), patch)
 }
 
 export async function getUserSpaceIds(db: Firestore, uid: string): Promise<string[]> {

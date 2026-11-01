@@ -9,6 +9,20 @@
     ],
     "rewrites": [
       {
+        "source": "/fn/registerUpload",
+        "function": {
+          "functionId": "registerUpload",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/deleteUpload",
+        "function": {
+          "functionId": "deleteUpload",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/searchBooks",
         "function": {
           "functionId": "searchBooks",
@@ -114,6 +128,104 @@
         }
       },
       {
+        "source": "/fn/startAttempt",
+        "function": {
+          "functionId": "startAttempt",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/submitAttempt",
+        "function": {
+          "functionId": "submitAttempt",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/checkAnswer",
+        "function": {
+          "functionId": "checkAnswer",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/drawProblem",
+        "function": {
+          "functionId": "drawProblem",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/checkProblem",
+        "function": {
+          "functionId": "checkProblem",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/revealHint",
+        "function": {
+          "functionId": "revealHint",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/generateProblems",
+        "function": {
+          "functionId": "generateProblems",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/previewTemplate",
+        "function": {
+          "functionId": "previewTemplate",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/saveGenerated",
+        "function": {
+          "functionId": "saveGenerated",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/drawWrong",
+        "function": {
+          "functionId": "drawWrong",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/checkWrong",
+        "function": {
+          "functionId": "checkWrong",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/gradeAttempt",
+        "function": {
+          "functionId": "gradeAttempt",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/createReadingGroupMission",
+        "function": {
+          "functionId": "createReadingGroupMission",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/openTest",
+        "function": {
+          "functionId": "openTest",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/copyContent",
         "function": {
           "functionId": "copyContent",
@@ -138,6 +250,13 @@
         "source": "/fn/leaveFeedback",
         "function": {
           "functionId": "leaveFeedback",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/requestRewrite",
+        "function": {
+          "functionId": "requestRewrite",
           "region": "asia-northeast3"
         }
       },

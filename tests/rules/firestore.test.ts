@@ -2,7 +2,7 @@ import type { RulesTestEnvironment } from '@firebase/rules-unit-testing'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
-import { and, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
+import { and, collection, collectionGroup, deleteDoc, doc, getDoc, getDocs, or, query, serverTimestamp, setDoc, updateDoc, Timestamp, where, writeBatch } from 'firebase/firestore'
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest'
 
 // docs/dev/security.md — firestore.rules (0-8). 실행: 루트에서 `pnpm test:rules`
@@ -45,6 +45,70 @@ beforeEach(async () => {
   })
 })
 
+describe('groups (2-F1, WS-30~33)', () => {
+  const g = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'groups', id)
+  const group = (by: string, over: object = {}) => ({ name: '1반', color: 'blue', joinable: true, createdBy: by, deletedAt: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
+  const mem = (uid: string, who: string) => doc(db(uid), 'spaces', SID, 'members', who)
+
+  it('any member creates, renames, deletes and restores groups; outsiders cannot', async () => {
+    await assertSucceeds(setDoc(g('bob', 'g1'), group('bob')))
+    await assertFails(setDoc(g('bob', 'g2'), group('alice')))
+    await assertFails(setDoc(g('bob', 'g3'), group('bob', { name: '' })))
+    await assertFails(setDoc(g('bob', 'g4'), group('bob', { extra: 1 })))
+    await assertFails(setDoc(g('lee', 'g5'), group('lee')))
+    await assertFails(setDoc(doc(db('alice'), 'spaces/p_alice/groups/g6'), group('alice')))
+    await assertSucceeds(getDoc(g('mia', 'g1')))
+    await assertFails(getDoc(g('eve', 'g1')))
+    await assertSucceeds(updateDoc(g('mia', 'g1'), { name: '2반', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(g('mia', 'g1'), { createdBy: 'mia', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(g('mia', 'g1'), { deletedAt: serverTimestamp(), deletedBy: 'bob', updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(g('mia', 'g1'), { deletedAt: serverTimestamp(), deletedBy: 'mia', updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(g('bob', 'g1'), { deletedAt: null, updatedAt: serverTimestamp() }))
+    await assertFails(deleteDoc(g('bob', 'g1')))
+  })
+
+  it('any member changes group membership, nothing else on member docs', async () => {
+    await assertSucceeds(updateDoc(mem('bob', 'alice'), { groupIds: ['g1'] }))
+    await assertSucceeds(updateDoc(mem('bob', 'bob'), { groupIds: [] }))
+    await assertFails(updateDoc(mem('bob', 'alice'), { access: 'member' }))
+    await assertFails(updateDoc(mem('bob', 'bob'), { groupIds: ['g1'], hideProgress: true }))
+    await assertFails(updateDoc(mem('lee', 'bob'), { groupIds: ['g1'] }))
+  })
+
+  it('a member changes only their own display name and progress hiding', async () => {
+    await assertSucceeds(updateDoc(mem('bob', 'bob'), { displayName: '밥', hideProgress: true }))
+    await assertFails(updateDoc(mem('bob', 'alice'), { displayName: '앨리스' }))
+    await assertFails(updateDoc(mem('bob', 'bob'), { displayName: '' }))
+    await assertFails(updateDoc(mem('bob', 'bob'), { hideProgress: 'yes' }))
+    await assertFails(updateDoc(mem('bob', 'bob'), { displayName: '밥', access: 'manager' }))
+  })
+})
+
+describe('group visibility (2-F1, WS-32)', () => {
+  it('group decks and pages are visible to members of those groups only', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      await updateDoc(doc(d, 'spaces', SID, 'members', 'bob'), { groupIds: ['g1'] })
+      await setDoc(doc(d, 'spaces', SID, 'decks', 'gd'), { title: '그룹 단어장', visibility: 'group', groupIds: ['g1'], createdBy: 'alice' })
+      await setDoc(doc(d, 'spaces', SID, 'pages', 'gp'), { title: '그룹 노트', visibility: 'group', groupIds: ['g1'], ownerId: 'alice', deletedAt: null, ownerStatus: 'active', editorIds: [] })
+    })
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'decks', 'gd')))
+    await assertFails(getDoc(doc(db('mia'), 'spaces', SID, 'decks', 'gd')))
+    await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'decks'), and(where('visibility', '==', 'group'), where('groupIds', 'array-contains-any', ['g1'])))))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'pages', 'gp')))
+    await assertFails(getDoc(doc(db('mia'), 'spaces', SID, 'pages', 'gp')))
+    await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'pages'), and(where('deletedAt', '==', null), where('visibility', '==', 'group'), where('groupIds', 'array-contains-any', ['g1']), where('ownerStatus', '==', 'active')))))
+  })
+})
+
+describe('workspace subjects (2-F2, WS-09)', () => {
+  it('owners and managers edit the shared subject list, members cannot', async () => {
+    const subjects = [{ id: 'en', name: '영어', color: 'blue' }]
+    await assertSucceeds(updateDoc(spaceRef('mia'), { subjects, updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(spaceRef('bob'), { subjects: [], updatedAt: serverTimestamp() }))
+  })
+})
+
 describe('users', () => {
   it('only the user reads their own doc', async () => {
     await assertSucceeds(getDoc(doc(db('alice'), 'users/alice')))
@@ -81,6 +145,7 @@ describe('spaces update (WS-01·02·04)', () => {
     await assertSucceeds(updateDoc(spaceRef('mia'), patch({ modules: { ...MODULES, math: true } })))
     await assertSucceeds(updateDoc(spaceRef('mia'), patch({ settings: { ...SETTINGS, whoCanInvite: 'managers' } })))
     await assertSucceeds(updateDoc(spaceRef('mia'), patch({ settings: { ...SETTINGS, journalVisibility: 'private' } })))
+    await assertSucceeds(updateDoc(spaceRef('mia'), patch({ settings: { ...SETTINGS, feedback: { scoreEnabled: true, scoreFormat: 'grade' } } })))
   })
   it('members and outsiders cannot', async () => {
     await assertFails(updateDoc(spaceRef('bob'), patch({ name: 'x' })))
@@ -101,6 +166,8 @@ describe('spaces update (WS-01·02·04)', () => {
     await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, joinPolicy: 'open' } })))
     await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, ranking: { enabled: false } } })))
     await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, journalVisibility: 'people' } })))
+    await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, feedback: { scoreEnabled: true, scoreFormat: 'percent' } } })))
+    await assertFails(updateDoc(spaceRef('alice'), patch({ settings: { ...SETTINGS, feedback: { scoreEnabled: 'yes', scoreFormat: '100' } } })))
   })
   it('updatedAt must be the server time', async () => {
     await assertFails(updateDoc(spaceRef('alice'), { name: 'x' }))
@@ -370,7 +437,7 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertSucceeds(setDoc(pageRef('bob', 'p1'), page()))
     await assertFails(setDoc(pageRef('bob', 'p2'), page({ ownerId: 'alice' })))
     await assertFails(setDoc(pageRef('bob', 'p3'), page({ blockCount: 3 })))
-    await assertFails(setDoc(pageRef('bob', 'p4'), page({ visibility: 'group' })))
+    await assertFails(setDoc(pageRef('bob', 'p4'), page({ visibility: 'groups' })))
     await assertFails(setDoc(pageRef('pat', 'p5'), page({ ownerId: 'pat' })))
     await assertSucceeds(setDoc(pageRef('alice', 'mine', 'p_alice'), page({ ownerId: 'alice', root: 'private', visibility: 'private' })))
     await assertFails(setDoc(pageRef('alice', 'open', 'p_alice'), page({ ownerId: 'alice' })))
@@ -538,6 +605,34 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertFails(updateDoc(pageRef('mia', 'j1'), { title: 'x', updatedAt: serverTimestamp() }))
   })
 
+  it('book review: any member writes their own about a book, others cannot edit (REV-01·02)', async () => {
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID), { 'settings.whoCanCreate': 'managers' }))
+    const sys = { kind: 'system', systemType: 'bookReview', name: '독후감', icon: '', ownerId: 'bob', scope: 'shared', schema: [], views: [], templateIds: [], createdAt: serverTimestamp(), updatedAt: serverTimestamp() }
+    const colDoc = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'collections', id)
+    await assertSucceeds(getDoc(colDoc('bob', 'bookReview')))
+    await assertFails(setDoc(colDoc('bob', 'bookReview'), { ...sys, systemType: 'journal' }))
+    await assertSucceeds(setDoc(colDoc('bob', 'bookReview'), sys))
+    const book = { bookKey: 'isbn:9788936434120', title: '소년이 온다', authors: ['한강'], cover: '' }
+    const r = (o: object) => page({ type: 'bookReview', collectionId: 'bookReview', editPolicy: 'editors', visibility: 'private', book, ...o })
+    await assertSucceeds(setDoc(pageRef('bob', 'r1'), r({})))
+    await assertFails(setDoc(pageRef('bob', 'r2'), r({ book: null })))
+    await assertFails(setDoc(pageRef('bob', 'r3'), r({ editPolicy: 'everyone' })))
+    await assertFails(setDoc(pageRef('bob', 'r4'), r({ collectionId: 'journal' })))
+    await assertFails(setDoc(pageRef('bob', 'r5'), page({ type: 'item', collectionId: 'bookReview' })))
+    await assertFails(updateDoc(pageRef('bob', 'r1'), { book: { ...book, title: 'x' }, updatedAt: serverTimestamp() }))
+    await assertFails(getDoc(pageRef('alice', 'r1')))
+  })
+
+  it('book review publish: only the author sets publishedAt and opens it to the space (REV-10)', async () => {
+    const book = { bookKey: 'isbn:9788936434120', title: '소년이 온다', authors: ['한강'], cover: '' }
+    await seed('pages/rv', page({ type: 'bookReview', collectionId: 'bookReview', editPolicy: 'editors', visibility: 'private', book }))
+    await assertFails(getDoc(pageRef('alice', 'rv')))
+    await assertFails(updateDoc(pageRef('alice', 'rv'), { visibility: 'space', publishedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(pageRef('bob', 'rv'), { visibility: 'space', publishedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await assertSucceeds(getDoc(pageRef('alice', 'rv')))
+    await assertFails(updateDoc(pageRef('alice', 'rv'), { publishedAt: null, visibility: 'private', updatedAt: serverTimestamp() }))
+  })
+
   it('my journals across spaces: collectionGroup read of my own pages only (NOTE-39)', async () => {
     await seed('pages/mine', page({ type: 'journal', collectionId: 'journal', editPolicy: 'editors', ownerId: 'bob' }))
     await assertSucceeds(getDocs(query(collectionGroup(db('bob'), 'pages'), where('ownerId', '==', 'bob'), where('type', '==', 'journal'))))
@@ -642,6 +737,117 @@ describe('reactions (CMN-21)', () => {
     await assertFails(setDoc(ref('mia', 'page_p2_mia'), r('mia', 'p2')))
     await assertFails(deleteDoc(ref('bob', 'page_p1_mia')))
     await assertSucceeds(deleteDoc(ref('mia', 'page_p1_mia')))
+  })
+
+  it('members react to feed rows and list those reactions (CMN-12)', async () => {
+    const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'reactions', id)
+    const r = (uid: string, targetId = 'd_mia_2026-10-12') => ({ targetType: 'feed', targetId, uid, emoji: '🎉' })
+    await assertSucceeds(setDoc(ref('bob', 'feed_d_mia_2026-10-12_bob'), r('bob')))
+    await assertSucceeds(setDoc(ref('mia', 'feed_a1_mia'), r('mia', 'a1')))
+    await assertFails(setDoc(ref('bob', 'feed_a1_mia'), r('mia', 'a1')))
+    await assertFails(setDoc(ref('lee', 'feed_a1_lee'), r('lee', 'a1')))
+    const list = (uid: string) => getDocs(query(collection(db(uid), 'spaces', SID, 'reactions'), where('targetType', '==', 'feed'), where('targetId', 'in', ['a1', 'd_mia_2026-10-12'])))
+    await assertSucceeds(list('mia'))
+    await assertFails(list('lee'))
+  })
+})
+
+describe('leading: pages asking me for feedback (CMN-06)', () => {
+  it('a reviewer lists private pages that ask them for feedback', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'pages', 'fb1'), { ownerId: 'alice', visibility: 'private', root: 'private', parentId: null, deletedAt: null, ownerStatus: 'active', editorIds: [], reviewerIds: ['bob'] }))
+    const asked = (uid: string) => getDocs(query(collection(db(uid), 'spaces', SID, 'pages'), where('deletedAt', '==', null), where('ownerStatus', '==', 'active'), where('reviewerIds', 'array-contains', uid)))
+    await assertSucceeds(asked('bob'))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'pages', 'fb1')))
+    await assertFails(getDoc(doc(db('mia'), 'spaces', SID, 'pages', 'fb1')))
+  })
+})
+
+describe('uploads (CMN-62)', () => {
+  it('only the owner reads their upload list; clients never write it', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/bob/uploads/f1'), { size: 1 }))
+    await assertSucceeds(getDoc(doc(db('bob'), 'users/bob/uploads/f1')))
+    await assertFails(getDoc(doc(db('alice'), 'users/bob/uploads/f1')))
+    await assertFails(setDoc(doc(db('bob'), 'users/bob/uploads/f2'), { size: 1 }))
+    await assertFails(updateDoc(doc(db('bob'), 'users/bob/uploads/f1'), { size: 0 }))
+  })
+})
+
+describe('study settings (ACC-24)', () => {
+  it('lets a user change only their own valid study map', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia'), { kind: 'standard', displayName: 'Mia' }))
+    const ok = { dailyNewCards: 5, dailyReviewCards: 50, flashcardFront: 'back' }
+    await assertSucceeds(updateDoc(doc(db('mia'), 'users', 'mia'), { study: ok }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { study: { ...ok, dailyNewCards: 500 } }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { study: { ...ok, flashcardFront: 'side' } }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { study: ok, displayName: 'x' }))
+    await assertFails(updateDoc(doc(db('bob'), 'users', 'mia'), { study: ok }))
+  })
+})
+
+describe('reading groups (READ-40·41·45)', () => {
+  const group = (over: object = {}) => ({
+    bookKey: 'isbn:9788936434120',
+    book: { title: '소년이 온다', authors: ['한강'], cover: '' },
+    unit: 'page',
+    startAt: '2026-11-01',
+    endAt: '2026-11-28',
+    assignees: { all: false, uids: ['mia'], groupIds: [] },
+    joinable: false,
+    schedule: [{ id: 'w1', label: '1주차', from: 1, to: 50, dueDate: '2026-11-07' }],
+    createdBy: 'bob',
+    hostIds: ['bob'],
+    participantIds: ['bob'],
+    closedAt: null,
+    ...over,
+  })
+  const ref = (uid: string, id = 'g1', sid = SID) => doc(db(uid), 'spaces', sid, 'readingGroups', id)
+
+  it('members open groups as host and first participant; not in a personal space', async () => {
+    await assertSucceeds(setDoc(ref('bob'), group()))
+    await assertFails(setDoc(ref('bob', 'g2'), group({ participantIds: ['bob', 'mia'] })))
+    await assertFails(setDoc(ref('bob', 'g3'), group({ createdBy: 'alice', hostIds: ['alice'], participantIds: ['alice'] })))
+    await assertFails(setDoc(ref('bob', 'g4'), group({ endAt: '2026-10-01' })))
+    await assertFails(setDoc(ref('pat', 'g5'), group({ createdBy: 'pat', hostIds: ['pat'], participantIds: ['pat'] })))
+    await assertFails(setDoc(ref('alice', 'g6', 'p_alice'), group({ createdBy: 'alice', hostIds: ['alice'], participantIds: ['alice'] })))
+    await assertSucceeds(getDoc(ref('alice')))
+  })
+
+  it('assigned members or anyone in a joinable group join themselves; hosts edit the schedule', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'readingGroups', 'g1'), group()))
+    await assertFails(updateDoc(ref('alice'), { participantIds: ['bob', 'alice'] }))
+    await assertSucceeds(updateDoc(ref('mia'), { participantIds: ['bob', 'mia'] }))
+    await assertSucceeds(updateDoc(ref('mia'), { participantIds: ['bob'] }))
+    await assertFails(updateDoc(ref('bob'), { participantIds: [] }))
+    await assertFails(updateDoc(ref('mia'), { schedule: [] }))
+    await assertSucceeds(updateDoc(ref('bob'), { schedule: [], joinable: true }))
+    await assertFails(updateDoc(ref('bob'), { missionId: 'm1' }))
+    await assertSucceeds(updateDoc(ref('alice'), { participantIds: ['bob', 'alice'] }))
+    await assertFails(deleteDoc(ref('alice')))
+    await assertSucceeds(deleteDoc(ref('bob')))
+  })
+
+  it('participants talk per chapter; authors and hosts delete (READ-43)', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'readingGroups', 'g1'), group({ participantIds: ['bob', 'mia'] })))
+    const c = (uid: string, id = 'c1') => doc(db(uid), 'spaces', SID, 'readingGroups', 'g1', 'comments', id)
+    const body = (uid: string, over: object = {}) => ({ uid, itemId: 'w1', body: '좋았어요', createdAt: serverTimestamp(), ...over })
+    await assertSucceeds(setDoc(c('mia'), body('mia')))
+    await assertFails(setDoc(c('alice', 'c2'), body('alice')))
+    await assertFails(setDoc(c('mia', 'c3'), body('bob')))
+    await assertFails(setDoc(c('mia', 'c4'), body('mia', { extra: 1 })))
+    await assertSucceeds(getDoc(c('bob')))
+    await assertFails(getDoc(c('alice')))
+    await assertFails(deleteDoc(c('alice')))
+    await assertSucceeds(deleteDoc(c('bob')))
+  })
+})
+
+describe('reading goal (READ-51)', () => {
+  it('lets a user set only their own valid yearly goal', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia'), { kind: 'standard', displayName: 'Mia' }))
+    await assertSucceeds(updateDoc(doc(db('mia'), 'users', 'mia'), { readingGoal: { year: 2026, books: 24 } }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { readingGoal: { year: 2026, books: 0 } }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { readingGoal: { year: 2026, books: 24, extra: 1 } }))
+    await assertFails(updateDoc(doc(db('bob'), 'users', 'mia'), { readingGoal: { year: 2026, books: 24 } }))
   })
 })
 
@@ -812,6 +1018,18 @@ describe('mission join and submissions (2-E2, MIS-21~24·32)', () => {
     await seed({ closedAt: serverTimestamp() })
     await assertFails(setDoc(sref('alice', 'alice_once'), sub()))
   })
+
+  it('test-linked missions (MIS-16): only the server creates or completes them; hosts may only close', async () => {
+    const linked = { type: 'auto', reviewerIds: [], joinable: false, autoRule: { kind: 'test', targetId: 't1', threshold: null }, linked: { type: 'test', id: 't1' } }
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'missions', 'm2'), { ...base, ...linked }))
+    await seed(linked)
+    await assertFails(setDoc(sref('alice', 'alice_once'), sub({ status: 'done', reviewerUids: ['bob'] })))
+    await assertFails(updateDoc(mref('bob'), { title: '바꿈' }))
+    await assertFails(updateDoc(mref('bob'), { type: 'check' }))
+    await assertSucceeds(updateDoc(mref('bob'), { closedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'missions', 'm1', 'submissions', 'alice_once'), sub({ status: 'done', reviewerUids: ['bob'] })))
+    await assertFails(deleteDoc(sref('alice', 'alice_once')))
+  })
 })
 
 describe('mission review (2-E3, MIS-31)', () => {
@@ -862,7 +1080,7 @@ describe('shelf (2-C1, READ-01~03·10)', () => {
   })
 })
 
-describe('reading logs (2-C3, READ-20·23)', () => {
+describe('reading logs (2-C3, READ-20·23; others see them like study sessions)', () => {
   const log = (uid: string, over: object = {}) => ({ uid, bookKey: 'isbn:9788936434120', title: '소년이 온다', date: '2026-10-12', unit: 'page', from: 10, to: 40, minutes: 30, memo: '', ...over })
   const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'readingLogs', id)
 
@@ -872,10 +1090,388 @@ describe('reading logs (2-C3, READ-20·23)', () => {
     await assertFails(setDoc(ref('bob', 'l3'), log('bob', { unit: 'chapter' })))
     await assertFails(setDoc(ref('lee', 'l4'), log('lee')))
     await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'readingLogs'), where('uid', '==', 'bob'), where('bookKey', '==', 'isbn:9788936434120'))))
-    await assertFails(getDoc(ref('alice', 'l1')))
-    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'readingLogs')))
+    await assertSucceeds(getDoc(ref('alice', 'l1')))
+    await assertFails(getDoc(ref('lee', 'l1')))
     await assertFails(deleteDoc(ref('alice', 'l1')))
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'members', 'bob'), { hideProgress: true }))
+    await assertFails(getDoc(ref('alice', 'l1')))
+    await assertSucceeds(getDoc(ref('bob', 'l1')))
     await assertSucceeds(deleteDoc(ref('bob', 'l1')))
   })
 })
 
+describe('quotes (2-C4, READ-30·31)', () => {
+  const quote = (uid: string, over: object = {}) => ({ uid, bookKey: 'isbn:9788936434120', title: '소년이 온다', date: '2026-10-12', unit: 'page', position: 12, text: '너는 내 손을 잡고', visibility: 'private', ...over })
+  const ref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'quotes', id)
+  const quotes = (uid: string) => collection(db(uid), 'spaces', SID, 'quotes')
+
+  it('private quotes are only for the author, space quotes for all members', async () => {
+    await assertSucceeds(setDoc(ref('bob', 'q1'), quote('bob')))
+    await assertSucceeds(setDoc(ref('bob', 'q2'), quote('bob', { visibility: 'space' })))
+    await assertFails(setDoc(ref('bob', 'q3'), quote('alice')))
+    await assertFails(setDoc(ref('bob', 'q4'), quote('bob', { text: '' })))
+    await assertFails(setDoc(ref('bob', 'q5'), quote('bob', { visibility: 'group' })))
+    await assertFails(setDoc(ref('lee', 'q6'), quote('lee')))
+    await assertFails(getDoc(ref('alice', 'q1')))
+    await assertSucceeds(getDoc(ref('alice', 'q2')))
+    await assertFails(getDoc(ref('lee', 'q2')))
+    await assertSucceeds(getDocs(query(quotes('alice'), where('visibility', '==', 'space'))))
+    await assertFails(getDocs(quotes('alice')))
+    await assertSucceeds(getDocs(query(quotes('bob'), where('uid', '==', 'bob'), where('date', '==', '2026-10-12'))))
+    await assertFails(updateDoc(ref('alice', 'q2'), { visibility: 'private' }))
+    await assertSucceeds(updateDoc(ref('bob', 'q1'), { visibility: 'space' }))
+    await assertFails(deleteDoc(ref('alice', 'q2')))
+    await assertSucceeds(deleteDoc(ref('bob', 'q2')))
+  })
+})
+
+describe('former workspace records (ACC-32)', () => {
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      const page = { type: 'page', root: 'shared', visibility: 'space', deletedAt: null, editorIds: [] }
+      await setDoc(doc(d, 'spaces', SID, 'pages', 'lp'), { ...page, title: '내 노트', ownerId: 'lee', ownerStatus: 'left' })
+      await setDoc(doc(d, 'spaces', SID, 'pages', 'lp', 'blocks', 'b1'), { type: 'paragraph', order: 'a0', content: [] })
+      await setDoc(doc(d, 'spaces', SID, 'pages', 'ap'), { ...page, title: '남의 노트', ownerId: 'alice', ownerStatus: 'active' })
+    })
+  })
+
+  it('a member who left reads only their own pages there, and cannot edit them', async () => {
+    const d = db('lee')
+    await assertSucceeds(getDoc(doc(d, 'spaces', SID, 'pages', 'lp')))
+    await assertSucceeds(getDocs(collection(d, 'spaces', SID, 'pages', 'lp', 'blocks')))
+    await assertSucceeds(getDocs(query(collection(d, 'spaces', SID, 'pages'), where('ownerId', '==', 'lee'), where('deletedAt', '==', null))))
+    await assertFails(getDoc(doc(d, 'spaces', SID, 'pages', 'ap')))
+    await assertFails(updateDoc(doc(d, 'spaces', SID, 'pages', 'lp'), { title: '고침' }))
+    await assertFails(getDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp')))
+  })
+})
+
+describe('question bank (3-A1, TST-01·07·08)', () => {
+  const q = (uid: string, over: object = {}) => ({ type: 'short', prompt: '사과는 영어로?', choices: [], tags: [], difficulty: 'normal', defaultPoints: 10, createdBy: uid, sharing: 'private', answerVisibility: 'authors', rev: 1, deletedAt: null, ...over })
+  const k = (uid: string, over: object = {}) => ({ answer: ['apple'], ignoreCase: true, ignoreSpaces: false, explanation: '', rubric: '', authorIds: [uid], answerVisibility: 'authors', ...over })
+  const save = (uid: string, id: string, qo: object = {}, ko: object = {}) => {
+    const d = db(uid)
+    const b = writeBatch(d)
+    b.set(doc(d, 'spaces', SID, 'questions', id), q(uid, qo))
+    b.set(doc(d, 'spaces', SID, 'questionKeys', id), k(uid, ko))
+    return b.commit()
+  }
+  const qRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'questions', id)
+  const kRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'questionKeys', id)
+
+  it('private questions and hidden answers stay with the author', async () => {
+    await assertSucceeds(save('bob', 'q1'))
+    await assertSucceeds(save('bob', 'q2', { sharing: 'space' }))
+    await assertSucceeds(save('bob', 'q3', { sharing: 'space', answerVisibility: 'space' }, { answerVisibility: 'space' }))
+    await assertFails(getDoc(qRef('alice', 'q1')))
+    await assertSucceeds(getDoc(qRef('alice', 'q2')))
+    await assertFails(getDoc(kRef('alice', 'q2')))
+    await assertSucceeds(getDoc(kRef('alice', 'q3')))
+    await assertSucceeds(getDoc(kRef('bob', 'q2')))
+    await assertFails(getDoc(qRef('lee', 'q2')))
+    await assertSucceeds(getDocs(query(collection(db('alice'), 'spaces', SID, 'questions'), where('sharing', '==', 'space'))))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'questions')))
+  })
+
+  it('only the author edits; keys must match the question', async () => {
+    await assertSucceeds(save('bob', 'q4'))
+    await assertFails(save('alice', 'q4'))
+    await assertFails(updateDoc(qRef('alice', 'q4'), { prompt: '바꿈' }))
+    await assertSucceeds(updateDoc(qRef('bob', 'q4'), { prompt: '바꿈', rev: 2 }))
+    await assertFails(save('bob', 'q5', {}, { answerVisibility: 'space' }))
+    await assertFails(save('bob', 'q6', {}, { authorIds: ['bob', 'alice'] }))
+    await assertFails(save('bob', 'q7', { type: 'drawing' }))
+    await assertFails(setDoc(kRef('alice', 'q8'), k('alice')))
+    await assertFails(deleteDoc(qRef('bob', 'q4')))
+    await assertFails(save('lee', 'q9'))
+  })
+
+  it('15 generated questions with keys fit in one batch (TST-03)', async () => {
+    const d = db('bob')
+    const b = writeBatch(d)
+    for (let i = 0; i < 15; i++) {
+      b.set(doc(d, 'spaces', SID, 'questions', `g${i}`), q('bob', { type: 'single', choices: ['a', 'b', 'c', 'd'] }))
+      b.set(doc(d, 'spaces', SID, 'questionKeys', `g${i}`), k('bob', { answer: [0] }))
+    }
+    await assertSucceeds(b.commit())
+  })
+
+  it('subject and up to 5 media files', async () => {
+    const f = { id: 'f1', name: 'a.png', path: `spaces/${SID}/files/bob/f1/a.png`, contentType: 'image/png', size: 10 }
+    await assertSucceeds(save('bob', 'q10', { subjectId: 's1', media: [f] }))
+    await assertFails(save('bob', 'q11', { media: Array.from({ length: 6 }, () => f) }))
+  })
+})
+
+
+describe('numeric keys and units (MATH-12·13)', () => {
+  const q = { type: 'short', prompt: '1/2+1/4', choices: [], tags: [], difficulty: 'normal', defaultPoints: 10, createdBy: 'bob', sharing: 'private', answerVisibility: 'authors', rev: 1, deletedAt: null }
+  const k = { answer: ['3/4'], ignoreCase: true, ignoreSpaces: false, explanation: '', rubric: '', authorIds: ['bob'], answerVisibility: 'authors' }
+  const save = (qo: object, ko: object) => {
+    const d = db('bob')
+    const b = writeBatch(d)
+    b.set(doc(d, 'spaces', SID, 'questions', 'n1'), { ...q, ...qo })
+    b.set(doc(d, 'spaces', SID, 'questionKeys', 'n1'), { ...k, ...ko })
+    return b.commit()
+  }
+  it('accepts a tolerance and a unit, rejects bad values', async () => {
+    await assertSucceeds(save({ unit: { code: 'm1-04', custom: null } }, { tolerance: 0 }))
+    await assertSucceeds(save({ unit: null }, { tolerance: null }))
+    await assertFails(save({}, { tolerance: -1 }))
+    await assertFails(save({}, { tolerance: '0' }))
+    await assertFails(save({ unit: { code: 'm1', grade: 'm1' } }, {}))
+  })
+  it('stores a variant template only in the key', async () => {
+    const template = { prompt: '{a}+{b}', explanation: '', hints: [], vars: [{ name: 'a', kind: 'int', min: 1, max: 9 }], calc: [], conds: [], answerExpr: 'a', wrongExprs: [] }
+    await assertSucceeds(save({ variant: true }, { tolerance: 0, template }))
+    await assertFails(save({ variant: 'yes' }, {}))
+    await assertFails(save({}, { template: { ...template, secret: 1 } }))
+    await assertFails(save({}, { template: { ...template, vars: Array.from({ length: 11 }, () => template.vars[0]) } }))
+  })
+})
+
+describe('problem sets (MATH-10·13)', () => {
+  const ps = (uid: string, over: object = {}) => ({ title: '일차방정식', description: '', grade: 'm1', unit: { code: 'm1-04', custom: null }, questionIds: [], visibility: 'private', editPolicy: 'owner', createdBy: uid, deletedAt: null, ...over })
+  const ref = (uid: string, id: string, sid = SID) => doc(db(uid), 'spaces', sid, 'problemSets', id)
+
+  it('private sets stay with the author; space sets are read by members', async () => {
+    await assertSucceeds(setDoc(ref('bob', 's1'), ps('bob')))
+    await assertSucceeds(setDoc(ref('bob', 's2'), ps('bob', { visibility: 'space' })))
+    await assertFails(getDoc(ref('alice', 's1')))
+    await assertSucceeds(getDoc(ref('alice', 's2')))
+    await assertFails(getDoc(ref('lee', 's2')))
+    await assertSucceeds(getDocs(query(collection(db('alice'), 'spaces', SID, 'problemSets'), where('visibility', '==', 'space'))))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'problemSets')))
+  })
+
+  it('validates and owns', async () => {
+    await assertFails(setDoc(ref('bob', 's3'), ps('alice')))
+    await assertFails(setDoc(ref('bob', 's3'), ps('bob', { title: '' })))
+    await assertFails(setDoc(ref('bob', 's3'), ps('bob', { editPolicy: 'members' })))
+    await assertFails(setDoc(ref('bob', 's3'), ps('bob', { questionIds: Array.from({ length: 101 }, (_, i) => `q${i}`) })))
+    await assertFails(setDoc(ref('pat', 's3'), ps('pat')))
+    await assertSucceeds(setDoc(ref('alice', 'p1', 'p_alice'), ps('alice')))
+    await assertFails(setDoc(ref('alice', 'p2', 'p_alice'), ps('alice', { visibility: 'space' })))
+    await assertFails(deleteDoc(ref('bob', 's1')))
+  })
+
+  it('members edit only the question list of open space sets', async () => {
+    await assertSucceeds(setDoc(ref('bob', 's4'), ps('bob', { visibility: 'space', editPolicy: 'members' })))
+    await assertSucceeds(setDoc(ref('bob', 's5'), ps('bob', { visibility: 'space' })))
+    await assertSucceeds(updateDoc(ref('alice', 's4'), { questionIds: ['qa'] }))
+    await assertFails(updateDoc(ref('alice', 's4'), { title: '바꿈' }))
+    await assertFails(updateDoc(ref('alice', 's5'), { questionIds: ['qa'] }))
+    await assertSucceeds(updateDoc(ref('bob', 's5'), { title: '바꿈', questionIds: ['qb'] }))
+    await assertFails(updateDoc(ref('bob', 's5'), { createdBy: 'alice' }))
+  })
+})
+
+describe('problem solving (MATH-20~22)', () => {
+  it('hint penalty and key hints are bounded', async () => {
+    const ps = { title: '연습', description: '', grade: null, unit: null, questionIds: [], visibility: 'private', editPolicy: 'owner', createdBy: 'bob', deletedAt: null }
+    await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'problemSets', 'h1'), { ...ps, hintPenalty: 20 }))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'problemSets', 'h2'), { ...ps, hintPenalty: 51 }))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'problemSets', 'h3'), { ...ps, hintPenalty: 1.5 }))
+    const q = { type: 'short', prompt: '1+1', choices: [], tags: [], difficulty: 'normal', defaultPoints: 10, createdBy: 'bob', sharing: 'private', answerVisibility: 'authors', rev: 1, deletedAt: null }
+    const k = { answer: ['2'], ignoreCase: true, ignoreSpaces: false, explanation: '', rubric: '', authorIds: ['bob'], answerVisibility: 'authors' }
+    const save = (hints: unknown) => {
+      const d = db('bob')
+      const b = writeBatch(d)
+      b.set(doc(d, 'spaces', SID, 'questions', 'h1'), q)
+      b.set(doc(d, 'spaces', SID, 'questionKeys', 'h1'), { ...k, hints })
+      return b.commit()
+    }
+    await assertSucceeds(save(['하나씩 세요']))
+    await assertFails(save(Array.from({ length: 6 }, () => '힌트')))
+    await assertFails(save('힌트'))
+  })
+
+  it('attempts are read by their owner and written only by the server', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'problemAttempts', 'bob_q1'), { uid: 'bob', questionId: 'q1', seed: 7, tries: 1 }))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'problemAttempts', 'bob_q1')))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'problemAttempts', 'bob_q2')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'problemAttempts', 'bob_q1')))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'problemAttempts', 'bob_q3'), { uid: 'bob', questionId: 'q3', tries: 0 }))
+    await assertFails(updateDoc(doc(db('bob'), 'spaces', SID, 'problemAttempts', 'bob_q1'), { done: true }))
+  })
+
+  it('solution notes belong to their writer', async () => {
+    const n = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'problemNotes', id)
+    await assertSucceeds(getDoc(n('bob', 'bob_q1')))
+    await assertSucceeds(setDoc(n('bob', 'bob_q1'), { uid: 'bob', questionId: 'q1', text: '$x=2$', updatedAt: serverTimestamp() }))
+    await assertFails(setDoc(n('bob', 'bob_q2'), { uid: 'bob', questionId: 'q1', text: '' }))
+    await assertFails(setDoc(n('bob', 'alice_q1'), { uid: 'alice', questionId: 'q1', text: '' }))
+    await assertFails(setDoc(n('bob', 'bob_q3'), { uid: 'bob', questionId: 'q3', text: 'x'.repeat(5001) }))
+    await assertFails(getDoc(n('alice', 'bob_q1')))
+    await assertFails(getDoc(n('lee', 'lee_q1')))
+    await assertSucceeds(deleteDoc(n('bob', 'bob_q1')))
+  })
+})
+
+describe('wrong notes (3-C1, WRN-01·03)', () => {
+  it('are read only by their owner and written only by the server', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'wrongNotes', 'bob_card_c1'), { uid: 'bob', refType: 'card', refId: 'c1', wrongCount: 1, resolved: false, consecutiveCorrect: 1 }))
+    const n = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'wrongNotes', id)
+    await assertSucceeds(getDoc(n('bob', 'bob_card_c1')))
+    await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'wrongNotes'), where('uid', '==', 'bob'))))
+    await assertFails(getDoc(n('alice', 'bob_card_c1')))
+    await assertFails(getDoc(n('lee', 'lee_card_c1')))
+    await assertFails(setDoc(n('bob', 'bob_card_c2'), { uid: 'bob', refType: 'card', refId: 'c2', wrongCount: 0 }))
+    await assertFails(updateDoc(n('bob', 'bob_card_c1'), { wrongCount: 0 }))
+    await assertSucceeds(updateDoc(n('bob', 'bob_card_c1'), { resolved: true, resolvedAt: serverTimestamp(), consecutiveCorrect: 0 }))
+    await assertSucceeds(updateDoc(n('bob', 'bob_card_c1'), { resolved: false, resolvedAt: null, consecutiveCorrect: 0 }))
+    await assertFails(updateDoc(n('bob', 'bob_card_c1'), { resolved: true, consecutiveCorrect: 2 }))
+    await assertFails(updateDoc(n('alice', 'bob_card_c1'), { resolved: true, consecutiveCorrect: 0 }))
+    await assertFails(deleteDoc(n('bob', 'bob_card_c1')))
+  })
+})
+
+describe('tests (3-B1, TST-10~16)', () => {
+  const settings = { timeLimitMin: null, openAt: null, closeAt: null, maxAttempts: 1, scoring: 'best', shuffleQuestions: false, shuffleChoices: false, resultRelease: 'instant', practice: false }
+  const t = (uid: string, over: object = {}) => ({ title: '1단원', description: '', questionRefs: [{ questionId: 'q1', points: 10 }], settings, assignees: { all: true, uids: [], groupIds: [] }, status: 'draft', createdBy: uid, hostIds: [uid], deletedAt: null, ...over })
+  const tRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'tests', id)
+
+  it('hosts create and edit drafts; others cannot see drafts or open them', async () => {
+    await assertSucceeds(setDoc(tRef('bob', 't1'), t('bob')))
+    await assertFails(setDoc(tRef('bob', 't2'), t('bob', { status: 'open' })))
+    await assertFails(setDoc(tRef('bob', 't3'), t('bob', { participantIds: ['bob'] })))
+    await assertFails(setDoc(tRef('pat', 't4'), t('pat')))
+    await assertFails(getDoc(tRef('alice', 't1')))
+    await assertSucceeds(updateDoc(tRef('bob', 't1'), { title: '고침' }))
+    await assertSucceeds(updateDoc(tRef('bob', 't1'), { mission: { enabled: true, minScore: 8 } }))
+    await assertFails(updateDoc(tRef('bob', 't1'), { mission: { enabled: true, minScore: 0 } }))
+    await assertFails(updateDoc(tRef('bob', 't1'), { missionId: 'm1' }))
+    await assertFails(setDoc(tRef('bob', 't5'), t('bob', { missionId: 'm1' })))
+    await assertFails(updateDoc(tRef('bob', 't1'), { status: 'open' }))
+    await assertFails(updateDoc(tRef('bob', 't1'), { hostIds: ['bob', 'alice'] }))
+    await assertFails(updateDoc(tRef('alice', 't1'), { title: '남의 것' }))
+  })
+
+  it('open tests: takers read the test and paper, only hosts read the key, hosts only close', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o1'), t('bob', { status: 'open', participantIds: ['alice'] }))
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o1', 'paper', 'main'), { items: [], hostIds: ['bob'] })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o1', 'secret', 'key'), { items: {} })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o2'), t('bob', { status: 'open', participantIds: ['alice'], settings: { ...settings, openAt: Date.now() + 3600_000 } }))
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'o2', 'paper', 'main'), { items: [], hostIds: ['bob'] })
+    })
+    await assertSucceeds(getDoc(tRef('alice', 'o1')))
+    await assertSucceeds(getDocs(query(collection(db('alice'), 'spaces', SID, 'tests'), where('participantIds', 'array-contains', 'alice'), where('status', 'in', ['open', 'closed']))))
+    await assertFails(getDoc(tRef('mia', 'o1')))
+    await assertSucceeds(getDoc(doc(db('alice'), 'spaces', SID, 'tests', 'o1', 'paper', 'main')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'tests', 'o2', 'paper', 'main')))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o2', 'paper', 'main')))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o1', 'secret', 'key')))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'tests', 'o1', 'paper', 'main'), { items: [], hostIds: ['bob'] }))
+    await assertFails(updateDoc(tRef('bob', 'o1'), { title: '열린 뒤 고침' }))
+    await assertFails(updateDoc(tRef('bob', 'o1'), { status: 'draft' }))
+    await assertSucceeds(updateDoc(tRef('bob', 'o1'), { status: 'closed' }))
+  })
+})
+
+describe('attempts and results (3-B2, TST-21~23)', () => {
+  const settings = { timeLimitMin: null, openAt: null, closeAt: null, maxAttempts: 1, scoring: 'best', shuffleQuestions: false, shuffleChoices: false, resultRelease: 'hidden', practice: false }
+  const aRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'tests', 'x1', 'attempts', id)
+  const rRef = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'tests', 'x1', 'results', id)
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      const base = { uid: 'alice', isPractice: false, submittedAt: null, order: ['q1'], choiceOrder: {}, answers: {}, maxScore: 10, hostIds: ['bob'], gradingStatus: null }
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1'), { title: 't', description: '', questionRefs: [], settings, assignees: { all: true, uids: [], groupIds: [] }, status: 'open', createdBy: 'bob', hostIds: ['bob'], participantIds: ['alice'], deletedAt: null })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1', 'attempts', 'a1'), { ...base, deadlineAt: Timestamp.fromMillis(Date.now() + 600_000) })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1', 'attempts', 'late'), { ...base, deadlineAt: Timestamp.fromMillis(Date.now() - 120_000) })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1', 'attempts', 'done'), { ...base, deadlineAt: null, submittedAt: Timestamp.now() })
+      await setDoc(doc(d, 'spaces', SID, 'tests', 'x1', 'results', 'done'), { uid: 'alice', isPractice: false, score: 5, maxScore: 10, gradingStatus: 'done', items: {}, comments: {}, hostIds: ['bob'] })
+    })
+  })
+
+  it('takers save answers before the deadline only; nobody else writes', async () => {
+    await assertSucceeds(getDoc(aRef('alice', 'a1')))
+    await assertSucceeds(getDoc(aRef('bob', 'a1')))
+    await assertFails(getDoc(aRef('mia', 'a1')))
+    await assertSucceeds(updateDoc(aRef('alice', 'a1'), { answers: { q1: [0] } }))
+    await assertFails(updateDoc(aRef('alice', 'a1'), { submittedAt: Timestamp.now() }))
+    await assertFails(updateDoc(aRef('alice', 'late'), { answers: { q1: [1] } }))
+    await assertFails(updateDoc(aRef('alice', 'done'), { answers: { q1: [1] } }))
+    await assertFails(updateDoc(aRef('bob', 'a1'), { answers: { q1: [1] } }))
+    await assertFails(setDoc(aRef('alice', 'new'), { uid: 'alice' }))
+  })
+
+  it('only hosts read the answer key; results are server-written', async () => {
+    await env.withSecurityRulesDisabled(async ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'tests', 'x1', 'secret', 'key'), { items: {} }))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'tests', 'x1', 'secret', 'key')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'tests', 'x1', 'secret', 'key')))
+    await assertFails(updateDoc(rRef('bob', 'done'), { score: 10 }))
+  })
+
+  it('results follow the release setting; hosts always read', async () => {
+    await assertFails(getDoc(rRef('alice', 'done')))
+    await assertSucceeds(getDoc(rRef('bob', 'done')))
+    await assertFails(setDoc(rRef('alice', 'x'), { uid: 'alice', score: 10 }))
+    await env.withSecurityRulesDisabled(async ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'tests', 'x1'), { 'settings.resultRelease': 'afterClose' }))
+    await assertFails(getDoc(rRef('alice', 'done')))
+    await env.withSecurityRulesDisabled(async ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'tests', 'x1'), { status: 'closed' }))
+    await assertSucceeds(getDoc(rRef('alice', 'done')))
+  })
+})
+
+describe('courses (CRS-01~03·10)', () => {
+  const course = (uid: string, over: object = {}) => ({ title: '영문법', description: '', level: '', visibility: 'space', groupIds: [], editPolicy: 'author', collaboratorIds: [], createdBy: uid, deletedAt: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
+  const cref = (uid: string, id: string) => doc(db(uid), 'spaces', SID, 'courses', id)
+  const lesson = (uid: string, over: object = {}) => ({ title: '1강', order: 1, bodyPageId: null, linkedDeckIds: [], linkedProblemSetIds: [], linkedTestIds: [], createdBy: uid, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
+  const lref = (uid: string, cid: string, id: string) => doc(db(uid), 'spaces', SID, 'courses', cid, 'lessons', id)
+
+  it('private courses stay with the author; space courses are read by members', async () => {
+    await assertSucceeds(setDoc(cref('bob', 'c1'), course('bob', { visibility: 'private' })))
+    await assertSucceeds(setDoc(cref('bob', 'c2'), course('bob')))
+    await assertFails(getDoc(cref('alice', 'c1')))
+    await assertSucceeds(getDoc(cref('alice', 'c2')))
+    await assertFails(getDoc(cref('lee', 'c2')))
+    await assertFails(setDoc(cref('bob', 'c3'), course('alice')))
+    await assertFails(setDoc(cref('bob', 'c4'), course('bob', { visibility: 'group' })))
+    await assertFails(setDoc(cref('bob', 'c5'), course('bob', { extra: 1 })))
+  })
+
+  it('editors add and reorder lessons; only the author changes scope or deletes', async () => {
+    await assertSucceeds(setDoc(cref('bob', 'c1'), course('bob', { editPolicy: 'collaborators', collaboratorIds: ['alice'] })))
+    await assertSucceeds(setDoc(lref('alice', 'c1', 'l1'), lesson('alice')))
+    await assertFails(setDoc(lref('mia', 'c1', 'l2'), lesson('mia')))
+    await assertSucceeds(getDoc(lref('mia', 'c1', 'l1')))
+    await assertSucceeds(updateDoc(lref('alice', 'c1', 'l1'), { order: 2, updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(lref('alice', 'c1', 'l1'), { bodyPageId: 'p9', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(lref('mia', 'c1', 'l1'), { order: 3, updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(cref('alice', 'c1'), { title: '영문법 기초', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(cref('alice', 'c1'), { visibility: 'private', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(cref('alice', 'c1'), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await assertSucceeds(updateDoc(cref('bob', 'c1'), { deletedAt: serverTimestamp(), updatedAt: serverTimestamp() }))
+    await assertFails(getDoc(lref('mia', 'c1', 'l1')))
+  })
+
+  it('progress is mine to write; shared progress is read by members (CRS-21·22)', async () => {
+    await assertSucceeds(setDoc(cref('bob', 'c1'), course('bob')))
+    await assertSucceeds(setDoc(lref('bob', 'c1', 'l1'), lesson('bob')))
+    const pref = (u: string, id: string) => doc(db(u), 'spaces', SID, 'lessonProgress', id)
+    const prog = (u: string, over: object = {}) => ({ uid: u, courseId: 'c1', lessonId: 'l1', completedAt: serverTimestamp(), shared: true, updatedAt: serverTimestamp(), ...over })
+    await assertSucceeds(setDoc(pref('alice', 'alice_l1'), prog('alice')))
+    await assertFails(setDoc(pref('alice', 'bob_l1'), prog('bob')))
+    await assertFails(setDoc(pref('alice', 'alice_l2'), prog('alice', { lessonId: 'l2' })))
+    await assertSucceeds(setDoc(pref('mia', 'mia_l1'), prog('mia', { shared: false })))
+    await assertSucceeds(getDocs(query(collection(db('bob'), 'spaces', SID, 'lessonProgress'), where('courseId', '==', 'c1'), where('shared', '==', true))))
+    await assertFails(getDoc(pref('bob', 'mia_l1')))
+    await assertSucceeds(getDoc(pref('bob', 'alice_l1')))
+  })
+
+  it('a copied course keeps where it came from (WS-63)', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'courses', 'cc'), { ...course('bob'), createdAt: Timestamp.now(), updatedAt: Timestamp.now(), copiedFrom: { spaceId: 'x', courseId: 'y', spaceName: 'X' } }))
+    await assertSucceeds(updateDoc(cref('bob', 'cc'), { title: '새 제목', updatedAt: serverTimestamp() }))
+    await assertFails(updateDoc(cref('bob', 'cc'), { copiedFrom: null, updatedAt: serverTimestamp() }))
+  })
+
+  it('lesson body pages need no collection and stay top-level', async () => {
+    const page = (over: object = {}) => ({ type: 'lesson', title: '1강', icon: '', cover: null, ownerId: 'bob', root: 'shared', parentId: null, order: 'a0', ancestorIds: [], props: {}, visibility: 'space', groupIds: [], editorIds: ['bob'], editPolicy: 'editors', sharedWith: [], reviewerIds: [], excerpt: '', blockCount: 0, textLength: 0, lock: null, ownerStatus: 'active', deletedAt: null, createdAt: serverTimestamp(), updatedAt: serverTimestamp(), ...over })
+    await assertSucceeds(setDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp1'), page()))
+    await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp2'), page({ parentId: 'lp1', ancestorIds: ['lp1'] })))
+  })
+})

@@ -1,6 +1,6 @@
 # 보안 규칙
 
-> 상태: 확정 · v2.5 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기), `invites`(만든 사람·매니저 읽기·끄기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
+> 상태: 확정 · v2.10 — `firestore.rules`는 `users/{uid}`(본인 읽기), `spaces/{sid}`(멤버 읽기, 매니저 수정), `members`(멤버 읽기), `invites`(만든 사람·매니저 읽기·끄기)만 적용, 나머지는 차단. `storage.rules`는 전체 차단. 0-8에서 이 설계 전체로 교체한다.
 
 ## 1. 원칙
 - **화면의 권한 표시는 편의, 실제 강제는 규칙과 서버 기능.**
@@ -89,7 +89,7 @@ function onlyChanges(fields) { return request.resource.data.diff(resource.data).
 | 동작 | 조건 |
 | --- | --- |
 | 읽기 | 본인, 보호자, 작성자의 `wrongNoteShare`에 해당하는 멤버 (`get` 1회) |
-| 쓰기 | 본인: `memo`·`resolved`(직접 해결)·`manual` 추가만 / 나머지 서버 |
+| 쓰기 | 본인: `memo`·`resolved`(직접 해결)·`manual` 추가만 / 나머지 서버. 3-C1 적용: 본인 읽기, 쓰기는 서버. 3-C2: 본인은 `resolved`·`resolvedAt`만(`consecutiveCorrect`는 0으로) 바꿀 수 있고 만들기·지우기는 안 됨 |
 
 ### 노트 · 블록
 ```
@@ -162,6 +162,9 @@ match /spaces/{sid}/pages/{pageId} {
 | --- | --- | --- |
 | `questions` | 작성자·공동 출제자, 또는 `sharing == 'space'`면 멤버 | `whoCanCreate`, 수정은 출제자 |
 | `questionKeys` | `uid() in authorIds`, 또는 `answerVisibility == 'space'`면 멤버 | 출제자 (`authorIds`는 서버) |
+| `problemSets` | 작성자, 또는 `visibility == 'space'`면 멤버 | `whoCanCreate`, 수정은 작성자. `editPolicy == 'members'`인 공개 문제집은 멤버가 `questionIds`만 |
+| `problemAttempts` | 본인 (`{uid}_` 문서 id) | 서버만 (`drawProblem`·`checkProblem`·`revealHint`) |
+| `problemNotes` | 본인 | 본인 (`{uid}_{questionId}`, 5000자) |
 | `tests` | 멤버 (대상 아닌 경우 목록만) | 생성 `whoCanHost`, 수정 진행자 |
 | `attempts` | 본인, 보호자, `hostIds` | 본인: 마감 전 `answers`만 / 그 외 서버 |
 | `answerAppeals` | 신청자, 출제자 | 생성 본인 / 처리 서버 |
@@ -188,7 +191,7 @@ match /b/{bucket}/o {
   }
 }
 ```
-- 계정당 총량(2GB)은 규칙으로 막을 수 없다 → 업로드 전 클라이언트가 `users.storage`로 확인하고, 서버 트리거가 초과 업로드를 삭제·알림.
+- 계정당 총량(2GB)은 규칙으로 막을 수 없다 → 업로드 전 클라이언트가 `users.storage`로 확인하고, 서버 `registerUpload`가 초과 업로드를 지우고 거절한다. 아이 계정(`wards` 클레임) 읽기는 2-F5에서.
 - 비공개 노트의 첨부 파일까지 엄격히 막으려면 파일 경로에 페이지를 넣고 `firestore.get()`으로 공개 범위를 확인해야 한다 → 3단계에서 검토 (현재는 같은 공간 멤버면 파일 주소를 알 때 읽을 수 있음).
 
 ## 5. 커스텀 클레임
@@ -216,9 +219,14 @@ match /b/{bucket}/o {
 - 없음
 
 ## 8. 변경 이력
+- v2.10: `wrongNotes` 본인 직접 해결·되돌리기
+- v2.9: `wrongNotes` 규칙 적용 (본인 읽기, 서버만 씀)
+- v2.8: 단원별 만들기(`saveGenerated`): 서버가 `whoCanCreate`·문제집 편집 권한을 확인하고, 정답을 볼 수 없던 틀의 복사본은 정답 문서를 원래 출제자만 읽는다
+- v2.7: 문제집 풀이 기록 `problemAttempts`(서버만 씀)·풀이 메모 `problemNotes`, `questionKeys.hints`, `problemSets.hintPenalty`
 - v2.5: `invites` 규칙 적용, 생성은 서버(코드 유일성)
 - v2.4: `spaces` 수정 규칙 적용(바꿀 수 있는 필드·값 검사)
 - v2.3: 1차 일부 적용(users·spaces·members 읽기)
 - v2.2: 블록 쓰기 규칙 읽기 횟수 검증 결과 반영
 - v2.1: 확정 — 비공개 노트 첨부 파일 보호는 3단계에서
 - v2.0: 확정 기능명세 기준으로 새로 작성
+- v2.6: Storage 규칙 적용(같은 공간 활성 멤버 읽기, 본인 폴더에만 올리기, 500MB·형식 제한), `users/{uid}/uploads` 본인 읽기

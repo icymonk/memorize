@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Mission, Submission } from '../services/missions'
 import { periodKeys } from '#shared/schemas/mission'
+import AttachmentList from '~/features/files/components/AttachmentList.vue'
 import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
@@ -113,6 +114,7 @@ async function decide(s: Submission, approve: boolean) {
           <p v-if="s.content" class="whitespace-pre-wrap">
             {{ s.content }}
           </p>
+          <AttachmentList v-if="s.attachments?.length" :files="s.attachments" />
         </li>
       </ul>
     </template>

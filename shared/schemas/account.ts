@@ -1,10 +1,16 @@
+import type { CreateGroupMissionInput, CreateGroupMissionOutput } from '../reading-groups'
 import type { BookSearchInput, BookSearchOutput } from './book'
 import type { CreateInviteInput, CreateInviteOutput, DecideJoinRequestInput, InviteCodeInput, InvitePreview, JoinSpaceOutput } from './invite'
 import type { CancelSpaceDeletionInput, CreateWorkspaceInput, CreateWorkspaceOutput, MemberTargetInput, RespondOwnershipInput, ScheduleSpaceDeletionInput, SetManagerInput, TransferOwnershipInput } from './space'
 import type { CopyContentInput, CopyContentOutput } from './copy'
+import type { AttemptRefInput, CheckAnswerInput, CheckAnswerOutput, GradeAttemptInput, GradeAttemptOutput, OpenTestInput, OpenTestOutput, StartAttemptInput, StartAttemptOutput, SubmitAttemptOutput } from './test'
 import type { CollectionRefInput } from './collection'
-import type { LeaveFeedbackInput } from './feedback'
+import type { LeaveFeedbackInput, RequestRewriteInput } from './feedback'
 import type { MovePageInput, PageOpOutput, PageRefInput } from './page'
+import type { DeleteUploadInput, RegisterUploadInput, RegisterUploadOutput } from './upload'
+import type { CheckWrongInput, CheckWrongOutput, WrongRefInput, WrongView } from '../wrong-notes'
+import type { GenerateInput, GenerateOutput, GenItem, PreviewTemplateInput, SaveGeneratedInput, SaveGeneratedOutput } from '../math/generate'
+import type { CheckProblemInput, DrawProblemInput, ProblemRefInput, ProblemResult, ProblemView, RevealHintOutput } from '../math/solve'
 import { z } from 'zod'
 
 export const personalSpaceId = (uid: string) => `p_${uid}`
@@ -45,10 +51,27 @@ export interface Callables {
   transferOwnership: { input: TransferOwnershipInput, output: { ok: true } }
   respondOwnership: { input: RespondOwnershipInput, output: { ok: true } }
   copyContent: { input: CopyContentInput, output: CopyContentOutput }
+  openTest: { input: OpenTestInput, output: OpenTestOutput }
+  createReadingGroupMission: { input: CreateGroupMissionInput, output: CreateGroupMissionOutput }
+  startAttempt: { input: StartAttemptInput, output: StartAttemptOutput }
+  submitAttempt: { input: AttemptRefInput, output: SubmitAttemptOutput }
+  checkAnswer: { input: CheckAnswerInput, output: CheckAnswerOutput }
+  gradeAttempt: { input: GradeAttemptInput, output: GradeAttemptOutput }
+  drawProblem: { input: DrawProblemInput, output: ProblemView }
+  checkProblem: { input: CheckProblemInput, output: ProblemResult }
+  revealHint: { input: ProblemRefInput, output: RevealHintOutput }
+  generateProblems: { input: GenerateInput, output: GenerateOutput }
+  previewTemplate: { input: PreviewTemplateInput, output: GenItem }
+  saveGenerated: { input: SaveGeneratedInput, output: SaveGeneratedOutput }
+  drawWrong: { input: WrongRefInput, output: WrongView }
+  checkWrong: { input: CheckWrongInput, output: CheckWrongOutput }
   movePage: { input: MovePageInput, output: PageOpOutput }
   trashPage: { input: PageRefInput, output: PageOpOutput }
   restorePage: { input: PageRefInput, output: PageOpOutput }
   deleteCollection: { input: CollectionRefInput, output: PageOpOutput }
   leaveFeedback: { input: LeaveFeedbackInput, output: { ok: true } }
+  requestRewrite: { input: RequestRewriteInput, output: { ok: true } }
   searchBooks: { input: BookSearchInput, output: BookSearchOutput }
+  registerUpload: { input: RegisterUploadInput, output: RegisterUploadOutput }
+  deleteUpload: { input: DeleteUploadInput, output: { ok: true } }
 }

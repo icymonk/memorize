@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { PauseIcon, TimerIcon } from '@lucide/vue'
+import { clock, useReadingTimer } from '../composables/useReadingTimer'
 import type { ReadingLog } from '../services/logs'
+import type { Quote } from '../services/quotes'
 import type { ShelfItem } from '../services/shelf'
 import { logUnit } from '#shared/schemas/book'
 import { StarIcon } from '@lucide/vue'
@@ -7,11 +10,13 @@ import { toast } from 'vue-sonner'
 import { errorMessage } from '~/lib/errors'
 import { ko } from '~/locales/ko'
 import { askFinish, listBookLogs, recordReading } from '../services/logs'
+import { addQuote, listQuotes } from '../services/quotes'
 import { updateShelf } from '../services/shelf'
+import QuoteList from './QuoteList.vue'
 
 /** READ-11: 책별 내 정보 — 현재 위치, 시작일, 완독일, 별점 */
-const props = defineProps<{ sid: string, book: ShelfItem | null, today: string }>()
-const emit = defineEmits<{ saved: [] }>()
+const props = defineProps<{ sid: string, book: ShelfItem | null, today: string, workspace?: boolean, nameOf?: (uid: string) => string, reviews?: boolean }>()
+const emit = defineEmits<{ saved: [], review: [book: ShelfItem] }>()
 const open = defineModel<boolean>('open', { default: false })
 
 const t = ko.reading
@@ -25,6 +30,16 @@ const rating = ref<number | null>(null)
 const pending = ref(false)
 const auth = useAuthStore()
 const L = t.log
+const { load: loadTimer, running: timerRunning, elapsed: timerElapsed, minutes: timerMinutes, start: startTimer, stop: stopTimer, reset: resetTimer } = useReadingTimer(() => `${props.sid}:${props.book?.bookKey ?? ''}`)
+function toggleTimer() {
+  if (timerRunning.value) {
+    stopTimer()
+    logMinutes.value = Math.max(1, timerMinutes.value)
+  }
+  else {
+    startTimer()
+  }
+}
 const logs = ref<ReadingLog[]>([])
 const logDate = ref('')
 const logTo = ref<number | null>(null)
@@ -32,6 +47,16 @@ const logMinutes = ref<number | null>(null)
 const logMemo = ref('')
 const logging = ref(false)
 const unit = computed(() => logUnit(props.book?.format ?? 'paper'))
+const quotes = ref<Quote[]>([])
+const qPos = ref<number | null>(null)
+const qText = ref('')
+const qShare = ref(false)
+const quoting = ref(false)
+const Q = t.quotes
+/** REV-24: 이 책의 독후감 (나에게 보이는 것) */
+const notes = useNotesStore()
+const bookReviews = computed(() => notes.pages.filter(p => p.type === 'bookReview' && !p.deletedAt && p.book?.bookKey === props.book?.bookKey
+  && (p.visibility !== 'private' || p.ownerId === auth.user?.uid)))
 const num = (v: string | number | null | undefined) => v === '' || v == null ? null : Number(v)
 
 const key = computed(() => props.book?.format === 'audio' ? 'minutes' : props.book?.format === 'ebook' ? 'percent' : 'page')
@@ -48,10 +73,46 @@ watch(open, (v) => {
   logDate.value = props.today
   logTo.value = null
   logMinutes.value = null
+  loadTimer()
   logMemo.value = ''
   logs.value = []
   listBookLogs($firestore, props.sid, auth.user!.uid, b.bookKey).then(l => logs.value = l).catch(() => {})
+  qPos.value = pos.value
+  qText.value = ''
+  qShare.value = false
+  quotes.value = []
+  loadQuotes(b.bookKey)
 })
+
+function loadQuotes(bookKey: string) {
+  listQuotes($firestore, props.sid, auth.user!.uid, !!props.workspace, bookKey).then(q => quotes.value = q).catch(() => {})
+}
+
+/** READ-30 */
+async function saveQuote() {
+  const b = props.book
+  if (!b || !qText.value.trim()) return
+  quoting.value = true
+  try {
+    await addQuote($firestore, props.sid, auth.user!.uid, b.title, {
+      bookKey: b.bookKey,
+      date: props.today,
+      unit: unit.value,
+      position: qPos.value == null ? null : Math.max(0, Math.round(qPos.value)),
+      text: qText.value.trim().slice(0, 1000),
+      visibility: props.workspace && qShare.value ? 'space' : 'private',
+    })
+    toast.success(Q.saved)
+    qText.value = ''
+    loadQuotes(b.bookKey)
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+  finally {
+    quoting.value = false
+  }
+}
 
 /** READ-20·24 */
 async function addLog() {
@@ -71,6 +132,7 @@ async function addLog() {
     logTo.value = null
     logMinutes.value = null
     logMemo.value = ''
+    if (!timerRunning.value) resetTimer()
     logs.value = await listBookLogs($firestore, props.sid, auth.user!.uid, b.bookKey)
     emit('saved')
   }
@@ -107,11 +169,19 @@ async function save() {
 
 <template>
   <Dialog v-model:open="open">
-    <DialogContent v-if="book" class="sm:max-w-md">
+    <DialogContent v-if="book" class="max-h-[90vh] overflow-y-auto sm:max-w-md">
       <DialogHeader>
         <DialogTitle>{{ book.title }}</DialogTitle>
         <DialogDescription>{{ [book.authors.join(', '), t.formats[book.format], t.statuses[book.status]].filter(Boolean).join(' · ') }}</DialogDescription>
       </DialogHeader>
+      <section v-if="bookReviews.length" class="flex flex-col gap-1 text-sm">
+        <h3 class="text-xs font-medium">
+          {{ ko.notes.review.bookReviews }}
+        </h3>
+        <NuxtLink v-for="r in bookReviews" :key="r.id" :to="`/s/${sid}/notes/${r.id}`" class="hover:bg-muted truncate rounded-md px-2 py-1" @click="open = false">
+          {{ r.icon || '📖' }} {{ r.title || ko.notes.untitled }}
+        </NuxtLink>
+      </section>
       <form id="book-detail" class="flex flex-col gap-3" @submit.prevent="save">
         <Label for="bd-pos">{{ d.position(d.units[book.format] ?? '') }}<template v-if="total"> / {{ total }}</template></Label>
         <Input id="bd-pos" type="number" min="0" :max="total ?? undefined" :model-value="pos ?? undefined" @update:model-value="v => pos = v === '' || v == null ? null : Number(v)" />
@@ -139,6 +209,9 @@ async function save() {
         </div>
       </form>
       <DialogFooter>
+        <Button v-if="reviews" type="button" variant="outline" @click="emit('review', book)">
+          {{ ko.notes.review.write }}
+        </Button>
         <Button type="submit" form="book-detail" :disabled="pending">
           {{ d.save }}
         </Button>
@@ -147,6 +220,15 @@ async function save() {
         <h3 class="text-sm font-medium">
           {{ L.title }}
         </h3>
+        <div class="flex items-center gap-2" data-testid="reading-timer">
+          <span class="font-mono text-lg tabular-nums">{{ clock(timerElapsed) }}</span>
+          <Button type="button" size="sm" :variant="timerRunning ? 'default' : 'outline'" @click="toggleTimer">
+            <PauseIcon v-if="timerRunning" /><TimerIcon v-else />{{ timerRunning ? L.timer.stop : L.timer.start }}
+          </Button>
+          <Button v-if="!timerRunning && timerElapsed" type="button" size="sm" variant="ghost" @click="resetTimer">
+            {{ L.timer.reset }}
+          </Button>
+        </div>
         <form class="grid grid-cols-2 gap-2" @submit.prevent="addLog">
           <Input v-model="logDate" type="date" :aria-label="L.date" />
           <Input type="number" min="0" :placeholder="L.to(L.units[unit] ?? '')" :aria-label="L.to(L.units[unit] ?? '')" :model-value="logTo ?? undefined" @update:model-value="v => logTo = num(v)" />
@@ -168,6 +250,27 @@ async function save() {
             <span>{{ l.from != null ? `${l.from} → ` : '' }}{{ l.to }}{{ L.units[l.unit] }}<template v-if="l.minutes"> · {{ l.minutes }}분</template><template v-if="l.memo"> · {{ l.memo }}</template></span>
           </li>
         </ol>
+      </section>
+      <section class="flex flex-col gap-3 border-t pt-4">
+        <h3 class="text-sm font-medium">
+          {{ Q.title }}
+        </h3>
+        <form class="flex flex-col gap-2" @submit.prevent="saveQuote">
+          <Textarea v-model="qText" rows="2" maxlength="1000" :placeholder="Q.text" :aria-label="Q.text" />
+          <div class="flex items-center gap-2">
+            <Input type="number" min="0" class="w-28" :placeholder="Q.position(L.units[unit] ?? '')" :aria-label="Q.position(L.units[unit] ?? '')" :model-value="qPos ?? undefined" @update:model-value="v => qPos = num(v)" />
+            <label v-if="workspace" class="flex items-center gap-1.5 text-xs">
+              <input v-model="qShare" type="checkbox" class="accent-primary">
+              {{ Q.share }}
+            </label>
+            <Button type="submit" variant="outline" size="sm" class="ml-auto" :disabled="quoting || !qText.trim()">
+              {{ Q.save }}
+            </Button>
+          </div>
+        </form>
+        <div class="max-h-56 overflow-y-auto">
+          <QuoteList :sid="sid" :quotes="quotes" :name-of="nameOf" @removed="id => quotes = quotes.filter(q => q.id !== id)" />
+        </div>
       </section>
     </DialogContent>
   </Dialog>

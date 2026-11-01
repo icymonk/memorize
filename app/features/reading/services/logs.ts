@@ -1,5 +1,5 @@
 import type { ReadingLogInput } from '#shared/schemas/book'
-import type { Firestore, Timestamp } from 'firebase/firestore'
+import type { DocumentReference, Firestore, Timestamp } from 'firebase/firestore'
 import type { ShelfItem, ShelfPatch } from './shelf'
 import { positionKey, reachedEnd, statusPatch } from '#shared/schemas/book'
 import { collection, doc, getDocs, query, serverTimestamp, where, writeBatch } from 'firebase/firestore'
@@ -38,4 +38,37 @@ export async function askFinish(db: Firestore, sid: string, book: ShelfItem, inp
   const patch = statusPatch(book, 'done', input.date)
   await updateShelf(db, sid, book.id, patch)
   return patch
+}
+
+/** READ-50: 이 공간의 내 기록 전체 */
+export async function listMyLogs(db: Firestore, sid: string, uid: string): Promise<ReadingLog[]> {
+  const snap = await getDocs(query(collection(db, 'spaces', sid, 'readingLogs'), where('uid', '==', uid)))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as ReadingLog)
+}
+
+/** NOTE-32: 그 사람이 그 날 남긴 독서 기록 (진도를 숨겼으면 규칙이 막는다) */
+export async function listDayLogs(db: Firestore, sid: string, uid: string, date: string): Promise<ReadingLog[]> {
+  const snap = await getDocs(query(collection(db, 'spaces', sid, 'readingLogs'), where('uid', '==', uid), where('date', '==', date)))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }) as ReadingLog)
+}
+
+/** NOTE-32: 그 날 다 읽은 책 제목 */
+export async function listDayFinished(db: Firestore, sid: string, uid: string, date: string): Promise<string[]> {
+  const snap = await getDocs(query(collection(db, 'spaces', sid, 'shelf'), where('uid', '==', uid), where('finishedAt', '==', date)))
+  return snap.docs.filter(d => d.get('status') === 'done').map(d => d.get('title') as string)
+}
+
+/** 책장에서 뺄 때: 이 책의 내 기록·구절 */
+export async function myBookData(db: Firestore, sid: string, uid: string, bookKey: string) {
+  const [logs, quotes] = await Promise.all(['readingLogs', 'quotes'].map(c =>
+    getDocs(query(collection(db, 'spaces', sid, c), where('uid', '==', uid), where('bookKey', '==', bookKey)))))
+  return [...logs!.docs, ...quotes!.docs].map(d => d.ref)
+}
+
+export async function deleteRefs(db: Firestore, refs: DocumentReference[]) {
+  for (let i = 0; i < refs.length; i += 400) {
+    const batch = writeBatch(db)
+    for (const r of refs.slice(i, i + 400)) batch.delete(r)
+    await batch.commit()
+  }
 }

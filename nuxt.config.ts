@@ -16,6 +16,11 @@ export default defineNuxtConfig({
     dirs: ['stores'],
   },
   css: ['~/assets/css/tailwind.css'],
+  vue: {
+    compilerOptions: {
+      isCustomElement: tag => tag === 'math-field',
+    },
+  },
   vite: {
     plugins: [
       tailwindcss(),

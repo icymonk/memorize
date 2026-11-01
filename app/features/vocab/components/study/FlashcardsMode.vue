@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RelatedWords from '../RelatedWords.vue'
 import CardWord from '../CardWord.vue'
 import type { ModeResult } from './types'
 import type { Card } from '~/features/vocab/services/cards'
@@ -9,7 +10,7 @@ import { useSpeech } from '~/features/vocab/composables/useSpeech'
 import { useStudyResume } from '~/features/vocab/composables/useStudyResume'
 import { ko } from '~/locales/ko'
 
-const props = defineProps<{ cards: Card[], lang: Deck['langFrom'], resumeKey: string }>()
+const props = defineProps<{ cards: Card[], lang: Deck['langFrom'], resumeKey: string, defaultBack?: boolean }>()
 const emit = defineEmits<{ done: [ModeResult] }>()
 const t = ko.vocab.study
 
@@ -19,7 +20,7 @@ const speech = useSpeech()
 const byId = computed(() => new Map(props.cards.map(c => [c.id, c])))
 
 function fresh(): State {
-  return { order: props.cards.map(c => c.id), index: 0, known: [], unknown: [], swapped: false }
+  return { order: props.cards.map(c => c.id), index: 0, known: [], unknown: [], swapped: !!props.defaultBack }
 }
 const saved = resume.load()
 const valid = saved && saved.order.every(id => byId.value.has(id)) && saved.index < saved.order.length
@@ -99,6 +100,7 @@ const showFront = computed(() => flipped.value === state.value.swapped)
       <template v-else>
         <span class="text-2xl">{{ card.back.join(', ') }}</span>
         <span v-if="card.examples[0]" class="text-muted-foreground text-sm">{{ card.examples[0].text }}</span>
+        <RelatedWords :card="card" :cards="props.cards" class="text-sm" />
       </template>
       <span class="text-muted-foreground mt-2 text-xs">{{ t.flipHint }}</span>
     </button>

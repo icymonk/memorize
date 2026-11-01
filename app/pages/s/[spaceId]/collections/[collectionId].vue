@@ -1,7 +1,10 @@
 <script setup lang="ts">
+import { withSubjects } from '~/features/space/services/subjects'
 import type { Member } from '~/features/space/services/invites'
+import { doc, getDoc } from 'firebase/firestore'
 import { listMembers } from '~/features/space/services/invites'
 import { journalStreak } from '#shared/journal'
+import NewReviewDialog from '~/features/notes/components/NewReviewDialog.vue'
 import type { PropDef, PropValue, ViewDef, ViewType } from '#shared/schemas/collection'
 import type { Page } from '~/features/notes/services/pages'
 import { coerceProp, compareProp, MAX_VIEWS, matchesFilter, newPropKey, VIEW_TYPES, viewDef } from '#shared/schemas/collection'
@@ -61,7 +64,7 @@ const isManager = computed(() => ['owner', 'manager'].includes(space.membership?
 const canManage = computed(() => !!col.value && canManageCollection(col.value, uid.value, isManager.value))
 const canAdd = computed(() => !!col.value && (col.value.scope === 'private' ? col.value.ownerId === uid.value : space.can('create')))
 const spaceTags = useTags()
-const schema = computed(() => (col.value?.schema ?? []).map(d => withTags(d, spaceTags.value)))
+const schema = computed(() => (col.value?.schema ?? []).map(d => withSubjects(withTags(d, spaceTags.value), space.current?.subjects ?? [])))
 const defOf = (key: string | null | undefined) => schema.value.find(d => d.key === key)
 const filterDef = computed(() => defOf(filter.value?.key))
 const groupable = computed(() => schema.value.filter(d => ['select', 'multiSelect', 'checkbox'].includes(d.type)))
@@ -71,7 +74,7 @@ const isEmpty = (x: unknown) => x === null || x === undefined || x === '' || (Ar
 
 const items = computed(() => {
   const f = filter.value
-  const list = notes.itemsOf(cid.value).filter(p => !f || matchesFilter(defOf(f.key), p.props?.[f.key], f.value))
+  const list = notes.itemsOf(cid.value).filter(p => !f || matchesFilter(defOf(f.key), p.props?.[f.key], f.value)).filter(reviewOk)
   const s = sort.value
   if (!s) return list
   const value = (p: Page): PropValue | undefined => (s.key === 'title' ? p.title : p.props?.[s.key])
@@ -123,6 +126,33 @@ const todayYmd = ymd(new Date())
 /** NOTE-30·36: 일지는 오늘 날짜로, 지난 날짜에 쓰면 '늦게 씀' */
 const isJournal = computed(() => col.value?.kind === 'system' && col.value.systemType === 'journal')
 const myUid = useAuthStore().user?.uid
+const isReview = computed(() => col.value?.kind === 'system' && col.value.systemType === 'bookReview')
+const reviewOpen = ref(false)
+/** REV-22·23: 독후감 필터 — 글쓴이·책·피드백 여부, 내가 피드백할 것(요청받았고 아직 안 남긴 것) */
+const review = reactive({ author: '', book: '', feedback: 'all', forMe: false })
+const fed = ref<Set<string>>(new Set())
+const reviewBooks = computed(() => [...new Map(notes.itemsOf(cid.value).filter(p => p.book).map(p => [p.book!.bookKey, p.book!.title])).entries()])
+const reviewAuthors = computed(() => [...new Set(notes.itemsOf(cid.value).map(p => p.ownerId))])
+const authorName = (u: string) => members.value.find(m => m.uid === u)?.displayName ?? (u === myUid ? ko.members.me : '…')
+const askedOfMe = (p: Page) => !!myUid && p.ownerId !== myUid && (p.reviewerIds ?? []).includes(myUid)
+function reviewOk(p: Page) {
+  if (!isReview.value) return true
+  if (review.forMe) return askedOfMe(p) && !fed.value.has(p.id)
+  const got = ((p as Page & { feedbackCount?: number }).feedbackCount ?? 0) > 0
+  return (!review.author || p.ownerId === review.author) && (!review.book || p.book?.bookKey === review.book)
+    && (review.feedback === 'all' || (review.feedback === 'got') === got)
+}
+watch(isReview, async (v) => {
+  if (!v || members.value.length) return
+  try { members.value = (await listMembers(fs, sid.value)).filter(m => m.status === 'active') }
+  catch { members.value = [] }
+}, { immediate: true })
+watch(() => review.forMe, async (v) => {
+  if (!v || !myUid) return
+  const asked = notes.itemsOf(cid.value).filter(askedOfMe)
+  const done = await Promise.all(asked.map(p => getDoc(doc(fs, 'spaces', sid.value, 'comments', `fb_${p.id}_${myUid}`)).then(d => d.exists() ? p.id : null).catch(() => null)))
+  fed.value = new Set(done.filter((x): x is string => !!x))
+})
 /** NOTE-45 멤버 일지: 나에게 보이는 일지를 멤버 × 날짜(이번 달) 표로 */
 const showMembers = ref(false)
 const members = ref<Member[]>([])
@@ -172,6 +202,10 @@ const shiftMonth = (n: number) => { month.value = new Date(month.value.getFullYe
 
 async function add(props?: Record<string, PropValue>) {
   if (!col.value || creating.value) return
+  if (isReview.value) {
+    reviewOpen.value = true
+    return
+  }
   creating.value = true
   try {
     if (isJournal.value) {
@@ -260,6 +294,7 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
           <Button v-if="canManage" variant="ghost" size="icon" :aria-label="t.settings" @click="settingsOpen = true">
             <Settings2Icon />
           </Button>
+          <NewReviewDialog v-if="isReview" v-model:open="reviewOpen" :sid="sid" />
           <Button v-if="canAdd" :disabled="creating" @click="add()">
             <PlusIcon />
             {{ t.newItem }}
@@ -286,6 +321,35 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
         </div>
       </div>
 
+      <div v-if="isReview" class="flex flex-wrap items-center gap-2 text-sm">
+        <Button size="sm" :variant="review.forMe ? 'secondary' : 'outline'" :aria-pressed="review.forMe" @click="review.forMe = !review.forMe">
+          {{ ko.notes.review.forMe }}
+        </Button>
+        <template v-if="!review.forMe">
+          <select v-model="review.author" :class="selectClass" :aria-label="ko.notes.review.allAuthors">
+            <option value="">
+              {{ ko.notes.review.allAuthors }}
+            </option>
+            <option v-for="u in reviewAuthors" :key="u" :value="u">
+              {{ authorName(u) }}
+            </option>
+          </select>
+          <select v-model="review.book" :class="selectClass" :aria-label="ko.notes.review.allBooks">
+            <option value="">
+              {{ ko.notes.review.allBooks }}
+            </option>
+            <option v-for="[k, title] in reviewBooks" :key="k" :value="k">
+              {{ title }}
+            </option>
+          </select>
+          <select v-model="review.feedback" :class="selectClass" :aria-label="ko.notes.review.feedbackFilter.all">
+            <option v-for="(label, k) in ko.notes.review.feedbackFilter" :key="k" :value="k">
+              {{ label }}
+            </option>
+          </select>
+        </template>
+        <span v-else-if="!items.length" class="text-muted-foreground">{{ ko.notes.review.noForMe }}</span>
+      </div>
       <div class="flex flex-wrap items-center gap-2 text-sm">
         <select :class="selectClass" :aria-label="t.filter" :value="filter?.key ?? ''" @change="setFilterKey(($event.target as HTMLSelectElement).value)">
           <option value="">

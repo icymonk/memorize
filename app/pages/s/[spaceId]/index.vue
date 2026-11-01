@@ -1,11 +1,17 @@
 <script setup lang="ts">
+import { useStudySettings } from '~/features/vocab/composables/useStudySettings'
 import HomeWidgets from '~/features/home/components/HomeWidgets.vue'
+import LeadingCard from '~/features/home/components/LeadingCard.vue'
+import PersonalHome from '~/features/home/components/PersonalHome.vue'
+import WelcomeCard from '~/features/space/components/WelcomeCard.vue'
 import OwnershipTransferBanner from '~/features/space/components/OwnershipTransferBanner.vue'
 import SpaceIcon from '~/features/space/components/SpaceIcon.vue'
-import { DAILY_LIMITS, endOfToday } from '#shared/srs'
+import { endOfToday } from '#shared/srs'
 import { getMembership } from '~/features/space/services/spaces'
 import { listDueStates } from '~/features/vocab/services/srs'
 import { ko } from '~/locales/ko'
+
+const studySettings = useStudySettings()
 
 const space = useSpaceStore()
 const auth = useAuthStore()
@@ -16,7 +22,7 @@ const dueCount = ref<number | null>(null)
 watch(() => space.current?.id, async (sid) => {
   dueCount.value = null
   if (!sid || !auth.user || space.current?.modules?.vocab === false) return
-  dueCount.value = (await listDueStates($firestore, sid, auth.user.uid, endOfToday(Date.now()), DAILY_LIMITS.reviewCards).catch(() => [])).length
+  dueCount.value = (await listDueStates($firestore, sid, auth.user.uid, endOfToday(Date.now()), (await studySettings.load()).dailyReviewCards).catch(() => [])).length
 }, { immediate: true })
 
 watch(() => space.current?.ownershipTransfer, async (transfer) => {
@@ -46,6 +52,7 @@ watch(() => space.current?.ownershipTransfer, async (transfer) => {
     <p v-if="space.current.description" class="text-muted-foreground">
       {{ space.current.description }}
     </p>
+    <WelcomeCard />
     <Card v-if="space.current.modules?.vocab !== false">
       <CardHeader>
         <CardTitle>{{ ko.vocab.review.title }}</CardTitle>
@@ -66,6 +73,8 @@ watch(() => space.current?.ownershipTransfer, async (transfer) => {
         </Button>
       </CardFooter>
     </Card>
+    <PersonalHome v-if="space.current.kind === 'personal'" :sid="space.current.id" />
+    <LeadingCard v-else :sid="space.current.id" :missions="space.current.modules?.missions !== false" :tests="!!space.current.modules?.tests" />
     <HomeWidgets :sid="space.current.id" :personal="space.current.kind === 'personal'" :notes="space.current.modules?.notes !== false" />
   </div>
 </template>

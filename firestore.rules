@@ -6,6 +6,7 @@ service cloud.firestore {
     function uid() { return request.auth.uid; }
     function memberPath(sid) { return /databases/$(database)/documents/spaces/$(sid)/members/$(uid()); }
     function isMember(sid) { return signedIn() && exists(memberPath(sid)) && get(memberPath(sid)).data.status == 'active'; }
+    function formerMember(sid) { return signedIn() && exists(memberPath(sid)) && get(memberPath(sid)).data.status in ['left', 'removed']; }
     function isManager(sid) { return isMember(sid) && get(memberPath(sid)).data.access in ['owner', 'manager']; }
     function onlyChanges(fields) { return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields); }
     function space(sid) { return get(/databases/$(database)/documents/spaces/$(sid)).data; }
@@ -23,13 +24,15 @@ service cloud.firestore {
         && m.tests is bool && m.math is bool && m.courses is bool && m.wrongNotes is bool;
     }
     function validSettings(s) {
-      return s.keys().hasOnly(['joinPolicy', 'whoCanInvite', 'whoCanCreate', 'whoCanHost', 'progressSharing', 'ranking', 'journalVisibility'])
+      return s.keys().hasOnly(['joinPolicy', 'whoCanInvite', 'whoCanCreate', 'whoCanHost', 'progressSharing', 'ranking', 'journalVisibility', 'feedback'])
         && s.joinPolicy in ['link', 'approval']
         && s.whoCanInvite in ['everyone', 'managers']
         && s.whoCanCreate in ['everyone', 'managers']
         && s.whoCanHost in ['everyone', 'managers']
         && s.progressSharing in ['everyone', 'self']
         && s.get('journalVisibility', 'space') in ['space', 'private']
+        && (!('feedback' in s) || (s.feedback.keys().hasOnly(['scoreEnabled', 'scoreFormat'])
+          && s.feedback.scoreEnabled is bool && s.feedback.scoreFormat in ['100', 'grade', 'stars']))
         && s.ranking == resource.data.settings.ranking;
     }
 
@@ -49,8 +52,27 @@ service cloud.firestore {
       allow update: if signedIn() && userId == uid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notifications'])
         && request.resource.data.notifications is map
-        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview']);
+        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group']);
+      // ACC-24 학습 설정: 본인이 study 맵만 ({ dailyNewCards 0~200, dailyReviewCards 10~1000, flashcardFront })
+      allow update: if signedIn() && userId == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['study'])
+        && request.resource.data.study is map
+        && request.resource.data.study.keys().hasOnly(['dailyNewCards', 'dailyReviewCards', 'flashcardFront'])
+        && request.resource.data.study.dailyNewCards is int && request.resource.data.study.dailyNewCards >= 0 && request.resource.data.study.dailyNewCards <= 200
+        && request.resource.data.study.dailyReviewCards is int && request.resource.data.study.dailyReviewCards >= 10 && request.resource.data.study.dailyReviewCards <= 1000
+        && request.resource.data.study.flashcardFront in ['front', 'back'];
+      // READ-51 연간 독서 목표: 본인이 readingGoal 맵만 ({ year, books 1~365 })
+      allow update: if signedIn() && userId == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readingGoal'])
+        && request.resource.data.readingGoal is map
+        && request.resource.data.readingGoal.keys().hasOnly(['year', 'books'])
+        && request.resource.data.readingGoal.year is int && request.resource.data.readingGoal.year >= 2000 && request.resource.data.readingGoal.year <= 2100
+        && request.resource.data.readingGoal.books is int && request.resource.data.readingGoal.books >= 1 && request.resource.data.readingGoal.books <= 365;
       // CMN-30 알림함: 서버가 만들고, 본인은 읽기·읽음 표시·삭제만
+      // CMN-62 내 업로드 목록: 서버(registerUpload·deleteUpload)만 쓴다
+      match /uploads/{fileId} {
+        allow read: if signedIn() && userId == uid();
+      }
       match /notifications/{id} {
         allow read, delete: if signedIn() && userId == uid();
         allow update: if signedIn() && userId == uid()
@@ -62,7 +84,8 @@ service cloud.firestore {
       allow read: if isMember(sid);
       // WS-01·02·04: 소유자·매니저가 일반·기능·운영 방식만 바꾼다. 나머지(인원, 소유자, 삭제 예약)는 서버
       allow update: if resource.data.kind == 'workspace' && isManager(sid)
-        && onlyChanges(['name', 'icon', 'color', 'description', 'modules', 'settings', 'updatedAt'])
+        && onlyChanges(['name', 'icon', 'color', 'description', 'modules', 'settings', 'subjects', 'updatedAt'])
+        && request.resource.data.get('subjects', []) is list && request.resource.data.get('subjects', []).size() <= 30
         && isText(request.resource.data.name, 1, 40)
         && isText(request.resource.data.icon, 1, 16)
         && request.resource.data.color in ['slate', 'red', 'orange', 'amber', 'green', 'teal', 'blue', 'violet', 'pink']
@@ -73,6 +96,32 @@ service cloud.firestore {
 
       match /members/{memberId} {
         allow read: if isMember(sid);
+        // WS-31: 그룹 소속은 모든 멤버가 바꾼다. ACC-11·22: 내 표시 이름과 진도 숨기기는 본인이. 다른 항목은 서버
+        allow update: if isMember(sid) && space(sid).kind == 'workspace' && (
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['groupIds'])
+            && request.resource.data.groupIds is list && request.resource.data.groupIds.size() <= 20)
+          || (memberId == uid()
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'hideProgress'])
+            && isText(request.resource.data.displayName, 1, 40)
+            && request.resource.data.get('hideProgress', false) is bool));
+      }
+
+      // WS-30~33 그룹: 모든 멤버가 만들고 고치고 지운다(휴지통처럼 deletedAt, 30일 뒤 서버가 완전 삭제)
+      match /groups/{gid} {
+        function validGroup(x) {
+          return x.keys().hasOnly(['name', 'color', 'joinable', 'createdBy', 'deletedAt', 'deletedBy', 'createdAt', 'updatedAt'])
+            && isText(x.name, 1, 40) && isText(x.color, 1, 20) && x.joinable is bool && x.createdBy is string;
+        }
+        allow read: if isMember(sid);
+        allow create: if isMember(sid) && space(sid).kind == 'workspace' && validGroup(request.resource.data)
+          && request.resource.data.createdBy == uid() && request.resource.data.deletedAt == null
+          && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
+        allow update: if isMember(sid) && validGroup(request.resource.data)
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdBy', 'createdAt'])
+          && (request.resource.data.deletedAt == null || request.resource.data.deletedAt == resource.data.deletedAt
+            || (request.resource.data.deletedAt == request.time && request.resource.data.deletedBy == uid()))
+          && request.resource.data.updatedAt == request.time;
+        allow delete: if false;
       }
 
       // VOC-01·02·03·05 — docs/dev/security.md 3절 공유 콘텐츠
@@ -80,8 +129,9 @@ service cloud.firestore {
         function d() { return resource.data; }
         function nd() { return request.resource.data; }
         function canSee() {
-          return d().visibility == 'space' || d().createdBy == uid()
-            || (d().visibility == 'group' && get(memberPath(sid)).data.get('groupIds', []).hasAny(d().groupIds));
+          return d().visibility == 'space'
+            || (d().visibility == 'group' && d().groupIds.hasAny(get(memberPath(sid)).data.get('groupIds', [])))
+            || d().createdBy == uid();
         }
         function canEdit() {
           return d().createdBy == uid()
@@ -107,6 +157,62 @@ service cloud.firestore {
           && (d().createdBy == uid() || !nd().diff(d()).affectedKeys().hasAny(['visibility', 'groupIds', 'editPolicy', 'collaboratorIds']))
           && nd().updatedAt == request.time;
         allow delete: if isMember(sid) && (d().createdBy == uid() || isManager(sid));
+      }
+
+      // CRS-01~03·10 강의자료: 공개 대상(나만/그룹/전체)·편집 범위(만든 사람/지정한 사람/모든 멤버). 레슨 본문은 type 'lesson' 페이지
+      match /courses/{courseId} {
+        function c() { return resource.data; }
+        function nc() { return request.resource.data; }
+        function validCourse(x) {
+          return x.keys().hasOnly(['title', 'description', 'level', 'visibility', 'groupIds', 'editPolicy', 'collaboratorIds', 'createdBy', 'deletedAt', 'copiedFrom', 'createdAt', 'updatedAt'])
+            && isText(x.title, 1, 80) && isText(x.description, 0, 500) && isText(x.level, 0, 30)
+            && x.visibility in ['private', 'group', 'space'] && x.groupIds is list && x.groupIds.size() <= 20
+            && (x.visibility != 'group' || x.groupIds.size() > 0)
+            && x.editPolicy in ['author', 'collaborators', 'everyone'] && x.collaboratorIds is list && x.collaboratorIds.size() <= 49
+            && (sid.matches('p_.*') == false || x.visibility == 'private');
+        }
+        allow read: if isMember(sid) && (c().createdBy == uid() || seesCourse(c()));
+        allow create: if isMember(sid)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid))
+          && nc().createdBy == uid() && nc().deletedAt == null && validCourse(nc())
+          && nc().createdAt == request.time && nc().updatedAt == request.time;
+        allow update: if isMember(sid) && c().deletedAt == null && seesCourse(c()) && editsCourse(c()) && validCourse(nc())
+          && nc().createdBy == c().createdBy && nc().createdAt == c().createdAt && nc().updatedAt == request.time
+          && nc().get('copiedFrom', null) == c().get('copiedFrom', null)
+          && (c().createdBy == uid() || !nc().diff(c()).affectedKeys().hasAny(['visibility', 'groupIds', 'editPolicy', 'collaboratorIds', 'deletedAt']));
+      }
+      match /courses/{courseId}/lessons/{lessonId} {
+        function course() { return get(/databases/$(database)/documents/spaces/$(sid)/courses/$(courseId)).data; }
+        function nl() { return request.resource.data; }
+        function validLesson(x) {
+          return x.keys().hasOnly(['title', 'order', 'bodyPageId', 'materials', 'linkedDeckIds', 'linkedProblemSetIds', 'linkedTestIds', 'createdBy', 'createdAt', 'updatedAt'])
+            && isText(x.title, 1, 80) && x.order is number && (x.bodyPageId == null || isText(x.bodyPageId, 1, 128))
+            && x.linkedDeckIds is list && x.linkedDeckIds.size() <= 20 && x.linkedProblemSetIds is list && x.linkedProblemSetIds.size() <= 20
+            && x.linkedTestIds is list && x.linkedTestIds.size() <= 20
+            && x.get('materials', []) is list && x.get('materials', []).size() <= 30;
+        }
+        function canEdit() { return isMember(sid) && course().deletedAt == null && seesCourse(course()) && editsCourse(course()); }
+        allow read: if isMember(sid) && course().deletedAt == null && seesCourse(course());
+        allow create: if canEdit() && validLesson(nl()) && nl().createdBy == uid() && nl().createdAt == request.time;
+        allow update: if canEdit() && validLesson(nl()) && nl().createdBy == resource.data.createdBy && nl().bodyPageId == resource.data.bodyPageId
+          && nl().createdAt == resource.data.createdAt && nl().updatedAt == request.time;
+        allow delete: if canEdit();
+      }
+
+      // CRS-21~23 내 레슨 진도·필기. 진도를 숨기지 않은 멤버의 기록(shared)은 같은 공간 멤버가 본다
+      match /lessonProgress/{pid} {
+        function validProgress(x) {
+          return x.keys().hasOnly(['uid', 'courseId', 'lessonId', 'completedAt', 'noteId', 'shared', 'updatedAt'])
+            && x.uid == uid() && pid == uid() + '_' + x.lessonId && isText(x.courseId, 1, 128) && isText(x.lessonId, 1, 128)
+            && (x.get('completedAt', null) == null || x.completedAt is timestamp)
+            && (x.get('noteId', null) == null || isText(x.noteId, 1, 128))
+            && x.shared is bool && x.updatedAt == request.time
+            && exists(/databases/$(database)/documents/spaces/$(sid)/courses/$(x.courseId)/lessons/$(x.lessonId));
+        }
+        allow read: if isMember(sid) && (resource.data.uid == uid() || resource.data.shared == true);
+        allow create: if isMember(sid) && validProgress(request.resource.data);
+        allow update: if isMember(sid) && resource.data.uid == uid() && validProgress(request.resource.data)
+          && request.resource.data.courseId == resource.data.courseId;
       }
 
       // VOC-03: 폴더는 멤버 누구나 만들고, 만든 사람·매니저가 고치고 지운다
@@ -187,6 +293,46 @@ service cloud.firestore {
           && request.resource.data.bookKey == resource.data.bookKey;
         allow delete: if isMember(sid) && resource.data.uid == uid();
       }
+      // READ-40·41·45 함께 읽기 (워크스페이스만). 진행자가 설정·일정을 바꾸고, 멤버는 자기만 넣고 뺀다
+      match /readingGroups/{gid} {
+        function validGroup(x) {
+          return isText(x.bookKey, 3, 80) && isText(x.book.title, 1, 200) && x.book.authors is list && x.book.authors.size() <= 10
+            && x.unit in ['page', 'percent', 'minute'] && x.startAt is string && x.endAt is string && x.endAt >= x.startAt
+            && x.assignees.all is bool && x.assignees.uids is list && x.assignees.uids.size() <= 200
+            && x.assignees.groupIds is list && x.assignees.groupIds.size() <= 20
+            && x.joinable is bool && x.participantIds is list && x.participantIds.size() <= 500
+            && x.hostIds is list && x.hostIds.size() >= 1 && x.hostIds.size() <= 11
+            && x.schedule is list && x.schedule.size() <= 52;
+        }
+        function canJoin(x) {
+          return x.joinable || x.assignees.all || uid() in x.assignees.uids
+            || get(memberPath(sid)).data.get('groupIds', []).hasAny(x.assignees.groupIds);
+        }
+        allow read: if isMember(sid);
+        allow create: if isMember(sid) && space(sid).kind == 'workspace' && request.resource.data.createdBy == uid()
+          && request.resource.data.hostIds == [uid()] && request.resource.data.participantIds == [uid()]
+          && request.resource.data.closedAt == null && validGroup(request.resource.data);
+        allow update: if isMember(sid) && uid() in resource.data.hostIds && uid() in request.resource.data.hostIds
+          && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.bookKey == resource.data.bookKey
+          && request.resource.data.participantIds == resource.data.participantIds
+          && request.resource.data.get('missionId', null) == resource.data.get('missionId', null) && validGroup(request.resource.data);
+        allow update: if isMember(sid) && resource.data.closedAt == null && onlyChanges(['participantIds'])
+          && ((!(uid() in resource.data.participantIds) && canJoin(resource.data)
+              && request.resource.data.participantIds == resource.data.participantIds.concat([uid()]))
+            || (uid() in resource.data.participantIds && !(uid() in resource.data.hostIds)
+              && request.resource.data.participantIds == resource.data.participantIds.removeAll([uid()])));
+        allow delete: if isMember(sid) && resource.data.createdBy == uid();
+        // READ-43 챕터별 이야기: 참여자만 읽고 쓴다. 지우기는 작성자·진행자
+        match /comments/{cid} {
+          function grp() { return get(/databases/$(database)/documents/spaces/$(sid)/readingGroups/$(gid)).data; }
+          allow read: if isMember(sid) && uid() in grp().participantIds;
+          allow create: if isMember(sid) && uid() in grp().participantIds && request.resource.data.uid == uid()
+            && isText(request.resource.data.itemId, 1, 40) && isText(request.resource.data.body, 1, 1000)
+            && request.resource.data.createdAt == request.time
+            && request.resource.data.keys().hasOnly(['uid', 'itemId', 'body', 'createdAt']);
+          allow delete: if isMember(sid) && (resource.data.uid == uid() || uid() in grp().hostIds);
+        }
+      }
       match /books/{key} {
         allow read: if isMember(sid);
       }
@@ -197,10 +343,168 @@ service cloud.firestore {
             && x.unit in ['page', 'percent', 'minute'] && x.minutes is int && x.minutes >= 0 && x.minutes <= 1440
             && isText(x.memo, 0, 200);
         }
-        allow read: if isMember(sid) && resource.data.uid == uid();
+        allow read: if seesProgress(sid, resource.data.uid);
         allow create: if isMember(sid) && validLog(request.resource.data);
         allow update: if isMember(sid) && resource.data.uid == uid() && validLog(request.resource.data);
         allow delete: if isMember(sid) && resource.data.uid == uid();
+      }
+
+      // 2-C4 구절 (READ-30·31). 공개(space)면 멤버 모두, 아니면 본인만
+      match /quotes/{id} {
+        function validQuote(x) {
+          return x.uid == uid() && isText(x.bookKey, 3, 80) && isText(x.title, 1, 200) && isText(x.date, 10, 10)
+            && isText(x.text, 1, 1000) && x.unit in ['page', 'percent', 'minute']
+            && (x.position == null || (x.position is int && x.position >= 0))
+            && x.visibility in ['private', 'space'];
+        }
+        allow read: if isMember(sid) && (resource.data.uid == uid() || resource.data.visibility == 'space');
+        allow create: if isMember(sid) && validQuote(request.resource.data);
+        allow update: if isMember(sid) && resource.data.uid == uid() && validQuote(request.resource.data);
+        allow delete: if isMember(sid) && resource.data.uid == uid();
+      }
+
+      // 3-A1 문제 은행 (TST-01·02·04·07·08). 정답은 questionKeys에 따로 두고 출제자(+공개 설정 시 멤버)만 읽는다
+      match /questions/{qid} {
+        function validQ(x) {
+          return x.keys().hasOnly(['type', 'prompt', 'choices', 'tags', 'subjectId', 'media', 'copiedFrom', 'difficulty', 'defaultPoints', 'createdBy', 'sharing', 'answerVisibility', 'rev', 'deletedAt', 'createdAt', 'updatedAt', 'unit', 'variant'])
+            && x.type in ['single', 'multi', 'ox', 'short', 'essay'] && isText(x.prompt, 1, 2000)
+            && x.choices is list && x.choices.size() <= 6 && x.tags is list && x.tags.size() <= 10
+            && (!('media' in x) || (x.media is list && x.media.size() <= 5))
+            && x.difficulty in ['easy', 'normal', 'hard'] && x.defaultPoints is int && x.defaultPoints >= 1 && x.defaultPoints <= 100
+            && x.sharing in ['private', 'space'] && x.answerVisibility in ['authors', 'space'] && x.rev is int
+            && (x.get('unit', null) == null || (x.unit is map && x.unit.keys().hasOnly(['code', 'custom'])))
+            && x.get('variant', false) is bool;
+        }
+        allow read: if isMember(sid) && (resource.data.createdBy == uid() || resource.data.sharing == 'space');
+        allow create: if isMember(sid) && request.resource.data.createdBy == uid() && request.resource.data.deletedAt == null
+          && validQ(request.resource.data)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid));
+        allow update: if isMember(sid) && resource.data.createdBy == uid() && request.resource.data.createdBy == uid() && validQ(request.resource.data);
+      }
+      match /questionKeys/{qid} {
+        function qAfter() { return getAfter(/databases/$(database)/documents/spaces/$(sid)/questions/$(qid)).data; }
+        function validKey(x) {
+          return x.keys().hasOnly(['answer', 'ignoreCase', 'ignoreSpaces', 'explanation', 'rubric', 'authorIds', 'answerVisibility', 'tolerance', 'template', 'hints'])
+            && (x.get('template', null) == null || (x.template is map
+              && x.template.keys().hasOnly(['prompt', 'explanation', 'hints', 'vars', 'calc', 'conds', 'answerExpr', 'wrongExprs'])
+              && x.template.vars is list && x.template.vars.size() <= 10 && x.template.calc.size() <= 10 && x.template.conds.size() <= 10))
+            && (x.get('hints', []) is list && x.get('hints', []).size() <= 5)
+            && (x.get('tolerance', null) == null || (x.tolerance is number && x.tolerance >= 0))
+            && x.answer is list && x.answer.size() <= 20 && x.ignoreCase is bool && x.ignoreSpaces is bool
+            && isText(x.explanation, 0, 2000) && isText(x.rubric, 0, 2000)
+            && x.authorIds == [uid()] && qAfter().createdBy == uid() && x.answerVisibility == qAfter().answerVisibility;
+        }
+        allow read: if isMember(sid) && (uid() in resource.data.authorIds || resource.data.answerVisibility == 'space');
+        allow create: if isMember(sid) && validKey(request.resource.data);
+        allow update: if isMember(sid) && uid() in resource.data.authorIds && validKey(request.resource.data);
+      }
+
+      // 수학 M2 문제집 (MATH-10·13). 공개(space)면 멤버 모두 읽고, editPolicy가 members면 멤버도 문제 목록만 고친다
+      match /problemSets/{setId} {
+        function validSet(x) {
+          return x.keys().hasOnly(['title', 'description', 'grade', 'unit', 'questionIds', 'visibility', 'editPolicy', 'createdBy', 'deletedAt', 'createdAt', 'updatedAt', 'hintPenalty'])
+            && isText(x.title, 1, 80) && isText(x.description, 0, 500)
+            && (x.grade == null || isText(x.grade, 1, 10))
+            && (x.unit == null || (x.unit is map && x.unit.keys().hasOnly(['code', 'custom'])))
+            && x.questionIds is list && x.questionIds.size() <= 100
+            && x.visibility in ['private', 'space'] && x.editPolicy in ['owner', 'members']
+            && (x.visibility == 'space' || x.editPolicy == 'owner')
+            && x.get('hintPenalty', 0) is int && x.get('hintPenalty', 0) >= 0 && x.get('hintPenalty', 0) <= 50
+            && (space(sid).kind == 'workspace' || x.visibility == 'private');
+        }
+        allow read: if isMember(sid) && (resource.data.createdBy == uid() || resource.data.visibility == 'space');
+        allow create: if isMember(sid) && request.resource.data.createdBy == uid() && request.resource.data.deletedAt == null
+          && validSet(request.resource.data)
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid));
+        allow update: if isMember(sid) && validSet(request.resource.data) && request.resource.data.createdBy == resource.data.createdBy
+          && (resource.data.createdBy == uid()
+            || (resource.data.visibility == 'space' && resource.data.editPolicy == 'members' && resource.data.deletedAt == null
+              && onlyChanges(['questionIds', 'updatedAt'])));
+      }
+      // 수학 M4 풀이 기록 (MATH-20·21·24): 본인만 읽고, 숫자(seed)·채점·힌트는 서버(drawProblem·checkProblem·revealHint)만 쓴다
+      match /problemAttempts/{attemptId} {
+        allow read: if isMember(sid) && attemptId.split('_')[0] == uid();
+        allow write: if false;
+      }
+      // 3-C1 오답 노트 (WRN-01·03): 서버가 쓰고 본인만 읽는다 ({uid}_{refType}_{refId}). 공유(WRN-13)는 3단계 이후
+      match /wrongNotes/{noteId} {
+        allow read: if isMember(sid) && (resource == null ? noteId.split('_')[0] == uid() : resource.data.uid == uid());
+        // WRN-21·22 직접 해결·되돌리기만 본인이 (나머지는 서버)
+        allow update: if isMember(sid) && resource.data.uid == uid() && onlyChanges(['resolved', 'resolvedAt', 'consecutiveCorrect'])
+          && request.resource.data.resolved is bool && request.resource.data.consecutiveCorrect == 0;
+        allow create, delete: if false;
+      }
+      // MATH-22 풀이 메모: 문제마다 내 메모 하나 ({uid}_{questionId})
+      match /problemNotes/{noteId} {
+        function validNote(x) {
+          return x.keys().hasOnly(['uid', 'questionId', 'text', 'updatedAt'])
+            && x.uid == uid() && x.questionId is string && noteId == uid() + '_' + x.questionId && isText(x.text, 0, 5000);
+        }
+        allow read: if isMember(sid) && noteId.split('_')[0] == uid();
+        allow create, update: if isMember(sid) && validNote(request.resource.data);
+        allow delete: if isMember(sid) && noteId.split('_')[0] == uid();
+      }
+
+      // 3-B1 시험 (TST-10~16). 진행자는 임시저장 상태에서만 고치고, 여는 것(문제 사본·대상자)은 서버 함수(openTest)가 한다
+      match /tests/{testId} {
+        function canHostTest() {
+          return space(sid).kind == 'personal' || isManager(sid) || space(sid).get('settings', {}).get('whoCanHost', 'everyone') == 'everyone';
+        }
+        function validTest(x) {
+          return isText(x.title, 1, 80) && isText(x.description, 0, 2000)
+            && x.questionRefs is list && x.questionRefs.size() <= 100
+            && x.settings.maxAttempts is int && x.settings.maxAttempts >= 0 && x.settings.maxAttempts <= 10
+            && x.settings.scoring in ['best', 'last'] && x.settings.resultRelease in ['instant', 'afterClose', 'scoreOnly', 'hidden']
+            && x.settings.shuffleQuestions is bool && x.settings.shuffleChoices is bool && x.settings.practice is bool
+            && (x.settings.timeLimitMin == null || (x.settings.timeLimitMin is int && x.settings.timeLimitMin >= 1 && x.settings.timeLimitMin <= 300))
+            && x.assignees.all is bool && x.assignees.uids is list && x.assignees.uids.size() <= 200
+            && x.assignees.groupIds is list && x.assignees.groupIds.size() <= 20
+            && (x.get('mission', null) == null || (x.mission.enabled is bool
+                && (x.mission.minScore == null || (x.mission.minScore is int && x.mission.minScore >= 1 && x.mission.minScore <= 10000))))
+            && x.hostIds is list && x.hostIds.size() >= 1 && x.hostIds.size() <= 11;
+        }
+        allow read: if isMember(sid) && (uid() in resource.data.hostIds
+          || (resource.data.status in ['open', 'closed'] && uid() in resource.data.get('participantIds', [])));
+        allow create: if isMember(sid) && request.resource.data.createdBy == uid() && request.resource.data.hostIds == [uid()]
+          && request.resource.data.status == 'draft' && request.resource.data.deletedAt == null
+          && !('participantIds' in request.resource.data) && !('missionId' in request.resource.data) && validTest(request.resource.data) && canHostTest();
+        allow update: if isMember(sid) && uid() in resource.data.hostIds && request.resource.data.createdBy == resource.data.createdBy
+          && ((resource.data.status == 'draft' && request.resource.data.status == 'draft'
+                && request.resource.data.hostIds == resource.data.hostIds
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'questionRefs', 'settings', 'assignees', 'mission', 'deletedAt', 'updatedAt'])
+                && validTest(request.resource.data))
+            || (resource.data.status != 'draft' && request.resource.data.status in ['open', 'closed']
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'deletedAt', 'updatedAt'])));
+      }
+      match /tests/{testId}/paper/{docId} {
+        function tst() { return get(/databases/$(database)/documents/spaces/$(sid)/tests/$(testId)).data; }
+        allow read: if isMember(sid) && (uid() in tst().hostIds
+          || (tst().status in ['open', 'closed'] && uid() in tst().get('participantIds', [])
+              && (tst().settings.openAt == null || request.time.toMillis() >= tst().settings.openAt)));
+      }
+
+      // 3-B3 정답 사본: 진행자만 읽는다 (채점 기준 보기)
+      match /tests/{testId}/secret/{docId} {
+        allow read: if isMember(sid) && uid() in get(/databases/$(database)/documents/spaces/$(sid)/tests/$(testId)).data.hostIds;
+      }
+
+      // 3-B2 응시 (TST-21~23). 시작·제출·채점은 서버 함수, 응시자는 마감 전 답만 저장
+      match /tests/{testId}/attempts/{attemptId} {
+        allow read: if isMember(sid) && (resource.data.uid == uid() || uid() in resource.data.hostIds);
+        allow update: if isMember(sid) && resource.data.uid == uid() && resource.data.submittedAt == null
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answers'])
+          && request.resource.data.answers is map && request.resource.data.answers.size() <= 100
+          && (resource.data.deadlineAt == null || request.time < resource.data.deadlineAt + duration.value(30, 's'));
+      }
+      // 3-B2 결과 (TST-15·32). 결과 공개 설정에 따라 응시자가 읽는다
+      match /tests/{testId}/results/{attemptId} {
+        function rt() { return get(/databases/$(database)/documents/spaces/$(sid)/tests/$(testId)).data; }
+        function released() {
+          return resource.data.isPractice || rt().settings.resultRelease in ['instant', 'scoreOnly']
+            || (rt().settings.resultRelease == 'afterClose'
+                && (rt().status == 'closed' || (rt().settings.closeAt != null && request.time.toMillis() >= rt().settings.closeAt)));
+        }
+        allow read: if isMember(sid) && (uid() in resource.data.hostIds || (resource.data.uid == uid() && released()));
       }
 
       // 2-E1 미션 (MIS-01·02·10~12·14·34). 개인 목표는 만든 사람만 보고, 내 공간에서는 개인 목표만 만든다
@@ -211,12 +515,13 @@ service cloud.firestore {
         }
         function validMission(x) {
           return isText(x.title, 1, 80) && isText(x.description, 0, 2000)
-            && x.type in ['check', 'submission']
+            && x.type in ['check', 'submission', 'auto']
             && x.recurrence.kind in ['once', 'daily', 'weekly'] && x.recurrence.weekdays is list && x.recurrence.weekdays.size() <= 7
             && x.startDate is string && (x.endDate == null || (x.endDate is string && x.endDate >= x.startDate))
             && x.allowLate is bool && x.includeSelf is bool && x.joinable is bool && x.isPersonal is bool
             && x.notifyOnComplete in ['feed', 'all', 'none']
             && x.assignees.all is bool && x.assignees.uids is list && x.assignees.uids.size() <= 200
+            && x.assignees.get('groupIds', []) is list && x.assignees.get('groupIds', []).size() <= 20
             && x.participantIds is list && x.participantIds.size() <= 500
             && x.hostIds is list && x.hostIds.size() >= 1 && x.hostIds.size() <= 11
             && x.reviewerIds is list && x.reviewerIds.size() <= 20
@@ -224,11 +529,14 @@ service cloud.firestore {
         }
         allow read: if isMember(sid) && (!resource.data.isPersonal || resource.data.createdBy == uid());
         allow create: if isMember(sid) && request.resource.data.createdBy == uid() && uid() in request.resource.data.hostIds
-          && request.resource.data.closedAt == null && validMission(request.resource.data)
+          && request.resource.data.closedAt == null && validMission(request.resource.data) && request.resource.data.type != 'auto'
           && (request.resource.data.isPersonal || canHost());
         allow update: if isMember(sid) && uid() in resource.data.hostIds && uid() in request.resource.data.hostIds
           && request.resource.data.createdBy == resource.data.createdBy && request.resource.data.isPersonal == resource.data.isPersonal
-          && validMission(request.resource.data);
+          && validMission(request.resource.data)
+          && (request.resource.data.type == 'auto') == (resource.data.type == 'auto')
+          // MIS-16 시험 연결 미션은 서버가 만들고, 진행자는 종료만 바꾼다
+          && (resource.data.type != 'auto' || onlyChanges(['closedAt', 'updatedAt']));
         // MIS-21·24: 진행자가 아닌 멤버는 열린 미션에 자기만 넣거나 뺀다
         allow update: if isMember(sid) && resource.data.joinable && resource.data.closedAt == null
           && onlyChanges(['participantIds'])
@@ -244,32 +552,42 @@ service cloud.firestore {
         function validSub(x, mi) {
           return x.uid == uid() && subId == uid() + '_' + x.periodKey && x.periodKey is string
             && isText(x.content, 0, 5000) && (x.pageId == null || x.pageId is string)
+            && x.get('attachments', []) is list && x.get('attachments', []).size() <= 10
             && x.late is bool && (!x.late || mi.allowLate)
             && x.reviewerUids is list && x.reviewerUids.toSet() == checkers(mi).toSet()
             && x.status == (mi.type == 'check' || checkers(mi).size() == 0 ? 'done' : 'submitted');
         }
         allow read: if isMember(sid) && (!ms().isPersonal || ms().createdBy == uid())
           && (resource.data.uid == uid() || uid() in ms().hostIds || uid() in ms().reviewerIds);
-        allow create: if isMember(sid) && uid() in ms().participantIds && ms().closedAt == null
+        // MIS-16 시험 연결 미션의 완료는 서버가 응시 결과로만 기록
+        allow create: if isMember(sid) && uid() in ms().participantIds && ms().closedAt == null && ms().type != 'auto'
           && validSub(request.resource.data, ms());
-        allow update: if isMember(sid) && resource.data.uid == uid() && ms().closedAt == null
+        allow update: if isMember(sid) && resource.data.uid == uid() && ms().closedAt == null && ms().type != 'auto'
           && resource.data.status in ['submitted', 'rejected'] && validSub(request.resource.data, ms())
           && request.resource.data.periodKey == resource.data.periodKey
-          && onlyChanges(['content', 'pageId', 'late', 'status', 'reviewerUids', 'submittedAt', 'reason']);
+          && onlyChanges(['content', 'pageId', 'attachments', 'late', 'status', 'reviewerUids', 'submittedAt', 'reason']);
         // MIS-31: 검토자는 검토 대기 제출을 승인·반려(사유 선택)
         allow update: if isMember(sid) && resource.data.status == 'submitted' && uid() in resource.data.reviewerUids
           && request.resource.data.status in ['approved', 'rejected']
           && request.resource.data.reviewedBy == uid() && request.resource.data.reviewedAt == request.time
           && isText(request.resource.data.get('reason', ''), 0, 500)
           && onlyChanges(['status', 'reviewedBy', 'reviewedAt', 'reason']);
-        allow delete: if isMember(sid) && resource.data.uid == uid() && ms().closedAt == null
+        allow delete: if isMember(sid) && resource.data.uid == uid() && ms().closedAt == null && ms().type != 'auto'
           && (ms().type == 'check' || resource.data.status == 'submitted');
       }
 
       // NOTE-01·10 노트 페이지와 블록 (docs/dev/editor.md). 공개 범위 세분화·공동 편집자 지정·잠금은 1-C4
       // NOTE-50·54·60: 공개 범위(나만·지정한 사람·공간 전체), 공동 편집자, 공유 페이지 편집 정책, 편집 잠금(90초)
       function seesPage(p) {
-        return p.deletedAt == null && p.get('ownerStatus', 'active') == 'active' && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds || uid() in p.get('reviewerIds', []));
+        return p.deletedAt == null && p.get('ownerStatus', 'active') == 'active' && (p.visibility == 'space' || uid() in p.get('sharedWith', []) || uid() in p.editorIds || uid() in p.get('reviewerIds', [])
+          || (p.visibility == 'group' && p.groupIds.hasAny(get(memberPath(sid)).data.get('groupIds', []))));
+      }
+      function seesCourse(x) {
+        return x.createdBy == uid() || x.visibility == 'space'
+          || (x.visibility == 'group' && x.groupIds.hasAny(get(memberPath(sid)).data.get('groupIds', [])));
+      }
+      function editsCourse(x) {
+        return x.createdBy == uid() || x.editPolicy == 'everyone' || (x.editPolicy == 'collaborators' && uid() in x.collaboratorIds);
       }
       function editsPage(p) {
         return p.ownerId == uid() || uid() in p.editorIds || (p.root == 'shared' && p.get('editPolicy', 'everyone') == 'everyone');
@@ -281,11 +599,15 @@ service cloud.firestore {
         function pg() { return resource.data; }
         function np() { return request.resource.data; }
         function validPage(x) {
-          return x.type in ['page', 'item', 'journal'] && (x.type == 'page' || isText(x.get('collectionId', ''), 1, 128))
-            && (x.type == 'page' || (x.type == 'journal') == (x.collectionId == 'journal'))
+          return x.type in ['page', 'item', 'journal', 'bookReview', 'lesson', 'lessonNote'] && (x.type in ['page', 'lesson', 'lessonNote'] || isText(x.get('collectionId', ''), 1, 128))
+            && (!(x.type in ['lesson', 'lessonNote']) || x.parentId == null)
+            && (x.type in ['page', 'lesson', 'lessonNote'] || (x.type == 'journal') == (x.collectionId == 'journal'))
+            && (x.type in ['page', 'lesson', 'lessonNote'] || (x.type == 'bookReview') == (x.collectionId == 'bookReview'))
+            && (x.type != 'bookReview' || (x.book is map && isText(x.book.bookKey, 3, 80) && isText(x.book.title, 1, 200)))
             && x.get('props', {}) is map && x.get('props', {}).size() <= 20 && isText(x.title, 0, 200) && isText(x.icon, 0, 16)
             && x.root in ['private', 'shared'] && (x.parentId == null || x.parentId is string) && isText(x.order, 1, 256)
-            && x.visibility in ['private', 'people', 'space'] && x.editorIds is list && x.editorIds.size() <= 50
+            && x.visibility in ['private', 'people', 'group', 'space'] && x.editorIds is list && x.editorIds.size() <= 50
+            && x.get('groupIds', []) is list && x.get('groupIds', []).size() <= 20
             && x.get('sharedWith', []) is list && x.get('sharedWith', []).size() <= 50
             && x.get('reviewerIds', []) is list && x.get('reviewerIds', []).size() <= 50
             && x.get('editPolicy', 'everyone') in ['everyone', 'editors']
@@ -301,17 +623,19 @@ service cloud.firestore {
         }
         // NOTE-46·49: 모음 페이지는 맨 위에만, 모음의 갈래(scope = root)를 따른다. 내 모음에는 만든 사람만 추가
         function collectionOk(x) {
-          return x.type == 'page' || (x.parentId == null
+          return x.type in ['page', 'lesson', 'lessonNote'] || (x.parentId == null
             && get(/databases/$(database)/documents/spaces/$(sid)/collections/$(x.collectionId)).data.scope == x.root
             && (x.root == 'shared' || get(/databases/$(database)/documents/spaces/$(sid)/collections/$(x.collectionId)).data.ownerId == uid()));
         }
         // 휴지통의 페이지는 작성자·버린 사람만 본다 (NOTE-22). 옮기기·휴지통은 서버(movePage·trashPage·restorePage)
         allow read: if isMember(sid) && (pg().ownerId == uid() || pg().get('deletedBy', '') == uid()
-          || seesPage(pg()));
-        // NOTE-30: 학습일지는 모든 멤버가 쓰고, 남은 고칠 수 없게(editPolicy: editors) 만든다
+          || seesPage(pg()))
+          // ACC-32: 나가거나 내보내진 사람은 거기 쓴 자기 글을 읽기만 한다
+          || (formerMember(sid) && pg().ownerId == uid() && pg().deletedAt == null);
+        // NOTE-30·REV-01: 학습일지·독후감은 모든 멤버가 쓰고, 남은 고칠 수 없게(editPolicy: editors) 만든다
         allow create: if isMember(sid)
-          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || np().type == 'journal')
-          && (np().type != 'journal' || np().get('editPolicy', 'everyone') == 'editors')
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || np().type in ['journal', 'bookReview', 'lesson', 'lessonNote'])
+          && (!(np().type in ['journal', 'bookReview']) || np().get('editPolicy', 'everyone') == 'editors')
           && np().ownerId == uid() && validPage(np()) && np().blockCount == 0 && np().textLength == 0 && np().lock == null
           && np().deletedAt == null && parentOk(np()) && collectionOk(np())
           && np().createdAt == request.time && np().updatedAt == request.time;
@@ -319,7 +643,7 @@ service cloud.firestore {
           && (!np().diff(pg()).affectedKeys().hasAny(['lock']) || (lockFree(pg())
             && (np().lock == null || (np().lock.uid == uid() && np().lock.at == request.time))))
           && pg().deletedAt == null
-          && !np().diff(pg()).affectedKeys().hasAny(['ownerId', 'type', 'collectionId', 'createdAt', 'copiedFrom', 'missionIds', 'commentCount', 'feedbackCount', 'reactionCounts',
+          && !np().diff(pg()).affectedKeys().hasAny(['ownerId', 'type', 'collectionId', 'createdAt', 'copiedFrom', 'book', 'missionIds', 'commentCount', 'feedbackCount', 'reactionCounts',
             'parentId', 'ancestorIds', 'deletedAt', 'deletedBy', 'trashRootId'])
           && (pg().ownerId == uid() || !np().diff(pg()).affectedKeys().hasAny(['visibility', 'root', 'groupIds', 'sharedWith', 'editorIds', 'reviewerIds', 'editPolicy']))
           && np().updatedAt == request.time;
@@ -329,14 +653,14 @@ service cloud.firestore {
       // NOTE-46~49 내 모음: 내 모음은 만든 사람만, 공유 모음은 모든 멤버가 본다. 설정은 만든 사람(공유 모음은 매니저도)
       match /collections/{cid} {
         function validCollection(x) {
-          return (x.kind == 'custom' || (x.kind == 'system' && cid == 'journal' && x.get('systemType', '') == 'journal' && (sid.matches('p_.*') || x.scope == 'shared')))
+          return (x.kind == 'custom' || (x.kind == 'system' && cid in ['journal', 'bookReview'] && x.get('systemType', '') == cid && (sid.matches('p_.*') || x.scope == 'shared')))
             && isText(x.name, 1, 60) && isText(x.icon, 0, 16) && x.scope in ['private', 'shared']
             && x.schema is list && x.schema.size() <= 20 && x.views is list && x.views.size() <= 20
             && (sid.matches('p_.*') == false || x.scope == 'private');
         }
         allow read: if isMember(sid) && (resource == null || resource.data.scope == 'shared' || resource.data.ownerId == uid());
         allow create: if isMember(sid)
-          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || cid == 'journal')
+          && (space(sid).kind == 'personal' || space(sid).settings.whoCanCreate == 'everyone' || isManager(sid) || cid in ['journal', 'bookReview'])
           && request.resource.data.ownerId == uid() && validCollection(request.resource.data)
           && request.resource.data.createdAt == request.time && request.resource.data.updatedAt == request.time;
         allow update: if isMember(sid) && (resource.data.ownerId == uid() || (resource.data.scope == 'shared' && isManager(sid)))
@@ -371,12 +695,13 @@ service cloud.firestore {
       }
       match /reactions/{id} {
         function rTarget(r) { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(r.targetId)).data; }
-        function readsR(r) { return r.targetType == 'page' && (rTarget(r).ownerId == uid() || seesPage(rTarget(r))); }
+        // CMN-12 피드 반응(`feed`)은 멤버면 누구나. 대상은 활동 ID 또는 같은 날 묶음 키
+        function readsR(r) { return r.targetType == 'feed' || (r.targetType == 'page' && (rTarget(r).ownerId == uid() || seesPage(rTarget(r)))); }
         allow read: if isMember(sid) && readsR(resource.data);
         allow create, update: if isMember(sid) && request.resource.data.uid == uid() && readsR(request.resource.data)
           && id == request.resource.data.targetType + '_' + request.resource.data.targetId + '_' + uid()
           && request.resource.data.keys().hasOnly(['targetType', 'targetId', 'uid', 'emoji'])
-          && isText(request.resource.data.emoji, 1, 16);
+          && isText(request.resource.data.emoji, 1, 16) && isText(request.resource.data.targetId, 1, 200);
         allow delete: if isMember(sid) && resource.data.uid == uid();
       }
 
@@ -410,7 +735,7 @@ service cloud.firestore {
           return isText(b.type, 1, 40) && (b.parentBlockId == null || b.parentBlockId is string) && isText(b.order, 1, 256)
             && b.attrs is map && b.content is list && b.rev is int && b.updatedBy == uid() && b.updatedAt == request.time;
         }
-        allow read: if isMember(sid) && seePage(page());
+        allow read: if (isMember(sid) && seePage(page())) || (formerMember(sid) && page().ownerId == uid() && page().deletedAt == null);
         allow create, update: if isMember(sid) && seePage(page()) && editPage(page()) && validBlock(request.resource.data);
         allow delete: if isMember(sid) && seePage(page()) && editPage(page());
       }

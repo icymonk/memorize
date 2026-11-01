@@ -1,8 +1,18 @@
 rules_version = '2';
+// docs/dev/security.md 4절. 파일은 같은 공간의 활성 멤버가 읽고, 본인 폴더에만 올린다 (CMN-60·61)
 service firebase.storage {
   match /b/{bucket}/o {
-    match /{allPaths=**} {
-      allow read, write: if false;
+    function member(sid) {
+      return request.auth != null
+        && firestore.exists(/databases/(default)/documents/spaces/$(sid)/members/$(request.auth.uid))
+        && firestore.get(/databases/(default)/documents/spaces/$(sid)/members/$(request.auth.uid)).data.status == 'active';
+    }
+    match /spaces/{sid}/files/{ownerUid}/{fileId}/{name} {
+      allow read: if member(sid);
+      allow create: if member(sid) && request.auth.uid == ownerUid
+        && request.resource.size < 500 * 1024 * 1024
+        && request.resource.contentType.matches('(image|audio|video|text)/.*|application/.*');
+      allow delete: if request.auth != null && request.auth.uid == ownerUid;
     }
   }
 }

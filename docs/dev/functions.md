@@ -1,6 +1,6 @@
 # 서버 기능 (Cloud Functions)
 
-> 상태: 확정 · v2.4 — 결정 D1: 0단계부터 사용
+> 상태: 확정 · v2.15 — 결정 D1: 0단계부터 사용
 
 ## 1. 공통 규칙
 | 항목 | 내용 |
@@ -45,6 +45,11 @@
 | `scheduleSpaceDeletion` / `cancelSpaceDeletion` | 7일 유예 삭제 | WS-07 | 0 |
 | `restoreGroup` | 삭제된 그룹 복원 (30일) | WS-33 | 2 |
 | `copyContent` | 공간 A → 공간 B 복사 (단어장, 페이지·하위 페이지, 모음, 문제·묶음, 문제집, 코스, 템플릿). 권한·조건 검사, 볼 수 없는 연결 제거, 파일 복사 | WS-60~64 | 1 (단어장·노트), 3 (나머지) |
+| `openTest` | 시험 열기: 진행자 확인, 문제를 시험지 사본(`paper/main`)과 정답 사본(`secret/key`)으로 굳히고 대상자(`participantIds`)·총점 확정 | TST-10·16 | 3 |
+| `createReadingGroupMission` | 함께 읽기 "기간 내 완독" 미션 만들기: 진행자 확인, type 'auto' 미션 생성·`readingGroups.missionId` 연결, 이미 기간 안에 완독한 참여자는 바로 완료. 이후 완독은 `onShelfWritten`, 새 참여자는 `onReadingGroupUpdated`가 반영 | READ-44·MIS-16 | 3 |
+| `startAttempt` / `submitAttempt` | 응시 시작(대상·기간·횟수 확인, 섞기, 서버 기준 마감 시각) / 제출과 객관식·OX·단답 자동 채점, 서술형은 채점 대기 | TST-21~23·30 | 3 |
+| `checkAnswer` | 연습 모드에서 문제 하나의 정답·해설 확인 | TST-17 | 3 |
+| `gradeAttempt` | 진행자 채점: 문제별 점수(부분 점수, 배점 안으로 자름)·코멘트, 총점·채점 상태 다시 계산, 끝나면 응시자에게 `test` 알림 | TST-31·33 | 3 |
 
 #### 2-1. 초대 메일 발송 방식 (Firebase·무료 서비스 우선)
 | 순위 | 방식 | 비용 | 한계 |
@@ -86,7 +91,13 @@
 | --- | --- | --- | --- |
 | `startAttempt` | 대상·기간·횟수 확인 → 응시 문서(마감 시각 서버 계산, 섞인 순서) 생성. 진행자·출제자면 연습 응시 | TST-20·21 | 3 |
 | `submitAttempt` | 마감 확인 → 정답으로 채점 → 결과 저장 → 공개 설정에 따라 해설 포함 응답. 시간이 지난 응시는 자동 제출 | TST-23·30·32 | 3 |
-| `checkAnswer` | 연습 모드·수학 문제집의 문항별 즉시 채점 | TST-17, MATH-20 | 3 |
+| `checkAnswer` | 시험 연습 모드의 문항별 즉시 채점 | TST-17 | 3 |
+| `drawProblem` | 문제집 문제 하나 열기: 풀이 기록을 시작하고 변형 문제는 seed를 정해 기록, 완성된 지문·보기와 연 힌트만 돌려준다 (정답 식은 안 내려감). `fresh`면 새 숫자로 처음부터 | MATH-14·20·24 | 3 |
+| `checkProblem` | 문제집 문항 바로 채점: 변형 문제는 `problemAttempts.seed`로 숫자를 다시 만들어 채점. 맞히거나 포기하면 정답·해설, 점수는 힌트 감점 반영 | MATH-20·23 | 3 |
+| `revealHint` | 힌트 한 단계 더 열기 (사용 수 기록) | MATH-21 | 3 |
+| `generateProblems` | 단원별 만들기 미리보기 목록: 단원(·세부 개념)의 내장 틀 + 워크스페이스 공유 틀에서 난이도·개수·정답 형식대로 골라 숫자를 채운다 (정답은 내장·내 틀·정답 공개 틀만) | MATH-15 | 3 |
+| `previewTemplate` | 미리보기 한 문제 다시: 새 seed로 숫자 다시 뽑기, 숫자↔객관식 바꾸기 | MATH-14·15 | 3 |
+| `saveGenerated` | 단원별 만들기 결과 저장: 고른 문제 틀(내장·다른 사람 것 포함)을 내 문제·정답으로 복사해 문제집에 넣는다 | MATH-15 | 3 |
 | `getGradingKit` / `gradeManual` / `regrade` | 서술형 채점 자료 제공, 직접 채점, 다시 채점 | TST-31 | 3 |
 | `resolveAppeal` | 이의 신청 인정 → 정답 추가·재채점 | MATH 예외 | 4 |
 
@@ -110,7 +121,7 @@
 | 트리거 | 하는 일 | 단계 |
 | --- | --- | --- |
 | `onStudySessionCreated` | 단어 학습 활동 생성, 매칭 기록이면 `matchTop` 갱신 | 1 |
-| `onCardStateWritten` | 진도(`deckProgress`) 집계, 틀린 카드 → 오답 노트 | 1 / 3 |
+| `onCardStateWritten` | 진도(`deckProgress`) 집계, 틀린 카드 → 오답 노트 (3-C1 적용) | 1 / 3 |
 | `onCardWritten` | 카드 수 집계, 뜻 크게 변경 시 `contentRev` 처리 | 1 |
 | `onPageWritten` | 독후감 발행·일지 작성 활동, 역링크(`pageLinks`) 갱신, 편집 잠금 해제 시 버전 스냅샷 | 1 / 2 / 3 |
 | `onReadingLogCreated` · `onShelfWritten` | 독서 활동, 워크스페이스 책장 묶음(`books`) 갱신, 함께 읽기 진행 | 2 |
@@ -121,7 +132,7 @@
 | `onMissionWritten` · `onTestWritten` · `onQuestionWritten` | 역할 목록 변경 시 하위 문서 복사본(`reviewerUids`, `hostIds`, `authorIds`) 동기화, 원본 수정 시 복사본 주인에게 알림(TST-08) | 2 / 3 |
 | `onMemberWritten` | 멤버 수, 그룹 멤버 수, 사용자 `spaceIds` 동기화, 나간 멤버의 노트 `ownerStatus` | 0 |
 | `onGroupDeleted` | 알림, 복원 기간 기록 | 2 |
-| `onFileFinalized` · `onFileDeleted` (Storage) | 업로드 용량 집계(CMN-61·62), 이미지 축소본, 80% 알림 | 1 |
+| `registerUpload` · `deleteUpload` (callable) | 업로드 등록·용량 집계·계정 총량 확인, 내 파일 지우기(CMN-61·62). 버킷 위치와 상관없이 동작하도록 Storage 트리거 대신 callable. 사진 축소는 클라이언트 | 2 |
 
 ## 4. 스케줄
 | 이름 | 주기 | 하는 일 | 단계 |
@@ -142,3 +153,14 @@
 - v2.2: `createInvite`·`getInvite` 추가(코드 유일성·비멤버 미리보기), `decideJoinRequest`를 0단계로
 - v2.1: 확정 — 초대 메일은 Firebase Auth 이메일 링크 우선, 필요 시 Trigger Email + 무료 SMTP (2-1)
 - v2.0: 확정 기능명세 기준으로 새로 작성
+- v2.5: `onFileFinalized`·`onFileDeleted` 대신 callable `registerUpload`·`deleteUpload`
+- v2.6: callable `openTest` (3-B1, TST-10·16)
+- v2.7: callable `startAttempt`·`submitAttempt`·`checkAnswer` (3-B2)
+- v2.8: callable `gradeAttempt`, 알림 종류 `test` (3-B3)
+- v2.15: `copyContent` kind `'course'` — 코스·레슨·본문 페이지(type 'lesson')·링크 자료 복사. 올린 파일 자료, 단어장·문제집·시험 연결, 진도·필기는 빼고, 복사본은 전체 공개·만든 사람만 편집 (CRS-07, WS-61)
+- v2.14: callable `createReadingGroupMission`, trigger `onReadingGroupUpdated` (3-E2, READ-44)
+- v2.13: callable `drawWrong`·`checkWrong` (오답 다시 풀기, 3-C2)
+- v2.12: 오답 노트 자동 추가 — `onCardStateWritten`, `submitAttempt`·`gradeAttempt`(바로·점수만 공개 시험), `checkProblem` (3-C1)
+- v2.11: callable `generateProblems`, `previewTemplate`·`saveGenerated` 구현 (M5)
+- v2.10: callable `checkProblem`·`revealHint` (문제집 풀기, 시험용 `checkAnswer`와 분리)
+- v2.9: callable `drawProblem`·`previewTemplate`·`saveGenerated`, 변형 문제 채점 (MATH-14·15)

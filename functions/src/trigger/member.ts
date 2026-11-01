@@ -5,6 +5,7 @@ import { onDocumentWritten } from 'firebase-functions/v2/firestore'
 export const onMemberWritten = onDocumentWritten('spaces/{sid}/members/{uid}', async (event) => {
   if (!event.data?.before.exists) return
   await syncSessionVisibility(event.params.sid, event.params.uid, event.data.before.get('hideProgress'), event.data.after.exists ? event.data.after.get('hideProgress') : undefined)
+  if (!event.data.after.exists) return // 멤버 문서는 워크스페이스 삭제(cronSpaceDeletion) 때만 지워진다
   const was = event.data.before.get('status') === 'active'
   const now = event.data.after.exists && event.data.after.get('status') === 'active'
   if (was === now) return

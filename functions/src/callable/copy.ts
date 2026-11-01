@@ -5,6 +5,7 @@ import { HttpsError } from 'firebase-functions/v2/https'
 import { keyBetween } from '../../../shared/order'
 import { can, canSeeContent } from '../../../shared/permissions'
 import { copyContentInput } from '../../../shared/schemas/copy'
+import { lessonPageAccess } from '../../../shared/schemas/course'
 import { authedCallable } from '../lib/callable'
 import { planSubtree } from '../lib/copyPlan'
 
@@ -17,6 +18,7 @@ function memberContext(space: DocumentSnapshot, member: DocumentSnapshot) {
 }
 
 const MAX_PAGES = 300
+const MAX_LESSONS = 200
 
 interface Ctx { uid: string, data: CopyContentInput, fromRef: DocumentReference, toRef: DocumentReference, fromSpace: DocumentSnapshot, fromMember: DocumentSnapshot, toSpace: DocumentSnapshot }
 
@@ -39,6 +41,8 @@ export const copyContent = authedCallable(copyContentInput, async ({ uid, data }
   const ctx: Ctx = { uid, data, fromRef, toRef, fromSpace, fromMember, toSpace }
   if (data.kind === 'page') return copyPage(ctx)
   if (data.kind === 'collection') return copyCollection(ctx)
+  if (data.kind === 'question') return copyQuestion(ctx)
+  if (data.kind === 'course') return copyCourse(ctx)
   return copyDeck(ctx)
 })
 
@@ -80,6 +84,55 @@ async function copyDeck({ uid, data, fromRef, toRef, fromSpace, fromMember }: Ct
   }
   await writer.close()
   return { id: newDeck.id }
+}
+
+/** TST-40: 문제 복사. 정답을 볼 수 없던 문제는 정답 없이 가져가고, 파일·과목은 가져가지 않는다 */
+async function copyQuestion({ uid, data, fromRef, toRef, fromSpace }: Ctx): Promise<CopyContentOutput> {
+  const [q, k] = await Promise.all([
+    fromRef.collection('questions').doc(data.id).get(),
+    fromRef.collection('questionKeys').doc(data.id).get(),
+  ])
+  const src = q.data()
+  if (!src || src.deletedAt || (src.createdBy !== uid && src.sharing !== 'space')) throw new HttpsError('not-found', 'question not found')
+  const key = k.data()
+  const seeKey = !!key && ((key.authorIds ?? []).includes(uid) || key.answerVisibility === 'space')
+  const now = FieldValue.serverTimestamp()
+  const newQ = toRef.collection('questions').doc()
+  const batch = getFirestore().batch()
+  batch.set(newQ, {
+    type: src.type,
+    prompt: src.prompt,
+    choices: src.choices ?? [],
+    tags: src.tags ?? [],
+    subjectId: null,
+    media: [],
+    difficulty: src.difficulty,
+    defaultPoints: src.defaultPoints,
+    unit: src.unit ?? null,
+    variant: seeKey && !!key?.template,
+    createdBy: uid,
+    sharing: 'private',
+    answerVisibility: 'authors',
+    copiedFrom: { spaceId: data.fromSpaceId, questionId: data.id, rev: src.rev ?? 1, spaceName: fromSpace.get('name') ?? '' },
+    rev: 1,
+    deletedAt: null,
+    createdAt: now,
+    updatedAt: now,
+  })
+  batch.set(toRef.collection('questionKeys').doc(newQ.id), {
+    answer: seeKey ? key.answer : [],
+    ignoreCase: key?.ignoreCase ?? true,
+    ignoreSpaces: key?.ignoreSpaces ?? false,
+    explanation: seeKey ? key.explanation ?? '' : '',
+    rubric: seeKey ? key.rubric ?? '' : '',
+    tolerance: key?.tolerance ?? null,
+    template: seeKey ? key?.template ?? null : null,
+    hints: seeKey ? key?.hints ?? [] : [],
+    authorIds: [uid],
+    answerVisibility: 'authors',
+  })
+  await batch.commit()
+  return { id: newQ.id }
 }
 
 const canSeePage = (p: DocumentData, uid: string) =>
@@ -174,4 +227,48 @@ async function copyCollection({ uid, data, fromRef, toRef, fromSpace, toSpace }:
   }
   await writer.close()
   return { id: newCol.id }
+}
+
+/** CRS-07·WS-61: 코스와 레슨(본문 포함, 링크 자료만)을 복사. 올린 파일, 단어장·문제집·시험 연결, 진도·필기는 가져가지 않는다 */
+async function copyCourse({ uid, data, fromRef, toRef, fromSpace, fromMember, toSpace }: Ctx): Promise<CopyContentOutput> {
+  const db = getFirestore()
+  const courseRef = fromRef.collection('courses').doc(data.id)
+  const src = (await courseRef.get()).data()
+  if (!src || src.deletedAt || !canSeeContent({ visibility: src.visibility, createdBy: src.createdBy, groupIds: src.groupIds ?? [], editPolicy: src.editPolicy, collaboratorIds: src.collaboratorIds ?? [] }, uid, fromMember.get('groupIds') ?? []))
+    throw new HttpsError('not-found', 'course not found')
+  const lessons = await courseRef.collection('lessons').orderBy('order').get()
+  if (lessons.size > MAX_LESSONS) throw new HttpsError('failed-precondition', 'too many lessons')
+
+  const personal = toSpace.get('kind') === 'personal'
+  const now = FieldValue.serverTimestamp()
+  const newCourse = toRef.collection('courses').doc()
+  const fields = { title: src.title ?? '', description: src.description ?? '', level: src.level ?? '', visibility: personal ? 'private' as const : 'space' as const, groupIds: [], editPolicy: 'author' as const, collaboratorIds: [] }
+  const access = lessonPageAccess({ ...fields, createdBy: uid })
+  const writer = db.bulkWriter()
+  writer.set(newCourse, { ...fields, createdBy: uid, deletedAt: null, copiedFrom: { spaceId: data.fromSpaceId, courseId: data.id, spaceName: fromSpace.get('name') ?? '' }, createdAt: now, updatedAt: now })
+  for (const l of lessons.docs) {
+    const d = l.data()
+    let bodyPageId: string | null = null
+    const page = d.bodyPageId ? await fromRef.collection('pages').doc(d.bodyPageId).get() : null
+    if (page?.exists && !page.get('deletedAt')) {
+      const to = toRef.collection('pages').doc()
+      bodyPageId = to.id
+      writer.set(to, { ...freshPage(page.data()!, uid, personal ? 'private' : 'shared'), type: 'lesson', parentId: null, ancestorIds: [], order: 'a0', ...access })
+      await copyBlocks(writer, page.ref, to)
+    }
+    writer.set(newCourse.collection('lessons').doc(), {
+      title: d.title ?? '',
+      order: d.order ?? 0,
+      bodyPageId,
+      materials: ((d.materials ?? []) as { url?: string | null }[]).filter(m => m.url),
+      linkedDeckIds: [],
+      linkedProblemSetIds: [],
+      linkedTestIds: [],
+      createdBy: uid,
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+  await writer.close()
+  return { id: newCourse.id }
 }

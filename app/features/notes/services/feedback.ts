@@ -1,6 +1,6 @@
 import type { Functions } from 'firebase/functions'
 import type { Firestore } from 'firebase/firestore'
-import type { Stamp } from '#shared/schemas/feedback'
+import type { FeedbackScore, Stamp } from '#shared/schemas/feedback'
 import { doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { callFn } from '~/lib/functions'
 
@@ -9,7 +9,12 @@ export function setReviewers(db: Firestore, sid: string, pageId: string, reviewe
   return updateDoc(doc(db, 'spaces', sid, 'pages', pageId), { reviewerIds, updatedAt: serverTimestamp() })
 }
 
+/** REV-14 */
+export function requestRewrite(fns: Functions, spaceId: string, pageId: string, reason: string) {
+  return callFn(fns, 'requestRewrite', { spaceId, pageId, reason })
+}
+
 /** CMN-24 */
-export function leaveFeedback(fns: Functions, spaceId: string, pageId: string, stamp: Stamp, body: string) {
-  return callFn(fns, 'leaveFeedback', { spaceId, pageId, stamp, body })
+export function leaveFeedback(fns: Functions, spaceId: string, pageId: string, stamp: Stamp, body: string, score: FeedbackScore | null = null) {
+  return callFn(fns, 'leaveFeedback', { spaceId, pageId, stamp, body, score })
 }

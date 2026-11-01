@@ -116,7 +116,7 @@ async function remove() {
           </div>
         </div>
         <div v-if="isHost" class="flex gap-2">
-          <Button variant="outline" size="sm" @click="editOpen = true">
+          <Button v-if="mission.type !== 'auto'" variant="outline" size="sm" @click="editOpen = true">
             {{ t.edit }}
           </Button>
           <Button variant="outline" size="sm" :disabled="busy" @click="toggleClosed">
@@ -134,6 +134,9 @@ async function remove() {
       <p v-if="mission.description" class="text-sm whitespace-pre-wrap">
         {{ mission.description }}
       </p>
+      <Button v-if="mission.linked?.type === 'test'" variant="outline" size="sm" class="self-start" as-child>
+        <NuxtLink :to="`/s/${sid}/tests/${mission.linked.id}`">{{ t.mine.goTest }}</NuxtLink>
+      </Button>
 
       <dl v-if="!mission.isPersonal" class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
         <dt class="text-muted-foreground">
@@ -157,6 +160,7 @@ async function remove() {
       <MissionParticipation :sid="sid" :mission="mission" :today="today" @changed="load" />
 
       <MissionFormDialog
+        v-if="mission.type !== 'auto'"
         v-model:open="editOpen" :mission="mission" :members="members" :personal="mission.isPersonal" :today="today"
         @saved="load"
       />

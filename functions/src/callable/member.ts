@@ -31,11 +31,13 @@ const ctxOf = (space: DocumentSnapshot, me: DocumentSnapshot) =>
   ({ kind: space.get('kind'), settings: space.get('settings'), member: { access: me.get('access'), status: me.get('status') } })
 
 /** 멤버를 내보내거나 나갈 때: 공유 콘텐츠는 남고, 노트 등은 본인만 보기 (WS-23·24, 노트는 onMemberWritten이 ownerStatus로 숨긴다) */
-function deactivate(tx: Transaction, spaceRef: DocumentReference, uid: string, status: 'left' | 'removed') {
+function deactivate(tx: Transaction, space: DocumentSnapshot, uid: string, status: 'left' | 'removed') {
+  const spaceRef = space.ref
   const now = FieldValue.serverTimestamp()
   tx.update(spaceRef.collection('members').doc(uid), { status, access: 'member', leftAt: now, updatedAt: now })
   tx.update(spaceRef, { memberCount: FieldValue.increment(-1), updatedAt: now })
-  tx.update(getFirestore().doc(`users/${uid}`), { spaceIds: FieldValue.arrayRemove(spaceRef.id), updatedAt: now })
+  // ACC-32: 이전 워크스페이스 기록 목록. 다시 들어오면 joinSpace가 지운다
+  tx.update(getFirestore().doc(`users/${uid}`), { spaceIds: FieldValue.arrayRemove(spaceRef.id), [`formerSpaces.${spaceRef.id}`]: { name: space.get('name') ?? '', leftAt: now }, updatedAt: now })
 }
 
 /** WS-22: 매니저 지정/해제 (소유자·매니저). 소유자는 바꿀 수 없다 */
@@ -58,7 +60,7 @@ export const removeMember = authedCallable(memberTargetInput, async ({ uid, data
     const targetAccess = target!.get('access')
     if (targetAccess === 'owner') throw new HttpsError('failed-precondition', 'cannot remove owner')
     if (targetAccess === 'manager' && me.get('access') !== 'owner') throw new HttpsError('permission-denied', 'owner only')
-    deactivate(tx, spaceRef, data.uid, 'removed')
+    deactivate(tx, space, data.uid, 'removed')
     if (space.get('ownershipTransfer.to') === data.uid) tx.update(spaceRef, { ownershipTransfer: null })
   })
   return { ok: true as const }
@@ -69,7 +71,7 @@ export const leaveSpace = authedCallable(cancelSpaceDeletionInput, async ({ uid,
   await getFirestore().runTransaction(async (tx) => {
     const { spaceRef, space, me } = await load(tx, data.spaceId, uid)
     if (me.get('access') === 'owner') throw new HttpsError('failed-precondition', 'owner-must-transfer')
-    deactivate(tx, spaceRef, uid, 'left')
+    deactivate(tx, space, uid, 'left')
     if (space.get('ownershipTransfer.to') === uid) tx.update(spaceRef, { ownershipTransfer: null })
   })
   return { ok: true as const }

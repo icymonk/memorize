@@ -19,7 +19,7 @@ export const missionInput = z.object({
   startDate: day,
   endDate: day.nullable().default(null),
   allowLate: z.boolean().default(false),
-  assignees: z.object({ all: z.boolean(), uids: z.array(uid).max(200) }).default({ all: true, uids: [] }),
+  assignees: z.object({ all: z.boolean(), uids: z.array(uid).max(200), groupIds: z.array(uid).max(20).default([]) }).default({ all: true, uids: [], groupIds: [] }),
   includeSelf: z.boolean().default(false),
   joinable: z.boolean().default(false),
   isPersonal: z.boolean().default(false),
@@ -54,14 +54,16 @@ export function periodKeys(m: Pick<MissionInput, 'recurrence' | 'startDate' | 'e
   return out
 }
 
-/** 참여자: 개인 목표는 나만. 그 외에는 대상(전체면 활성 멤버 모두, 아니면 고른 사람) + "나도 참여" */
-export function participantsOf(m: Pick<MissionInput, 'isPersonal' | 'assignees' | 'includeSelf'>, host: string, activeMembers: string[]): string[] {
+/** 참여자: 개인 목표는 나만. 그 외에는 대상(전체면 활성 멤버 모두, 아니면 고른 사람 + 고른 그룹의 멤버, WS-32) + "나도 참여" */
+export function participantsOf(m: Pick<MissionInput, 'isPersonal' | 'includeSelf'> & { assignees: { all: boolean, uids: string[], groupIds?: string[] } }, host: string, activeMembers: string[], memberGroups: Record<string, string[]> = {}): string[] {
   if (m.isPersonal) return [host]
-  const base = m.assignees.all ? activeMembers.filter(u => u !== host) : m.assignees.uids.filter(u => u !== host)
+  const groups = m.assignees.groupIds ?? []
+  const inGroups = groups.length ? activeMembers.filter(u => (memberGroups[u] ?? []).some(g => groups.includes(g))) : []
+  const base = m.assignees.all ? activeMembers.filter(u => u !== host) : [...m.assignees.uids, ...inGroups].filter(u => u !== host)
   return [...new Set([...base, ...(m.includeSelf ? [host] : [])])]
 }
 
-/** MIS-22: 제출 (글 + 내 노트 선택). 파일·사진 첨부는 업로드 기능과 함께 */
+/** MIS-22: 제출 (글 + 내 노트 선택 + 파일·사진 첨부) */
 export const SUBMISSION_STATUS = ['submitted', 'approved', 'rejected', 'done'] as const
 export type SubmissionStatus = typeof SUBMISSION_STATUS[number]
 
@@ -74,7 +76,7 @@ export type SubmissionInput = z.infer<typeof submissionInput>
 export const submissionId = (uid: string, period: string) => `${uid}_${period}`
 
 /** 체크형은 바로 완료. 제출형은 검토할 사람(진행자·리뷰어 − 본인)이 없으면 바로 완료 (MIS-32) */
-export function initialStatus(type: MissionInput['type'], reviewers: string[]): SubmissionStatus {
+export function initialStatus(type: MissionInput['type'] | 'auto', reviewers: string[]): SubmissionStatus {
   return type === 'check' || reviewers.length === 0 ? 'done' : 'submitted'
 }
 

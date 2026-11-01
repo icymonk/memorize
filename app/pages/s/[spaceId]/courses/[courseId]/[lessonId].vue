@@ -1,0 +1,326 @@
+<script setup lang="ts">
+import type { LessonLinks, Material } from '#shared/schemas/course'
+import type { Course, Lesson, LessonProgress } from '~/features/courses/services/courses'
+import type { SaveStatus } from '~/features/notes/sync/writer'
+import { canEditCourse, LESSON_LINKS_MAX, lessonTitle, linkType, materialSchema, MATERIALS_MAX, materialType, moveItem } from '#shared/schemas/course'
+import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CheckIcon, LinkIcon, NotebookPenIcon, Trash2Icon, UploadIcon } from '@lucide/vue'
+import { toast } from 'vue-sonner'
+import MaterialView from '~/features/courses/components/MaterialView.vue'
+import { createLessonNote, getCourse, listLessons, listMyProgress, setLessonDone, updateLesson } from '~/features/courses/services/courses'
+import { uploadFile, UploadError } from '~/features/files/services/uploads'
+import { listProblemSets } from '~/features/math/services/problemSets'
+import BlockEditor from '~/features/notes/components/BlockEditor.vue'
+import { listTests } from '~/features/tests/services/tests'
+import { listDecks } from '~/features/vocab/services/decks'
+import { errorMessage } from '~/lib/errors'
+import { ko } from '~/locales/ko'
+
+/** CRS-02·10~16·20·21·23 레슨 학습: 자료(파일·링크), 본문(노트 편집기), 완료 체크, 내 필기, 아래에 단어장·문제집·시험 바로가기 */
+const t = ko.courses.lesson
+const space = useSpaceStore()
+const auth = useAuthStore()
+const route = useRoute()
+const { $firestore, $storage, $functions } = useNuxtApp()
+
+const sid = computed(() => space.current!.id)
+const cid = computed(() => String(route.params.courseId))
+const lid = computed(() => String(route.params.lessonId))
+const me = computed(() => auth.user!.uid)
+const course = ref<Course | null>(null)
+const lessons = ref<Lesson[]>([])
+const loading = ref(true)
+const busy = ref(false)
+const title = ref('')
+const linksOpen = ref(false)
+const status = ref<SaveStatus>('saved')
+const uploading = ref(false)
+const linkUrl = ref('')
+const linkTitle = ref('')
+const fileInput = ref<HTMLInputElement>()
+const progress = ref<LessonProgress | null>(null)
+const noteOpen = ref(false)
+const shareProgress = computed(() => space.current?.kind !== 'personal' && !space.membership?.hideProgress)
+const draft = ref<LessonLinks>({ linkedDeckIds: [], linkedProblemSetIds: [], linkedTestIds: [] })
+const options = ref<{ decks: { id: string, title: string }[], sets: { id: string, title: string }[], tests: { id: string, title: string }[] }>({ decks: [], sets: [], tests: [] })
+
+const lesson = computed(() => lessons.value.find(l => l.id === lid.value) ?? null)
+const idx = computed(() => lessons.value.findIndex(l => l.id === lid.value))
+const prev = computed(() => lessons.value[idx.value - 1])
+const next = computed(() => lessons.value[idx.value + 1])
+const canEdit = computed(() => !!course.value && canEditCourse(course.value, me.value))
+const materials = computed(() => lesson.value?.materials ?? [])
+
+type Kind = 'decks' | 'sets' | 'tests'
+const KINDS: { kind: Kind, key: keyof LessonLinks, to: (id: string) => string }[] = [
+  { kind: 'decks', key: 'linkedDeckIds', to: id => `/s/${sid.value}/study/${id}?mode=flashcards` },
+  { kind: 'sets', key: 'linkedProblemSetIds', to: id => `/s/${sid.value}/math/${id}/solve` },
+  { kind: 'tests', key: 'linkedTestIds', to: id => `/s/${sid.value}/tests/${id}` },
+]
+const linked = computed(() => KINDS.map(k => ({ ...k, items: options.value[k.kind].filter(o => lesson.value?.[k.key].includes(o.id)) })).filter(k => k.items.length))
+
+async function loadOptions() {
+  const mods = space.current?.modules
+  const [decks, sets, tests] = await Promise.all([
+    mods?.vocab ? listDecks($firestore, sid.value, me.value, space.membership?.groupIds ?? []).catch(() => []) : [],
+    mods?.math ? listProblemSets($firestore, sid.value, me.value).catch(() => []) : [],
+    mods?.tests ? listTests($firestore, sid.value, me.value).then(r => [...new Map([...r.hosting, ...r.taking].map(x => [x.id, x])).values()]).catch(() => []) : [],
+  ])
+  options.value = {
+    decks: decks.map(d => ({ id: d.id, title: d.title })),
+    sets: sets.map(s => ({ id: s.id, title: s.title })),
+    tests: tests.map(x => ({ id: x.id, title: x.title })),
+  }
+}
+
+async function load() {
+  try {
+    const c = await getCourse($firestore, sid.value, cid.value)
+    lessons.value = c ? await listLessons($firestore, sid.value, cid.value) : []
+    course.value = c
+    title.value = lesson.value?.title ?? ''
+    progress.value = c ? (await listMyProgress($firestore, sid.value, me.value, cid.value)).find(p => p.lessonId === lid.value) ?? null : null
+  }
+  catch {
+    course.value = null
+  }
+  finally {
+    loading.value = false
+  }
+}
+onMounted(() => Promise.all([load(), loadOptions()]))
+watch(lid, () => load())
+
+async function save(patch: Parameters<typeof updateLesson>[4]) {
+  busy.value = true
+  try {
+    await updateLesson($firestore, sid.value, cid.value, lid.value, patch)
+    toast.success(t.saved)
+    await load()
+    return true
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+    return false
+  }
+  finally {
+    busy.value = false
+  }
+}
+
+function saveTitle() {
+  const p = lessonTitle.safeParse(title.value)
+  if (p.success) return save({ title: p.data })
+}
+
+function openLinks() {
+  const l = lesson.value!
+  draft.value = { linkedDeckIds: [...l.linkedDeckIds], linkedProblemSetIds: [...l.linkedProblemSetIds], linkedTestIds: [...l.linkedTestIds] }
+  linksOpen.value = true
+}
+
+function toggle(key: keyof LessonLinks, id: string) {
+  const list = draft.value[key]
+  const i = list.indexOf(id)
+  if (i >= 0) list.splice(i, 1)
+  else if (list.length < LESSON_LINKS_MAX) list.push(id)
+}
+
+async function onFiles(e: Event) {
+  const input = e.target as HTMLInputElement
+  const picked = [...(input.files ?? [])]
+  input.value = ''
+  if (!picked.length) return
+  if (materials.value.length + picked.length > MATERIALS_MAX) {
+    toast.error(t.tooMany(MATERIALS_MAX))
+    return
+  }
+  uploading.value = true
+  const added: Material[] = []
+  try {
+    for (const f of picked) {
+      const a = await uploadFile({ db: $firestore, storage: $storage, functions: $functions }, sid.value, me.value, f, { refType: 'lesson', refId: `${cid.value}/${lid.value}` })
+      added.push({ id: a.id, type: materialType(a.contentType, a.name), title: a.name.slice(0, 200), path: a.path, url: null, contentType: a.contentType, size: a.size })
+    }
+  }
+  catch (err) {
+    toast.error(err instanceof UploadError ? err.message : errorMessage(err) ?? ko.errors.unknown)
+  }
+  finally {
+    uploading.value = false
+  }
+  if (added.length) await save({ materials: [...materials.value, ...added] })
+}
+
+async function addLink() {
+  const url = linkUrl.value.trim()
+  const p = materialSchema.safeParse({ id: crypto.randomUUID().slice(0, 20), type: linkType(url), title: linkTitle.value.trim() || url.slice(0, 200), url })
+  if (!p.success) {
+    toast.error(t.badLink)
+    return
+  }
+  if (materials.value.length >= MATERIALS_MAX) {
+    toast.error(t.tooMany(MATERIALS_MAX))
+    return
+  }
+  if (await save({ materials: [...materials.value, p.data] })) {
+    linkUrl.value = ''
+    linkTitle.value = ''
+  }
+}
+
+function moveMaterial(i: number, dir: -1 | 1) {
+  const next = moveItem(materials.value, i, dir)
+  if (next) return save({ materials: next })
+}
+
+async function dropMaterial(m: Material) {
+  if (!(await confirmDialog(t.removeConfirm(m.title), { destructive: true }))) return
+  await save({ materials: materials.value.filter(x => x.id !== m.id) })
+}
+
+async function withBusy(fn: () => Promise<unknown>) {
+  busy.value = true
+  try {
+    await fn()
+    progress.value = (await listMyProgress($firestore, sid.value, me.value, cid.value)).find(p => p.lessonId === lid.value) ?? null
+  }
+  catch (e) {
+    toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+  finally {
+    busy.value = false
+  }
+}
+
+const toggleDone = () => withBusy(() => setLessonDone($firestore, sid.value, me.value, cid.value, lid.value, !progress.value?.completedAt, shareProgress.value))
+
+async function toggleNote() {
+  if (noteOpen.value) {
+    noteOpen.value = false
+    return
+  }
+  if (!progress.value?.noteId) await withBusy(() => createLessonNote($firestore, sid.value, me.value, cid.value, lid.value, `${lesson.value!.title} ${t.note}`, shareProgress.value))
+  noteOpen.value = !!progress.value?.noteId
+}
+
+async function saveLinks() {
+  if (await save(draft.value)) linksOpen.value = false
+}
+</script>
+
+<template>
+  <div class="mx-auto flex w-full gap-4 p-4" :class="noteOpen ? 'max-w-6xl flex-col lg:flex-row lg:items-start' : 'max-w-3xl flex-col'">
+    <div class="flex min-w-0 flex-1 flex-col gap-4">
+    <Button as-child variant="ghost" size="sm" class="self-start">
+      <NuxtLink :to="`/s/${sid}/courses/${cid}`"><ArrowLeftIcon /> {{ course?.title ?? ko.courses.course.back }}</NuxtLink>
+    </Button>
+    <Skeleton v-if="loading" class="h-40 w-full" />
+    <p v-else-if="!course || !lesson" class="text-muted-foreground text-sm">{{ t.notFound }}</p>
+    <template v-else>
+      <form v-if="canEdit" class="flex gap-2" @submit.prevent="saveTitle">
+        <Input v-model="title" maxlength="80" class="text-lg font-semibold" :aria-label="t.titleLabel" />
+        <Button type="submit" variant="outline" :disabled="busy || !title.trim() || title.trim() === lesson.title">{{ t.saveTitle }}</Button>
+      </form>
+      <h1 v-else class="text-xl font-semibold">{{ lesson.title }}</h1>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <Button :variant="progress?.completedAt ? 'secondary' : 'default'" size="sm" :disabled="busy" @click="toggleDone">
+          <CheckIcon /> {{ progress?.completedAt ? t.undoDone : t.markDone }}
+        </Button>
+        <span v-if="progress?.completedAt" class="text-muted-foreground text-sm">{{ t.doneLabel }}</span>
+        <Button variant="outline" size="sm" :disabled="busy" @click="toggleNote">
+          <NotebookPenIcon /> {{ noteOpen ? t.closeNote : t.note }}
+        </Button>
+      </div>
+
+      <section class="flex flex-col gap-2" :aria-label="t.materials">
+        <h2 class="text-sm font-semibold">{{ t.materials }}</h2>
+        <p v-if="!materials.length" class="text-muted-foreground text-sm">{{ t.noMaterials }}</p>
+        <ul v-else class="flex flex-col gap-3" data-testid="materials">
+          <li v-for="(m, i) in materials" :key="m.id" class="flex flex-col gap-2 rounded-lg border p-3">
+            <div class="flex items-center gap-2">
+              <Badge variant="outline">{{ t.type[m.type] }}</Badge>
+              <span class="min-w-0 flex-1 truncate text-sm font-medium">{{ m.title }}</span>
+              <template v-if="canEdit">
+                <Button variant="ghost" size="icon" :disabled="busy || i === 0" :aria-label="`${m.title} ${t.up}`" @click="moveMaterial(i, -1)"><ArrowUpIcon /></Button>
+                <Button variant="ghost" size="icon" :disabled="busy || i === materials.length - 1" :aria-label="`${m.title} ${t.down}`" @click="moveMaterial(i, 1)"><ArrowDownIcon /></Button>
+                <Button variant="ghost" size="icon" :disabled="busy" :aria-label="`${m.title} ${t.remove}`" @click="dropMaterial(m)"><Trash2Icon /></Button>
+              </template>
+            </div>
+            <MaterialView :material="m" />
+          </li>
+        </ul>
+        <div v-if="canEdit" class="flex flex-col gap-2 rounded-md border border-dashed p-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" :disabled="uploading || busy" @click="fileInput?.click()"><UploadIcon /> {{ uploading ? t.uploading : t.addFile }}</Button>
+            <input ref="fileInput" type="file" multiple class="hidden" data-testid="material-file" @change="onFiles">
+            <span class="text-muted-foreground text-xs">{{ t.fileHint }}</span>
+          </div>
+          <form class="flex flex-wrap gap-2" @submit.prevent="addLink">
+            <Input v-model="linkUrl" type="url" class="min-w-48 flex-1" :placeholder="t.linkUrl" :aria-label="t.linkUrl" />
+            <Input v-model="linkTitle" maxlength="200" class="w-40" :placeholder="t.linkTitle" :aria-label="t.linkTitle" />
+            <Button type="submit" variant="outline" size="sm" :disabled="busy || !linkUrl.trim()"><LinkIcon /> {{ t.addLink }}</Button>
+          </form>
+        </div>
+      </section>
+
+      <section :aria-label="t.body" class="flex min-h-40 flex-col gap-1">
+        <span v-if="canEdit" class="text-muted-foreground self-end text-xs" aria-live="polite">{{ t.status[status] }}</span>
+        <BlockEditor v-if="lesson.bodyPageId" :key="lesson.bodyPageId" :space-id="sid" :page-id="lesson.bodyPageId" :editable="canEdit" @status="status = $event" />
+      </section>
+
+      <section class="flex flex-col gap-2" :aria-label="t.study">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold">{{ t.study }}</h2>
+          <Button v-if="canEdit" variant="outline" size="sm" @click="openLinks"><LinkIcon /> {{ t.editLinks }}</Button>
+        </div>
+        <p v-if="!linked.length" class="text-muted-foreground text-sm">{{ t.noLinks }}</p>
+        <div v-for="k in linked" :key="k.kind" class="flex flex-wrap items-center gap-2 text-sm">
+          <span class="text-muted-foreground w-14">{{ t[k.kind] }}</span>
+          <Button v-for="o in k.items" :key="o.id" as-child variant="secondary" size="sm">
+            <NuxtLink :to="k.to(o.id)">{{ t.actions[k.kind] }} · {{ o.title }}</NuxtLink>
+          </Button>
+        </div>
+      </section>
+
+      <div class="flex justify-between gap-2">
+        <Button v-if="prev" as-child variant="ghost" size="sm">
+          <NuxtLink :to="`/s/${sid}/courses/${cid}/${prev.id}`"><ArrowLeftIcon /> {{ t.prev }}</NuxtLink>
+        </Button>
+        <span v-else />
+        <Button v-if="next" as-child variant="ghost" size="sm">
+          <NuxtLink :to="`/s/${sid}/courses/${cid}/${next.id}`">{{ t.next }} <ArrowRightIcon /></NuxtLink>
+        </Button>
+      </div>
+
+      <Dialog v-model:open="linksOpen">
+        <DialogContent class="max-h-[90svh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{{ t.editLinks }}</DialogTitle>
+          </DialogHeader>
+          <div v-for="k in KINDS" :key="k.kind" class="flex flex-col gap-1">
+            <Label>{{ t[k.kind] }}</Label>
+            <p v-if="!options[k.kind].length" class="text-muted-foreground text-xs">{{ t.none }}</p>
+            <div v-else class="flex max-h-40 flex-col gap-1 overflow-y-auto rounded-md border p-2" :aria-label="t[k.kind]">
+              <label v-for="o in options[k.kind]" :key="o.id" class="flex items-center gap-2 text-sm">
+                <input type="checkbox" class="size-4" :checked="draft[k.key].includes(o.id)" @change="toggle(k.key, o.id)"> {{ o.title }}
+              </label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button :disabled="busy" @click="saveLinks">{{ ko.dialog.ok }}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </template>
+    </div>
+    <aside v-if="noteOpen && progress?.noteId" class="flex w-full flex-col gap-2 rounded-lg border p-3 lg:sticky lg:top-4 lg:w-96" :aria-label="t.note" data-testid="lesson-note">
+      <div class="flex items-center justify-between gap-2">
+        <h2 class="text-sm font-semibold">{{ t.note }}</h2>
+        <span class="text-muted-foreground text-xs">{{ t.noteHint }}</span>
+      </div>
+      <BlockEditor :key="progress.noteId" :space-id="sid" :page-id="progress.noteId" :editable="true" />
+    </aside>
+  </div>
+</template>
+

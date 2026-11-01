@@ -49,7 +49,7 @@ async function load() {
   loading.value = true
   try {
     const [d, f, m, p] = await Promise.all([
-      listDecks($firestore, sid.value, uid.value),
+      listDecks($firestore, sid.value, uid.value, useSpaceStore().membership?.groupIds ?? []),
       listFolders($firestore, sid.value),
       listMembers($firestore, sid.value),
       listMyProgress($firestore, sid.value, uid.value).catch(() => new Map<string, DeckProgress>()),

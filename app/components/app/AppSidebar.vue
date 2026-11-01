@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpenIcon, CalendarCheckIcon, FileTextIcon, LayersIcon, LayoutDashboardIcon, NotebookPenIcon, FlagIcon, LibraryIcon, PlusIcon, SettingsIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
+import { BookOpenIcon, BookOpenTextIcon, CalendarCheckIcon, ClipboardCheckIcon, FileQuestionIcon, FileTextIcon, FlagIcon, GraduationCapIcon, LayersIcon, LayoutDashboardIcon, LibraryIcon, NotebookPenIcon, BookXIcon, PlusIcon, SettingsIcon, SigmaIcon, StarIcon, Trash2Icon, UsersIcon } from '@lucide/vue'
 import CollectionFormDialog from '~/features/notes/components/CollectionFormDialog.vue'
 import PageTree from '~/features/notes/components/PageTree.vue'
 import CreateWorkspaceDialog from '~/features/space/components/CreateWorkspaceDialog.vue'
@@ -80,6 +80,14 @@ watch(() => auth.account, (account) => {
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.reviews && currentSpace.modules?.notes !== false">
+            <SidebarMenuButton as-child :tooltip="ko.notes.review.nav" :is-active="route.path === `/s/${currentSpace.id}/collections/bookReview`">
+              <NuxtLink :to="`/s/${currentSpace.id}/reviews`">
+                <BookOpenTextIcon />
+                <span>{{ ko.notes.review.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
           <SidebarMenuItem v-if="currentSpace.modules?.reading">
             <SidebarMenuButton as-child :tooltip="ko.reading.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/reading`)">
               <NuxtLink :to="`/s/${currentSpace.id}/reading`">
@@ -93,6 +101,46 @@ watch(() => auth.account, (account) => {
               <NuxtLink :to="`/s/${currentSpace.id}/missions`">
                 <FlagIcon />
                 <span>{{ ko.missions.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.tests">
+            <SidebarMenuButton as-child :tooltip="ko.exams.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/tests`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/tests`">
+                <ClipboardCheckIcon />
+                <span>{{ ko.exams.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.tests">
+            <SidebarMenuButton as-child :tooltip="ko.tests.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/questions`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/questions`">
+                <FileQuestionIcon />
+                <span>{{ ko.tests.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.math">
+            <SidebarMenuButton as-child :tooltip="ko.math.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/math`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/math`">
+                <SigmaIcon />
+                <span>{{ ko.math.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.courses">
+            <SidebarMenuButton as-child :tooltip="ko.courses.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/courses`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/courses`">
+                <GraduationCapIcon />
+                <span>{{ ko.courses.nav }}</span>
+              </NuxtLink>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem v-if="currentSpace.modules?.wrongNotes">
+            <SidebarMenuButton as-child :tooltip="ko.wrongNotes.nav" :is-active="route.path.startsWith(`/s/${currentSpace.id}/wrong-notes`)">
+              <NuxtLink :to="`/s/${currentSpace.id}/wrong-notes`">
+                <BookXIcon />
+                <span>{{ ko.wrongNotes.nav }}</span>
               </NuxtLink>
             </SidebarMenuButton>
           </SidebarMenuItem>

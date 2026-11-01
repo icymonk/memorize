@@ -3,6 +3,7 @@ import type { CardInput } from '#shared/schemas/card'
 import type { CardField } from '#shared/schemas/deck'
 import type { Card } from '../services/cards'
 import type { Deck } from '../services/decks'
+import { linkRelated } from '#shared/card-links'
 import { cardInput, DIFFICULTY, MAX_CARDS_PER_DECK } from '#shared/schemas/card'
 import { ChevronDownIcon, Volume2Icon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
@@ -15,7 +16,7 @@ import { useSpeech } from '../composables/useSpeech'
 import { addCards, saveCard } from '../services/cards'
 
 /** VOC-10: 카드 한 장 추가·수정 (단어장에서 고른 항목만 보여준다) */
-const props = defineProps<{ deck: Deck, card?: Card | null, nextOrder: number, count: number }>()
+const props = defineProps<{ deck: Deck, card?: Card | null, nextOrder: number, count: number, cards?: Card[] }>()
 const emit = defineEmits<{ saved: [] }>()
 const open = defineModel<boolean>('open', { default: false })
 
@@ -81,8 +82,8 @@ function build(): CardInput | null {
       return translation ? { text: text.trim(), translation } : { text: text.trim() }
     }),
     forms: opt(f.forms),
-    synonyms: list(f.synonyms).map(text => ({ text })),
-    antonyms: list(f.antonyms).map(text => ({ text })),
+    synonyms: linkRelated(list(f.synonyms).map(text => ({ text })), props.cards ?? [], props.card?.id),
+    antonyms: linkRelated(list(f.antonyms).map(text => ({ text })), props.cards ?? [], props.card?.id),
     collocations: list(f.collocations),
     imageFileId: props.card?.imageFileId,
     tip: opt(f.tip),

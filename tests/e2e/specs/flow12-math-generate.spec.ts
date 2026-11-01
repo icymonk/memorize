@@ -1,0 +1,61 @@
+import { expect, test } from '@playwright/test'
+import { workspaceWithMember } from './helpers'
+
+/** 수학 M5(MATH-15): 멤버가 공유한 변형 문제 틀과 내장 틀로 단원별 문제를 만들고, 고친 뒤 새 문제집으로 저장해 푼다 */
+test('unit-based generation mixes built-in and shared templates and saves a new set', async ({ browser }) => {
+  test.setTimeout(150_000)
+  const { pa, pb, ws } = await workspaceWithMember(browser, 'hana', 'jun', '단원 반')
+
+  await pa.goto(`/s/${ws}/settings`)
+  await pa.getByRole('switch', { name: '테스트' }).click()
+  await pa.getByRole('switch', { name: '수학' }).click()
+  await pa.getByRole('button', { name: '저장' }).nth(1).click()
+  await pa.getByRole('link', { name: '수학' }).first().click()
+  await pa.waitForURL(/\/math$/)
+  await pa.getByRole('button', { name: '문제집 만들기' }).click()
+  const sd = pa.getByRole('dialog')
+  await sd.locator('#set-title').fill('틀 공유')
+  await sd.locator('label', { hasText: '워크스페이스에 공개' }).getByRole('switch').click()
+  await sd.getByRole('button', { name: '확인' }).click()
+  await pa.waitForURL(/\/math\/[^/]+$/)
+  await pa.getByRole('button', { name: '변형 문제' }).click()
+  const v = pa.getByRole('dialog')
+  await v.locator('#v-preset').click()
+  await pa.getByRole('option', { name: '일차방정식 ax + b = c' }).click()
+  await v.getByRole('button', { name: '확인' }).click()
+  await expect(pa.locator('ol > li')).toHaveCount(1)
+
+  await pb.goto(`/s/${ws}/math`)
+  await pb.getByRole('link', { name: '단원별 만들기' }).click()
+  await pb.waitForURL(/\/math\/generate$/)
+  await pb.locator('#gen-grade').click()
+  await pb.getByRole('option', { name: '중1' }).click()
+  await pb.locator('#gen-unit').click()
+  await pb.getByRole('option', { name: /^일차방정식/ }).click()
+  await pb.getByRole('button', { name: '5문제' }).click()
+  await pb.getByRole('button', { name: '만들기' }).click()
+
+  const items = pb.getByTestId('gen-item')
+  await expect(items).toHaveCount(5)
+  await expect(pb.getByText('문제 틀: 내장 2개 · 워크스페이스 1개')).toBeVisible()
+  await expect(items.getByText('워크스페이스', { exact: true }).first()).toBeVisible()
+  await expect(pb.getByText('정답은 문제 틀을 만든 사람만 볼 수 있어요').first()).toBeVisible()
+
+  const first = items.first().getByTestId('gen-prompt')
+  const before = await first.innerText()
+  await items.first().getByRole('button', { name: '숫자 다시' }).click()
+  await expect.poll(() => first.innerText()).not.toBe(before)
+  await items.last().getByRole('button', { name: '빼기' }).click()
+  await expect(items).toHaveCount(4)
+
+  await pb.locator('#gen-title').fill('방정식 4제')
+  await pb.getByRole('button', { name: '4문제 저장' }).click()
+  await pb.waitForURL(/\/math\/(?!generate)[^/]+$/)
+  await expect(pb.getByText('방정식 4제')).toBeVisible()
+  await expect(pb.locator('ol > li')).toHaveCount(4)
+  await expect(pb.locator('ol > li').getByText('변형').first()).toBeVisible()
+
+  await pb.getByRole('link', { name: '풀기' }).click()
+  await expect(pb.getByTestId('solve-prompt')).toBeVisible()
+  await expect(pb.getByText('연습', { exact: true })).toBeVisible()
+})

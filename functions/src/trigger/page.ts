@@ -37,3 +37,21 @@ export const onPageReviewersChanged = onDocumentUpdated('spaces/{sid}/pages/{pag
     body: '',
   })))
 })
+
+/** REV-10: 독후감을 발행하면(나만 보기 → 공간 전체, publishedAt) 피드에 큰 활동으로 */
+export const onReviewPublished = onDocumentUpdated('spaces/{sid}/pages/{pageId}', async (event) => {
+  const before = event.data?.before.data()
+  const p = event.data?.after.data()
+  if (!before || !p || p.type !== 'bookReview' || p.deletedAt || typeof p.ownerId !== 'string') return
+  if (p.visibility !== 'space' || before.visibility === 'space' || !p.publishedAt) return
+  await addActivity(event.params.sid, {
+    uid: p.ownerId,
+    module: 'notes',
+    type: 'bookReview',
+    size: 'major',
+    refType: 'page',
+    refId: event.params.pageId,
+    data: { title: p.book?.title ?? p.title ?? '' },
+    visibility: 'space',
+  })
+})
