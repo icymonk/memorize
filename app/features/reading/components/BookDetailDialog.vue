@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RelatedNotes from '~/features/notes/components/RelatedNotes.vue'
 import { PauseIcon, TimerIcon } from '@lucide/vue'
 import { clock, useReadingTimer } from '../composables/useReadingTimer'
 import type { ReadingLog } from '../services/logs'
@@ -270,6 +271,7 @@ async function save() {
         </form>
         <div class="max-h-56 overflow-y-auto">
           <QuoteList :sid="sid" :quotes="quotes" :name-of="nameOf" @removed="id => quotes = quotes.filter(q => q.id !== id)" />
+          <RelatedNotes v-if="book" :sid="sid" ref-type="book" :ref-id="book.bookKey" />
         </div>
       </section>
     </DialogContent>

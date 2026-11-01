@@ -217,6 +217,12 @@ service cloud.firestore {
           && request.resource.data.courseId == resource.data.courseId;
       }
 
+      // NOTE-24·25 역링크(서버 관리). 연결한 페이지 내용은 페이지 규칙으로 따로 거른다
+      match /pageLinks/{linkId} {
+        allow read: if isMember(sid);
+        allow write: if false;
+      }
+
       // VOC-03: 폴더는 멤버 누구나 만들고, 만든 사람·매니저가 고치고 지운다
       match /decks/{deckId}/cards/{cardId} {
         function deck() { return get(/databases/$(database)/documents/spaces/$(sid)/decks/$(deckId)).data; }

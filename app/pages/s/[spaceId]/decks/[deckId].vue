@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RelatedNotes from '~/features/notes/components/RelatedNotes.vue'
 import CardWord from '~/features/vocab/components/CardWord.vue'
 import type { Member } from '~/features/space/services/invites'
 import type { Card } from '~/features/vocab/services/cards'
@@ -469,6 +470,8 @@ async function remove() {
           </li>
         </ul>
       </section>
+
+      <RelatedNotes :sid="sid" ref-type="deck" :ref-id="deckId" />
 
       <CopyDeckDialog v-model:open="copyOpen" :from-space-id="sid" :content-id="deckId" />
       <CardFormDialog v-model:open="cardOpen" :deck="deck" :card="editingCard" :next-order="nextOrder" :count="cards.length" :cards="cards" @saved="reloadCards" />

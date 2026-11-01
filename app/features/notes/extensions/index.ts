@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core'
+import { Extension, InputRule } from '@tiptap/core'
 import type { LinkCardOptions } from './link-card'
 import type { SlashCommandOptions } from './slash'
 import { Color } from '@tiptap/extension-color'
@@ -21,7 +22,22 @@ export interface NoteMathOptions {
   onEdit?: (kind: 'inlineMath' | 'blockMath', latex: string, pos: number) => void
 }
 
-export function noteExtensions(opts: { placeholder?: string, slash?: Partial<SlashCommandOptions>, link?: Partial<LinkCardOptions>, math?: NoteMathOptions } = {}) {
+/** NOTE-24: `[[`를 치면 지우고 페이지 고르기를 연다 */
+const PageLinkTrigger = Extension.create<{ onTrigger?: () => void }>({
+  name: 'pageLinkTrigger',
+  addOptions: () => ({}),
+  addInputRules() {
+    return [new InputRule({
+      find: /\[\[$/,
+      handler: ({ range, chain }) => {
+        chain().deleteRange(range).run()
+        this.options.onTrigger?.()
+      },
+    })]
+  },
+})
+
+export function noteExtensions(opts: { onPageLink?: () => void, placeholder?: string, slash?: Partial<SlashCommandOptions>, link?: Partial<LinkCardOptions>, math?: NoteMathOptions } = {}) {
   return [
     StarterKit.configure({
       bulletList: false,
@@ -52,6 +68,7 @@ export function noteExtensions(opts: { placeholder?: string, slash?: Partial<Sla
     }),
     ...(opts.placeholder ? [Placeholder.configure({ placeholder: ({ node }) => (node.type.name === 'paragraph' ? opts.placeholder! : '') })] : []),
     ...(opts.slash ? [SlashCommand.configure(opts.slash)] : []),
+    ...(opts.onPageLink ? [PageLinkTrigger.configure({ onTrigger: opts.onPageLink })] : []),
     UniqueID.configure({ types: BLOCK_TYPES, attributeName: 'id', generateID: newBlockId }),
   ]
 }

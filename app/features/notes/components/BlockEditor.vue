@@ -133,7 +133,7 @@ onMounted(async () => {
     const blocks = await loadBlocks($firestore, props.spaceId, props.pageId)
     emit('loaded', blocks.length)
     const e = new Editor({
-      extensions: noteExtensions({ math: { onEdit: (kind, latex, pos) => { if (e.isEditable) openMath(e, kind, latex, pos) } }, placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem, exclude: props.bookKey ? [] : ['quote'] }, link: { sid: props.spaceId, view: LinkCardView } }),
+      extensions: noteExtensions({ onPageLink: () => { if (e.isEditable) { linkEditor = e; linkOpen.value = true } }, math: { onEdit: (kind, latex, pos) => { if (e.isEditable) openMath(e, kind, latex, pos) } }, placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem, exclude: props.bookKey ? [] : ['quote'] }, link: { sid: props.spaceId, view: LinkCardView } }),
       content: fromBlocks(blocks),
       editable: props.editable,
       editorProps: { attributes: { class: 'note-editor focus:outline-none' } },

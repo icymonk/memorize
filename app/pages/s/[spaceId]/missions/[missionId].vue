@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RelatedNotes from '~/features/notes/components/RelatedNotes.vue'
 import type { Mission } from '~/features/missions/services/missions'
 import type { Member } from '~/features/space/services/invites'
 import { dateKey } from '#shared/dates'
@@ -158,6 +159,8 @@ async function remove() {
       <MissionBoard v-if="mission.hostIds.includes(auth.user?.uid ?? '') || mission.reviewerIds.includes(auth.user?.uid ?? '')" :sid="sid" :mission="mission" :today="today" :name="name" />
 
       <MissionParticipation :sid="sid" :mission="mission" :today="today" @changed="load" />
+
+      <RelatedNotes :sid="sid" ref-type="mission" :ref-id="mission.id" />
 
       <MissionFormDialog
         v-if="mission.type !== 'auto'"
