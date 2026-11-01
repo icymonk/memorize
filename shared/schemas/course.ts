@@ -119,3 +119,7 @@ export function courseProgress(lessonIds: string[], doneIds: Iterable<string>) {
   const n = lessonIds.filter(id => done.has(id)).length
   return { done: n, total: lessonIds.length, pct: lessonIds.length ? Math.round(n / lessonIds.length * 100) : 0 }
 }
+
+/** CRS-21 레슨 완료 방법 */
+export const LESSON_COMPLETIONS = ['manual', 'test', 'mission'] as const
+export type LessonCompletion = typeof LESSON_COMPLETIONS[number]

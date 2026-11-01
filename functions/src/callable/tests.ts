@@ -8,6 +8,7 @@ import { applyGrades, attemptDeadline, attemptRefInput, canStart, checkAnswerInp
 import { shuffle } from '../../../shared/study'
 import { authedCallable } from '../lib/callable'
 import { notifyMembers } from '../lib/notify'
+import { completeLessons } from '../lib/lessonProgress'
 import { recordTestWrongs } from '../lib/wrongNotes'
 
 /**
@@ -102,6 +103,8 @@ function testMissionDoc(uid: string, testId: string, test: FirebaseFirestore.Doc
 
 /** 응시 결과가 연결 미션의 완료 조건을 채우면 완료 제출을 남긴다 (이미 있으면 그대로) */
 async function completeTestMission(test: FirebaseFirestore.DocumentSnapshot, taker: string, r: { isPractice: boolean, score: number, gradingStatus: 'done' | 'pending' }) {
+  if ((test.get('participantIds') ?? []).includes(taker) && meetsTestMission({ minScore: test.get('mission')?.minScore ?? null }, r))
+    await completeLessons(test.ref.parent.parent!.id, taker, 'test', test.id)
   const missionId = test.get('missionId') as string | null | undefined
   const mission = test.get('mission') as { minScore: number | null } | undefined
   if (!missionId || !mission || !(test.get('participantIds') ?? []).includes(taker) || !meetsTestMission(mission, r)) return

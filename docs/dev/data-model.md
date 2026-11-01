@@ -230,6 +230,7 @@ spaces/{sid}/courses/{courseId}/lessons/{lessonId}
   materials: [{ id, type: 'pdf'|'audio'|'video'|'image'|'link'|'office'|'file',     # CRS-11~16 (≤30, 3-F2)
                 title, path? (올린 파일), url? (링크·유튜브), contentType?, size? }]   # path·url 중 하나. 파일 업로드는 refType 'lesson', refId '{courseId}/{lessonId}'
   linkedDeckIds[], linkedProblemSetIds[], linkedTestIds[] (각 ≤20), missionId?    # CRS-02·06
+  completion?: 'manual'|'test'|'mission'                                 # CRS-21. test: 연결 시험 응시(목표 점수) → submitAttempt·gradeAttempt, mission: 숙제 완료 → onSubmissionWritten 이 lessonProgress.completedAt 기록 (collectionGroup lessons 인덱스)
   # CRS-10 본문: pages/{bodyPageId} (type 'lesson', parentId null, 노트 목록에는 안 보임). 공개·편집 범위는 코스를 따른다(lessonPageAccess)
   completion: 'manual' | 'test' | 'mission'                              # CRS-21
   majorRev                                                               # "업데이트됨" 표시용

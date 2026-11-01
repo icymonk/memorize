@@ -73,6 +73,16 @@ test('an author builds a course with ordered lessons and a member reads the less
   await pa.goto(courseUrl)
   await expect(pa.getByTestId('member-progress')).toContainText('50%')
 
+  // CRS-06·21 레슨 숙제와 완료 방법
+  await pa.getByRole('link', { name: 'be동사' }).click()
+  await pa.locator('#lesson-completion').selectOption('mission')
+  await expect(pa.getByText('숙제 미션을 완료하면 자동으로 완료돼요.')).toBeVisible()
+  await pa.getByRole('button', { name: '숙제 만들기' }).click()
+  await pa.locator('#mis-title').fill('be동사 문장 5개 쓰기')
+  await pa.locator('button[form="mission-form"]').click()
+  await expect(pa.getByRole('link', { name: '숙제 하기' })).toBeVisible()
+  await pa.goto(courseUrl)
+
   // CRS-07·WS-61 코스 복사: 레슨·본문·링크 자료는 가고, 올린 파일은 안 간다
   await pa.getByRole('button', { name: '다른 공간으로 복사' }).click()
   await pa.getByRole('radio', { name: /내 공간/ }).click()

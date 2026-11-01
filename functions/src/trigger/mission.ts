@@ -1,5 +1,6 @@
 import { getFirestore } from 'firebase-admin/firestore'
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore'
+import { completeLessons } from '../lib/lessonProgress'
 import { notifyMembers } from '../lib/notify'
 import { addActivity } from './activity'
 
@@ -56,6 +57,7 @@ export const onSubmissionWritten = onDocumentWritten('spaces/{sid}/missions/{mid
     }])
   }
 
+  if (COMPLETE.includes(s.status)) await completeLessons(sid, s.uid, 'mission', mid)
   if (!COMPLETE.includes(s.status) || m.isPersonal) return
   const scope = (m.notifyOnComplete as string | undefined) ?? 'feed'
   if (scope === 'none') return

@@ -28,6 +28,7 @@ const fakeDb = {
   batch: () => ({ create: (ref: any, data: any) => { created.push({ path: ref.path, data }) }, commit: async () => {} }),
 }
 
+vi.mock('../lib/lessonProgress', () => ({ completeLessons: vi.fn() }))
 vi.mock('firebase-admin/firestore', () => ({
   getFirestore: () => fakeDb,
   FieldValue: { serverTimestamp: () => 'now', increment: (n: number) => ({ increment: n }) },
