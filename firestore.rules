@@ -735,6 +735,12 @@ service cloud.firestore {
           && request.resource.data.recentPageIds is list && request.resource.data.recentPageIds.size() <= 20;
       }
 
+      // NOTE-63: 버전 목록은 페이지를 볼 수 있으면 읽는다. 쓰기·내용 읽기는 서버(getVersion·restoreVersion)
+      match /pages/{pageId}/versions/{versionId} {
+        function vpage() { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(pageId)).data; }
+        allow read: if isMember(sid) && (vpage().ownerId == uid() || seesPage(vpage()));
+        allow write: if false;
+      }
       match /pages/{pageId}/blocks/{blockId} {
         function page() { return get(/databases/$(database)/documents/spaces/$(sid)/pages/$(pageId)).data; }
         function seePage(p) { return p.ownerId == uid() || seesPage(p); }

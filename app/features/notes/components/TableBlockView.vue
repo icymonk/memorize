@@ -10,7 +10,10 @@ const props = defineProps<NodeViewProps>()
 const t = ko.notes.structure
 const rows = computed(() => ((props.node.attrs.rows ?? []) as TableRow[]).map(r => r.cells ?? []))
 const cols = computed(() => rows.value[0]?.length ?? 0)
-const editable = computed(() => props.editor.isEditable)
+const editable = ref(props.editor.isEditable)
+const syncEditable = () => { editable.value = props.editor.isEditable }
+onMounted(() => props.editor.on('update', syncEditable))
+onBeforeUnmount(() => props.editor.off('update', syncEditable))
 
 const save = (next: string[][]) => props.updateAttributes({ rows: next.map(cells => ({ cells })) })
 const setCell = (r: number, c: number, v: string) => save(rows.value.map((row, i) => (i === r ? row.map((x, j) => (j === c ? v : x)) : row)))

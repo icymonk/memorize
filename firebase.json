@@ -233,6 +233,20 @@
         }
       },
       {
+        "source": "/fn/getVersion",
+        "function": {
+          "functionId": "getVersion",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/restoreVersion",
+        "function": {
+          "functionId": "restoreVersion",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/movePage",
         "function": {
           "functionId": "movePage",

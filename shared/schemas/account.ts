@@ -6,7 +6,7 @@ import type { CopyContentInput, CopyContentOutput } from './copy'
 import type { AttemptRefInput, CheckAnswerInput, CheckAnswerOutput, GradeAttemptInput, GradeAttemptOutput, OpenTestInput, OpenTestOutput, StartAttemptInput, StartAttemptOutput, SubmitAttemptOutput } from './test'
 import type { CollectionRefInput } from './collection'
 import type { LeaveFeedbackInput, RequestRewriteInput } from './feedback'
-import type { MovePageInput, PageOpOutput, PageRefInput } from './page'
+import type { GetVersionOutput, MovePageInput, PageOpOutput, PageRefInput, VersionRefInput } from './page'
 import type { DeleteUploadInput, RegisterUploadInput, RegisterUploadOutput } from './upload'
 import type { CheckWrongInput, CheckWrongOutput, WrongRefInput, WrongView } from '../wrong-notes'
 import type { GenerateInput, GenerateOutput, GenItem, PreviewTemplateInput, SaveGeneratedInput, SaveGeneratedOutput } from '../math/generate'
@@ -67,6 +67,8 @@ export interface Callables {
   checkWrong: { input: CheckWrongInput, output: CheckWrongOutput }
   movePage: { input: MovePageInput, output: PageOpOutput }
   trashPage: { input: PageRefInput, output: PageOpOutput }
+  getVersion: { input: VersionRefInput, output: GetVersionOutput }
+  restoreVersion: { input: VersionRefInput, output: PageOpOutput }
   restorePage: { input: PageRefInput, output: PageOpOutput }
   deleteCollection: { input: CollectionRefInput, output: PageOpOutput }
   leaveFeedback: { input: LeaveFeedbackInput, output: { ok: true } }

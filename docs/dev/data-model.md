@@ -154,7 +154,7 @@ spaces/{sid}/pages/{pageId}/blocks/{blockId}     # blockId = 편집기 UniqueID
   updatedBy, updatedAt
 
 spaces/{sid}/pages/{pageId}/versions/{versionId} # NOTE-63
-  createdBy, createdAt, blockCount, storagePath   # 블록 스냅샷 JSON은 Storage에
+  createdBy, createdAt, blockCount, storagePath, hash, reason: 'edit'|'restore'   # 블록 스냅샷 JSON은 Storage에. 서버만 쓴다, 최근 50개
 
 spaces/{sid}/collections/{collectionId}          # NOTE-46~49
   kind: 'system' | 'custom', systemType?: 'journal' | 'bookReview'

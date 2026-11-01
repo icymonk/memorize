@@ -3,6 +3,7 @@ import { signUp } from './helpers'
 
 /** E2E 흐름 4: 노트 작성 → 새로고침 후 유지 → 편집 잠금 중 다른 멤버는 읽기만 하고 고친 내용은 바로 보임 (블록 끌어 옮기기는 수동 확인) */
 test('a note survives reload and is read-only for another member while locked', async ({ browser }) => {
+  test.setTimeout(180_000)
   const pa = await (await browser.newContext()).newPage()
   const personal = await signUp(pa, 'hana')
   await pa.getByRole('button', { name: /내 공간/ }).first().click()
@@ -122,4 +123,19 @@ test('a note survives reload and is read-only for another member while locked', 
   await pa.reload()
   await expect(pa.getByLabel('칸 1-1')).toHaveValue('단어', { timeout: 10_000 })
   await expect(pa.getByTestId('simple-table').locator('tr')).toHaveCount(3)
+
+  // NOTE-63 버전 기록: 다른 페이지로 나가면 잠금이 풀리며 버전이 남는다. 칸을 바꾼 뒤 그 버전으로 되돌린다
+  const noteUrl = pa.url()
+  await pa.getByTestId('related-notes').getByText('링크 노트').click()
+  await pa.waitForURL(u => u.href !== noteUrl)
+  await pa.goto(noteUrl)
+  await pa.getByLabel('칸 1-1').fill('바뀜')
+  await pa.getByLabel('칸 1-1').press('Tab')
+  await expect(pa.getByText('저장됨')).toBeVisible()
+  await pa.getByRole('button', { name: '버전 기록' }).click()
+  await pa.getByTestId('version-item').first().click()
+  await expect(pa.getByTestId('version-preview')).toContainText('단어', { timeout: 10_000 })
+  await pa.getByRole('button', { name: '이 버전으로 되돌리기' }).click()
+  await pa.getByRole('dialog').getByRole('button', { name: '되돌리기', exact: true }).click()
+  await expect(pa.getByLabel('칸 1-1')).toHaveValue('단어', { timeout: 15_000 })
 })
