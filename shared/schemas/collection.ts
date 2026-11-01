@@ -5,7 +5,7 @@ export const PROP_TYPES = ['text', 'number', 'select', 'multiSelect', 'date', 'c
 export type PropType = (typeof PROP_TYPES)[number]
 export const COLLECTION_SCOPES = ['private', 'shared'] as const
 export type CollectionScope = (typeof COLLECTION_SCOPES)[number]
-export const VIEW_TYPES = ['list', 'table', 'calendar'] as const
+export const VIEW_TYPES = ['list', 'table', 'calendar', 'gallery'] as const
 export type ViewType = (typeof VIEW_TYPES)[number]
 
 export const MAX_PROPS = 20

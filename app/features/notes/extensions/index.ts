@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core'
+import type { Component } from 'vue'
 import { Extension, InputRule } from '@tiptap/core'
 import type { LinkCardOptions } from './link-card'
 import type { SlashCommandOptions } from './slash'
@@ -14,6 +15,7 @@ import { Callout, Quote, Video } from './blocks'
 import { AppEmbed, PageLink, TodaySummary } from './link-card'
 import { BlockKeymap, BulletItem, ItemLine, NumberedItem, TodoItem, Toggle } from './flat-list'
 import { SlashCommand } from './slash'
+import { Columns, SimpleTable } from './structure'
 
 export const newBlockId = () => crypto.randomUUID()
 
@@ -37,7 +39,7 @@ const PageLinkTrigger = Extension.create<{ onTrigger?: () => void }>({
   },
 })
 
-export function noteExtensions(opts: { onPageLink?: () => void, placeholder?: string, slash?: Partial<SlashCommandOptions>, link?: Partial<LinkCardOptions>, math?: NoteMathOptions } = {}) {
+export function noteExtensions(opts: { structure?: { simpleTable?: Component, columns?: Component }, onPageLink?: () => void, placeholder?: string, slash?: Partial<SlashCommandOptions>, link?: Partial<LinkCardOptions>, math?: NoteMathOptions } = {}) {
   return [
     StarterKit.configure({
       bulletList: false,
@@ -57,6 +59,8 @@ export function noteExtensions(opts: { onPageLink?: () => void, placeholder?: st
     Callout,
     Video,
     ...[PageLink, AppEmbed, TodaySummary].map(n => n.configure(opts.link ?? {})),
+    SimpleTable.configure({ view: opts.structure?.simpleTable }),
+    Columns.configure({ view: opts.structure?.columns }),
     BlockKeymap,
     TextStyle,
     Color,

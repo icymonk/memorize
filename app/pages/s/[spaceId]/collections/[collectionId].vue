@@ -127,6 +127,10 @@ const todayYmd = ymd(new Date())
 const isJournal = computed(() => col.value?.kind === 'system' && col.value.systemType === 'journal')
 const myUid = useAuthStore().user?.uid
 const isReview = computed(() => col.value?.kind === 'system' && col.value.systemType === 'bookReview')
+// REV-20: 독후감은 표지 카드 갤러리가 기본
+watch(isReview, (v) => {
+  if (v && active.value === 'list') selectView('gallery')
+}, { immediate: true })
 const reviewOpen = ref(false)
 /** REV-22·23: 독후감 필터 — 글쓴이·책·피드백 여부, 내가 피드백할 것(요청받았고 아직 안 남긴 것) */
 const review = reactive({ author: '', book: '', feedback: 'all', forMe: false })
@@ -470,7 +474,20 @@ const selectClass = 'border-input bg-background h-8 rounded-md border px-2 text-
           <h2 v-if="s.label" class="text-muted-foreground text-sm font-medium">
             {{ s.label }} <span class="text-xs">{{ s.items.length }}</span>
           </h2>
-          <ul v-if="type === 'list'" class="flex flex-col gap-2">
+          <ul v-if="type === 'gallery'" class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" data-testid="gallery">
+            <li v-for="p in s.items" :key="p.id">
+              <NuxtLink :to="`/s/${sid}/notes/${p.id}`" class="hover:bg-muted/60 flex h-full flex-col overflow-hidden rounded-lg border">
+                <img v-if="p.cover" :src="p.cover" alt="" loading="lazy" class="aspect-[3/4] w-full object-cover">
+                <span v-else class="bg-muted flex aspect-[3/4] items-center justify-center text-3xl">{{ p.icon || '📄' }}</span>
+                <span class="flex flex-col gap-0.5 p-2">
+                  <span class="truncate text-sm font-medium">{{ p.title || ko.notes.untitled }}</span>
+                  <span v-if="p.book?.title" class="text-muted-foreground truncate text-xs">{{ p.book.title }}</span>
+                  <span v-else class="text-muted-foreground text-xs">{{ shortDate(p) }}</span>
+                </span>
+              </NuxtLink>
+            </li>
+          </ul>
+          <ul v-else-if="type === 'list'" class="flex flex-col gap-2">
             <li v-for="p in s.items" :key="p.id">
               <NuxtLink :to="`/s/${sid}/notes/${p.id}`" class="hover:bg-muted/60 flex flex-col gap-1 rounded-lg border p-3">
                 <span class="flex items-center gap-2 font-medium">
