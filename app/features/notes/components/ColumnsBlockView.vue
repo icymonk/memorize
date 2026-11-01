@@ -7,7 +7,10 @@ import { ko } from '~/locales/ko'
 const props = defineProps<NodeViewProps>()
 const t = ko.notes.structure
 const cols = computed(() => (props.node.attrs.cols ?? []) as string[])
-const editable = computed(() => props.editor.isEditable)
+const editable = ref(props.editor.isEditable)
+const syncEditable = () => { editable.value = props.editor.isEditable }
+onMounted(() => props.editor.on('update', syncEditable))
+onBeforeUnmount(() => props.editor.off('update', syncEditable))
 const setCol = (i: number, v: string) => props.updateAttributes({ cols: cols.value.map((x, j) => (j === i ? v : x)) })
 </script>
 

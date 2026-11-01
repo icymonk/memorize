@@ -443,6 +443,15 @@ describe('pages and blocks (NOTE-01·10)', () => {
     await assertFails(setDoc(pageRef('alice', 'open', 'p_alice'), page({ ownerId: 'alice' })))
   })
 
+  it('page versions are readable with the page and never client-written (NOTE-63)', async () => {
+    await seed('pages/vp', page({ visibility: 'private', root: 'private' }))
+    await seed('pages/vp/versions/v1', { createdBy: 'bob', blockCount: 1 })
+    const versions = (uid: string) => collection(db(uid), 'spaces', SID, 'pages', 'vp', 'versions')
+    await assertSucceeds(getDocs(versions('bob')))
+    await assertFails(getDocs(versions('alice')))
+    await assertFails(setDoc(doc(versions('bob'), 'v2'), { createdBy: 'bob', blockCount: 1 }))
+  })
+
   it('private pages and their blocks are hidden from others', async () => {
     await seed('pages/priv', page({ visibility: 'private', root: 'private' }))
     await seed('pages/priv/blocks/b1', block('bob'))

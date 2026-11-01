@@ -71,7 +71,9 @@
 | 이름 | 하는 일 | 기능 ID | 단계 |
 | --- | --- | --- | --- |
 | `trashPage` / `restorePage` | 하위 페이지 포함 휴지통 이동·복원 | NOTE-22 | 1 |
+| `getVersion` | 버전 스냅샷 내용 보기 | NOTE-63 | 3 |
 | `restoreVersion` | 버전 스냅샷으로 되돌리기 | NOTE-63 | 3 |
+| `onPageLockChanged` (trigger) | 잠금 해제·10분마다 버전 스냅샷 | NOTE-63 | 3 |
 | `submitToMission` | 노트·독후감을 미션에 제출: 제출 문서 + `sharedWith`·`reviewerIds`·`missionIds` 갱신 | MIS-22, NOTE-53 | 2 |
 
 ### 독서 (READ)

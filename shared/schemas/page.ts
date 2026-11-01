@@ -17,3 +17,18 @@ export interface PageOpOutput { count: number }
 
 /** 하위 페이지 깊이 한도 */
 export const MAX_PAGE_DEPTH = 10
+
+/** NOTE-63 버전 기록: 잠금이 풀릴 때와 편집 중 10분마다 서버가 블록 전체를 저장한다 */
+export const versionRefInput = pageRefInput.extend({ versionId: id })
+export type VersionRefInput = z.infer<typeof versionRefInput>
+export interface VersionBlock {
+  id: string
+  type: string
+  parentBlockId: string | null
+  order: string
+  attrs: Record<string, unknown>
+  content: unknown[]
+}
+export interface GetVersionOutput { blocks: VersionBlock[] }
+export const VERSION_INTERVAL_MS = 10 * 60_000
+export const MAX_VERSIONS = 50

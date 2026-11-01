@@ -3,7 +3,7 @@ import RelatedNotes from '~/features/notes/components/RelatedNotes.vue'
 import { withSubjects } from '~/features/space/services/subjects'
 import type { Page } from '~/features/notes/services/pages'
 import type { SaveStatus } from '~/features/notes/sync/writer'
-import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon, CopyIcon } from '@lucide/vue'
+import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon, CopyIcon, HistoryIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { useDebounceFn } from '@vueuse/core'
 import { LIMITS } from '#shared/limits'
@@ -20,6 +20,7 @@ import PropCell from '~/features/notes/components/PropCell.vue'
 import { useTags } from '~/features/space/composables/useTags'
 import { ensureTags, isTagProp, tagAwareDef, withTags } from '~/features/space/services/tags'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
+import VersionHistoryDialog from '~/features/notes/components/VersionHistoryDialog.vue'
 import { canEditPage, getPage, LOCK_REFRESH_MS, publishPage, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
 import { errorMessage } from '~/lib/errors'
@@ -61,6 +62,8 @@ const titleSaving = ref(false)
 const titleFailed = ref(false)
 const blockCount = ref(0)
 const editorRef = ref<InstanceType<typeof BlockEditor>>()
+const versionsOpen = ref(false)
+const editorKey = ref(0)
 const notes = useNotesStore()
 const headings = ref<{ id: string, level: number, text: string }[]>([])
 const crumbs = computed(() => (page.value ? notes.ancestors(page.value) : []))
@@ -204,6 +207,9 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="t.copy.button" :title="t.copy.button" @click="copyOpen = true">
           <CopyIcon />
         </Button>
+        <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="t.versions.button" :title="t.versions.button" @click="editorRef?.flush(); versionsOpen = true">
+          <HistoryIcon />
+        </Button>
         <Button v-if="page && page.ownerId === auth.user?.uid && !page.deletedAt" variant="ghost" size="sm" @click="shareOpen = true">
           {{ t.share.button }}
         </Button>
@@ -219,6 +225,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
       {{ t.editingBy(lockedBy) }}
     </p>
     <CopyDeckDialog v-if="page" v-model:open="copyOpen" kind="page" :from-space-id="sid" :content-id="page.id" />
+    <VersionHistoryDialog v-if="page" v-model:open="versionsOpen" :sid="sid" :page-id="page.id" :can-restore="editable" @restored="editorKey++" />
     <ShareDialog v-if="page" v-model:open="shareOpen" :page="live ?? page" @saved="page = { ...page!, ...$event }" />
 
     <p v-if="loadError" class="text-destructive text-sm">
@@ -295,6 +302,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         {{ t.tooManyBlocks(LIMITS.pageBlockWarn) }}
       </p>
       <BlockEditor
+        :key="editorKey"
         ref="editorRef"
         :space-id="sid"
         :page-id="pageId"
