@@ -89,4 +89,22 @@ test('a note survives reload and is read-only for another member while locked', 
   await expect(pa.getByRole('button', { name: '승인', exact: true })).toHaveCount(0)
   await pb.reload()
   await expect(pb.getByText('승인', { exact: true })).toBeVisible()
+
+  // NOTE-24 `[[`로 페이지 링크 → 링크된 페이지 아래 "이 페이지를 언급한 페이지"
+  const first = pa.url()
+  await pa.goto(`/s/${ws}/notes`)
+  await pa.getByRole('button', { name: '새 페이지' }).click()
+  await pa.waitForURL(u => /\/notes\/[^/]+$/.test(u.pathname) && u.href !== first)
+  await pa.getByPlaceholder('제목 없음').fill('링크 노트')
+  await pa.locator('.ProseMirror').click()
+  await pa.keyboard.type('[[')
+  await pa.getByRole('dialog').getByText('E2E 노트').click()
+  const linked = (await pa.locator('.ProseMirror a').first().getAttribute('href'))!.split('/').pop()!
+  await expect(pa.locator('.ProseMirror').getByText('E2E 노트')).toBeVisible()
+  await expect(pa.getByText('저장됨')).toBeVisible()
+  await pa.reload()
+  await expect(pa.locator('.ProseMirror').getByText('E2E 노트')).toBeVisible({ timeout: 10_000 })
+  await pa.locator('.ProseMirror').getByText('E2E 노트').click()
+  await pa.waitForURL(u => u.pathname.endsWith(`/notes/${linked}`))
+  await expect(pa.getByTestId('related-notes')).toContainText('링크 노트', { timeout: 15_000 })
 })

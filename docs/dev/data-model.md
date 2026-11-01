@@ -167,7 +167,8 @@ spaces/{sid}/dailySummaries/{uid}_{date}         # NOTE-32·33, 서버 관리
   uid, date, items: { total, vocab, courses, reading, notes, missions, tests, math, wrongNotes, social }
   frozenAt?                                      # 하루 마감 시 고정
 
-spaces/{sid}/pageLinks/{fromPageId}_{toPageId}   # NOTE-24 역링크, 서버 관리
+spaces/{sid}/pageLinks/{fromPageId}_{refType}_{refId}   # NOTE-24·25 역링크·관련 노트, 서버 관리 (onBlockWritten)
+  fromPageId, refType: 'page'|'deck'|'book'|'mission', refId, updatedAt   # pageLink·appEmbed 블록에서 만든다. 읽기는 멤버, 페이지는 페이지 규칙으로 다시 거른다
 ```
 - 학습일지: `type: 'journal'`, `collectionId: 'journal'`, `props.date`. 하루 여러 장 허용(NOTE-30) → 날짜로 ID를 만들지 않는다.
 - 내 일지 모아 보기(NOTE-39): `collectionGroup('pages')` where `ownerId == me` and `type == 'journal'`.

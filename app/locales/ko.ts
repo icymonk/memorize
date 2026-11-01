@@ -544,6 +544,7 @@ export const ko = {
     },
   },
   notes: {
+    backlinks: { mentioned: '이 페이지를 언급한 페이지', related: '관련 노트', untitled: '제목 없음' },
     nav: '노트',
     title: '노트',
     empty: '아직 페이지가 없어요. 첫 페이지를 만들어 보세요.',

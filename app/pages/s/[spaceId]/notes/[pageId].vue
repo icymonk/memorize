@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import RelatedNotes from '~/features/notes/components/RelatedNotes.vue'
 import { withSubjects } from '~/features/space/services/subjects'
 import type { Page } from '~/features/notes/services/pages'
 import type { SaveStatus } from '~/features/notes/sync/writer'
@@ -306,6 +307,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
       />
       <PageReactions v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
       <PageFeedback v-if="page && !page.deletedAt && space.current?.kind !== 'personal'" :sid="sid" :page="live ?? page" @saved="page = { ...page!, ...$event }" />
+      <RelatedNotes v-if="page && !page.deletedAt" :sid="sid" ref-type="page" :ref-id="pageId" />
       <PageComments v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
     </template>
   </div>
