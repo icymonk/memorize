@@ -1463,6 +1463,12 @@ describe('courses (CRS-01~03·10)', () => {
     await assertSucceeds(getDoc(pref('bob', 'alice_l1')))
   })
 
+  it('lessons carry a homework mission and a completion rule (CRS-06·21)', async () => {
+    await assertSucceeds(setDoc(cref('bob', 'c1'), course('bob')))
+    await assertSucceeds(setDoc(lref('bob', 'c1', 'l1'), lesson('bob', { missionId: 'm1', completion: 'mission' })))
+    await assertFails(setDoc(lref('bob', 'c1', 'l2'), lesson('bob', { completion: 'auto' })))
+  })
+
   it('a copied course keeps where it came from (WS-63)', async () => {
     await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'spaces', SID, 'courses', 'cc'), { ...course('bob'), createdAt: Timestamp.now(), updatedAt: Timestamp.now(), copiedFrom: { spaceId: 'x', courseId: 'y', spaceName: 'X' } }))
     await assertSucceeds(updateDoc(cref('bob', 'cc'), { title: '새 제목', updatedAt: serverTimestamp() }))

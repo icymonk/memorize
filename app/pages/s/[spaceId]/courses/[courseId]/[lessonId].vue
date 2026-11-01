@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import type { LessonLinks, Material } from '#shared/schemas/course'
 import type { Course, Lesson, LessonProgress } from '~/features/courses/services/courses'
+import type { Member } from '~/features/space/services/invites'
 import type { SaveStatus } from '~/features/notes/sync/writer'
-import { canEditCourse, LESSON_LINKS_MAX, lessonTitle, linkType, materialSchema, MATERIALS_MAX, materialType, moveItem } from '#shared/schemas/course'
-import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CheckIcon, LinkIcon, NotebookPenIcon, Trash2Icon, UploadIcon } from '@lucide/vue'
+import { dateKey } from '#shared/dates'
+import { canEditCourse, LESSON_COMPLETIONS, LESSON_LINKS_MAX, lessonTitle, linkType, materialSchema, MATERIALS_MAX, materialType, moveItem } from '#shared/schemas/course'
+import { ArrowDownIcon, ArrowLeftIcon, ArrowRightIcon, ArrowUpIcon, CheckIcon, ClipboardCheckIcon, LinkIcon, NotebookPenIcon, Trash2Icon, UploadIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import MaterialView from '~/features/courses/components/MaterialView.vue'
 import { createLessonNote, getCourse, listLessons, listMyProgress, setLessonDone, updateLesson } from '~/features/courses/services/courses'
 import { uploadFile, UploadError } from '~/features/files/services/uploads'
 import { listProblemSets } from '~/features/math/services/problemSets'
+import MissionFormDialog from '~/features/missions/components/MissionFormDialog.vue'
 import BlockEditor from '~/features/notes/components/BlockEditor.vue'
+import { listMembers } from '~/features/space/services/invites'
 import { listTests } from '~/features/tests/services/tests'
 import { listDecks } from '~/features/vocab/services/decks'
 import { errorMessage } from '~/lib/errors'
@@ -39,6 +43,10 @@ const linkTitle = ref('')
 const fileInput = ref<HTMLInputElement>()
 const progress = ref<LessonProgress | null>(null)
 const noteOpen = ref(false)
+const missionOpen = ref(false)
+const members = ref<Member[]>([])
+const today = dateKey(new Date(), Intl.DateTimeFormat().resolvedOptions().timeZone)
+const canHomework = computed(() => canEdit.value && space.current?.kind === 'workspace' && !!space.current?.modules?.missions)
 const shareProgress = computed(() => space.current?.kind !== 'personal' && !space.membership?.hideProgress)
 const draft = ref<LessonLinks>({ linkedDeckIds: [], linkedProblemSetIds: [], linkedTestIds: [] })
 const options = ref<{ decks: { id: string, title: string }[], sets: { id: string, title: string }[], tests: { id: string, title: string }[] }>({ decks: [], sets: [], tests: [] })
@@ -203,6 +211,13 @@ async function toggleNote() {
   noteOpen.value = !!progress.value?.noteId
 }
 
+async function openMission() {
+  members.value = await listMembers($firestore, sid.value).catch(() => [])
+  missionOpen.value = true
+}
+
+const onMissionSaved = (id: string) => save({ missionId: id })
+
 async function saveLinks() {
   if (await save(draft.value)) linksOpen.value = false
 }
@@ -274,7 +289,18 @@ async function saveLinks() {
           <h2 class="text-sm font-semibold">{{ t.study }}</h2>
           <Button v-if="canEdit" variant="outline" size="sm" @click="openLinks"><LinkIcon /> {{ t.editLinks }}</Button>
         </div>
-        <p v-if="!linked.length" class="text-muted-foreground text-sm">{{ t.noLinks }}</p>
+        <div v-if="canEdit" class="flex flex-wrap items-center gap-2 text-sm">
+          <Label for="lesson-completion">{{ t.completion }}</Label>
+          <select id="lesson-completion" class="border-input bg-background h-8 rounded-md border px-2" :value="lesson.completion ?? 'manual'" :disabled="busy" @change="save({ completion: ($event.target as HTMLSelectElement).value as typeof LESSON_COMPLETIONS[number] })">
+            <option v-for="c in LESSON_COMPLETIONS" :key="c" :value="c">{{ t.completionOpt[c] }}</option>
+          </select>
+          <Button v-if="canHomework && !lesson.missionId" variant="outline" size="sm" :disabled="busy" @click="openMission"><ClipboardCheckIcon /> {{ t.createHomework }}</Button>
+        </div>
+        <p v-if="lesson.completion === 'test' || lesson.completion === 'mission'" class="text-muted-foreground text-xs">{{ t.autoHint[lesson.completion] }}</p>
+        <Button v-if="lesson.missionId" as-child variant="secondary" size="sm" class="self-start">
+          <NuxtLink :to="`/s/${sid}/missions/${lesson.missionId}`"><ClipboardCheckIcon /> {{ t.homework }}</NuxtLink>
+        </Button>
+        <p v-if="!linked.length && !lesson.missionId" class="text-muted-foreground text-sm">{{ t.noLinks }}</p>
         <div v-for="k in linked" :key="k.kind" class="flex flex-wrap items-center gap-2 text-sm">
           <span class="text-muted-foreground w-14">{{ t[k.kind] }}</span>
           <Button v-for="o in k.items" :key="o.id" as-child variant="secondary" size="sm">
@@ -293,6 +319,7 @@ async function saveLinks() {
         </Button>
       </div>
 
+      <MissionFormDialog v-if="canHomework" v-model:open="missionOpen" :members="members" :personal="false" :today="today" @saved="onMissionSaved" />
       <Dialog v-model:open="linksOpen">
         <DialogContent class="max-h-[90svh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>

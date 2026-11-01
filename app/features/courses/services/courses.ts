@@ -1,4 +1,4 @@
-import type { CourseInput, LessonLinks, Material } from '#shared/schemas/course'
+import type { CourseInput, LessonCompletion, LessonLinks, Material } from '#shared/schemas/course'
 import type { Firestore, Timestamp } from 'firebase/firestore'
 import { lessonPageAccess, progressId } from '#shared/schemas/course'
 import { addDoc, and, collection, deleteDoc, doc, getDoc, getDocs, or, orderBy, query, serverTimestamp, setDoc, updateDoc, where, writeBatch } from 'firebase/firestore'
@@ -22,6 +22,10 @@ export interface Lesson extends LessonLinks {
   bodyPageId: string | null
   /** CRS-11~16 (3-F2 전에 만든 레슨에는 없다) */
   materials?: Material[]
+  /** CRS-06 레슨 숙제(미션) */
+  missionId?: string | null
+  /** CRS-21 완료 방법: 직접 체크 / 연결한 시험 응시(목표 점수) / 숙제 완료 시 서버가 완료 처리 */
+  completion?: LessonCompletion
   createdBy: string
   createdAt?: Timestamp
   updatedAt?: Timestamp
@@ -108,7 +112,7 @@ export async function addLesson(db: Firestore, sid: string, uid: string, course:
   return ref.id
 }
 
-export const updateLesson = (db: Firestore, sid: string, cid: string, id: string, patch: Partial<LessonLinks & { title: string, materials: Material[] }>) =>
+export const updateLesson = (db: Firestore, sid: string, cid: string, id: string, patch: Partial<LessonLinks & { title: string, materials: Material[], missionId: string | null, completion: LessonCompletion }>) =>
   updateDoc(doc(lessonsOf(db, sid, cid), id), { ...patch, updatedAt: serverTimestamp() })
 
 export async function reorderLessons(db: Firestore, sid: string, cid: string, pairs: readonly { id: string, order: number }[]) {
