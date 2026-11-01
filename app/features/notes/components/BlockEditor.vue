@@ -24,6 +24,8 @@ import { cn } from '~/lib/utils'
 import { ko } from '~/locales/ko'
 import LinkCardView from './LinkCardView.vue'
 import LinkPicker from './LinkPicker.vue'
+import ColumnsBlockView from './ColumnsBlockView.vue'
+import TableBlockView from './TableBlockView.vue'
 import QuotePicker from './QuotePicker.vue'
 import SlashMenu from './SlashMenu.vue'
 import 'katex/dist/katex.min.css'
@@ -133,7 +135,7 @@ onMounted(async () => {
     const blocks = await loadBlocks($firestore, props.spaceId, props.pageId)
     emit('loaded', blocks.length)
     const e = new Editor({
-      extensions: noteExtensions({ onPageLink: () => { if (e.isEditable) { linkEditor = e; linkOpen.value = true } }, math: { onEdit: (kind, latex, pos) => { if (e.isEditable) openMath(e, kind, latex, pos) } }, placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem, exclude: props.bookKey ? [] : ['quote'] }, link: { sid: props.spaceId, view: LinkCardView } }),
+      extensions: noteExtensions({ structure: { simpleTable: TableBlockView, columns: ColumnsBlockView }, onPageLink: () => { if (e.isEditable) { linkEditor = e; linkOpen.value = true } }, math: { onEdit: (kind, latex, pos) => { if (e.isEditable) openMath(e, kind, latex, pos) } }, placeholder: t.placeholder, slash: { labels: t.blocks, render: slashRender, onItem: onSlashItem, exclude: props.bookKey ? [] : ['quote'] }, link: { sid: props.spaceId, view: LinkCardView } }),
       content: fromBlocks(blocks),
       editable: props.editable,
       editorProps: { attributes: { class: 'note-editor focus:outline-none' } },
@@ -260,7 +262,7 @@ function turnHovered(item: SlashItem) {
   if (!onSlashItem(item.key, e)) item.run(e)
   e.commands.focus()
 }
-const turnItems = SLASH_ITEMS.filter(i => !['horizontalRule', 'inlineMath', 'blockMath', 'video', 'quote', 'link'].includes(i.key))
+const turnItems = SLASH_ITEMS.filter(i => !['horizontalRule', 'inlineMath', 'blockMath', 'video', 'quote', 'link', 'table', 'columns2', 'columns3'].includes(i.key))
 
 defineExpose({ flush, focus: () => editor.value?.commands.focus('start') })
 </script>
