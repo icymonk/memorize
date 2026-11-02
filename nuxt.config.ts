@@ -40,6 +40,7 @@ export default defineNuxtConfig({
         messagingSenderId: '',
         appId: '',
       },
+      vapidKey: '',
       useEmulator: false,
       sentryDsn: '',
     },

@@ -858,6 +858,23 @@ describe('reading groups (READ-40·41·45)', () => {
   })
 })
 
+describe('reminders and push tokens (ACC-21, CMN-31)', () => {
+  it('lets a user set 15-minute reminders and register only their own web push token', async () => {
+    await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia'), { kind: 'standard', displayName: 'Mia' }))
+    const r = { review: '21:00', journal: null, tz: 'Asia/Seoul', reviewUtc: '12:00', journalUtc: null }
+    await assertSucceeds(updateDoc(doc(db('mia'), 'users', 'mia'), { reminders: r }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { reminders: { ...r, review: '21:10' } }))
+    await assertFails(updateDoc(doc(db('mia'), 'users', 'mia'), { reminders: { ...r, extra: 1 } }))
+    await assertFails(updateDoc(doc(db('bob'), 'users', 'mia'), { reminders: r }))
+    await assertSucceeds(updateDoc(doc(db('mia'), 'users', 'mia'), { 'notifications.test.push': false }))
+    await assertSucceeds(setDoc(doc(db('mia'), 'users/mia/fcmTokens/tok1'), { platform: 'web', createdAt: serverTimestamp() }))
+    await assertFails(setDoc(doc(db('mia'), 'users/mia/fcmTokens/tok2'), { platform: 'web', createdAt: serverTimestamp(), extra: 1 }))
+    await assertFails(setDoc(doc(db('bob'), 'users/mia/fcmTokens/tok3'), { platform: 'web', createdAt: serverTimestamp() }))
+    await assertFails(getDoc(doc(db('bob'), 'users/mia/fcmTokens/tok1')))
+    await assertSucceeds(deleteDoc(doc(db('mia'), 'users/mia/fcmTokens/tok1')))
+  })
+})
+
 describe('reading goal (READ-51)', () => {
   it('lets a user set only their own valid yearly goal', async () => {
     await env.withSecurityRulesDisabled(ctx => setDoc(doc(ctx.firestore(), 'users/mia'), { kind: 'standard', displayName: 'Mia' }))

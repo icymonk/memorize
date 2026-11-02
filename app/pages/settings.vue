@@ -5,7 +5,9 @@ import { useStudySettings } from '~/features/vocab/composables/useStudySettings'
 import type { StorageUsage } from '#shared/schemas/upload'
 import type { Upload } from '~/features/files/services/uploads'
 import { formatBytes, storageLevel } from '#shared/schemas/upload'
+import { remindersDoc, remindersInput } from '#shared/reminders'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
+import { disablePush, enablePush, pushSupported, savedPushToken } from '~/features/notifications/services/push'
 import { toast } from 'vue-sonner'
 import { getStorageUsage, listMyUploads, removeUpload } from '~/features/files/services/uploads'
 import { getMembership, getSpace, getUserSpaceIds, updateMyMembership } from '~/features/space/services/spaces'
@@ -17,7 +19,7 @@ definePageMeta({ layout: 'focus' })
 /** ACC-23 화면, ACC-11·22 워크스페이스별 설정, ACC-20 알림 설정: 종류별 알림함 켜기/끄기. 서버 트리거가 users/{uid}.notifications.{type}.inApp 을 읽는다 */
 const t = ko.accountSettings
 const auth = useAuthStore()
-const { $firestore, $functions } = useNuxtApp()
+const { $firestore, $functions, $firebaseApp } = useNuxtApp()
 
 // CMN-62 저장 공간
 const usage = ref<StorageUsage | null>(null)
@@ -42,14 +44,69 @@ async function removeFile(f: Upload) {
 const types = ['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group', 'test'] as const
 type Kind = typeof types[number]
 const enabled = ref<Record<Kind, boolean>>({ mention: true, comment: true, feedbackRequest: true, feedback: true, mission: true, missionReview: true, group: true, test: true })
+const pushOn = ref<Record<Kind, boolean>>({ mention: true, comment: true, feedbackRequest: true, feedback: true, mission: true, missionReview: true, group: true, test: true })
 const loaded = ref(false)
+// ACC-21·NOTE-38 리마인더 (15분 단위)
+const reminders = ref({ review: '', journal: '' })
+const remindersSaving = ref(false)
+const remindersSaved = ref(false)
+watch(reminders, () => (remindersSaved.value = false), { deep: true })
 
 watch(() => auth.user?.uid, async (uid) => {
   if (!uid) return
-  const prefs = (await getDoc(doc($firestore, 'users', uid))).get('notifications') ?? {}
-  for (const k of types) enabled.value[k] = prefs[k]?.inApp !== false
+  const user = await getDoc(doc($firestore, 'users', uid))
+  const prefs = user.get('notifications') ?? {}
+  for (const k of types) {
+    enabled.value[k] = prefs[k]?.inApp !== false
+    pushOn.value[k] = prefs[k]?.push !== false
+  }
+  reminders.value = { review: user.get('reminders.review') ?? '', journal: user.get('reminders.journal') ?? '' }
   loaded.value = true
 }, { immediate: true })
+
+// CMN-31 이 브라우저의 웹 푸시
+const vapidKey = useRuntimeConfig().public.vapidKey as string
+const pushState = ref<'loading' | 'unsupported' | 'unconfigured' | 'denied' | 'on' | 'off'>('loading')
+const pushBusy = ref(false)
+onMounted(async () => {
+  if (!(await pushSupported())) pushState.value = 'unsupported'
+  else if (!vapidKey) pushState.value = 'unconfigured'
+  else if (Notification.permission === 'denied') pushState.value = 'denied'
+  else pushState.value = Notification.permission === 'granted' && savedPushToken() ? 'on' : 'off'
+})
+async function setBrowserPush(on: boolean) {
+  pushBusy.value = true
+  try {
+    if (on) {
+      const ok = await enablePush($firebaseApp, $firestore, auth.user!.uid, vapidKey)
+      pushState.value = ok ? 'on' : 'denied'
+      if (ok) toast.success(t.push.enabled)
+    }
+    else {
+      await disablePush($firebaseApp, $firestore, auth.user!.uid)
+      pushState.value = 'off'
+      toast.success(t.push.disabled)
+    }
+  }
+  catch (e) { toast.error(errorMessage(e) ?? ko.errors.unknown) }
+  finally { pushBusy.value = false }
+}
+
+async function saveReminders() {
+  const p = remindersInput.safeParse({ review: reminders.value.review || null, journal: reminders.value.journal || null, tz: Intl.DateTimeFormat().resolvedOptions().timeZone })
+  if (!p.success) {
+    toast.error(t.reminders.invalid)
+    return
+  }
+  remindersSaving.value = true
+  try {
+    await updateDoc(doc($firestore, 'users', auth.user!.uid), { reminders: remindersDoc(p.data) })
+    remindersSaved.value = true
+    toast.success(t.saved)
+  }
+  catch (e) { toast.error(errorMessage(e) ?? ko.errors.unknown) }
+  finally { remindersSaving.value = false }
+}
 
 const appearance = useAppearance()
 const themes = ['system', 'light', 'dark'] as const
@@ -129,15 +186,16 @@ async function saveStudy() {
   }
 }
 
-async function toggle(k: Kind, v: boolean) {
-  const prev = enabled.value[k]
-  enabled.value[k] = v
+async function toggle(k: Kind, v: boolean, channel: 'inApp' | 'push' = 'inApp') {
+  const state = channel === 'inApp' ? enabled : pushOn
+  const prev = state.value[k]
+  state.value[k] = v
   try {
-    await updateDoc(doc($firestore, 'users', auth.user!.uid), { [`notifications.${k}.inApp`]: v })
+    await updateDoc(doc($firestore, 'users', auth.user!.uid), { [`notifications.${k}.${channel}`]: v })
     toast.success(t.saved)
   }
   catch (e) {
-    enabled.value[k] = prev
+    state.value[k] = prev
     toast.error(errorMessage(e) ?? ko.errors.unknown)
   }
 }
@@ -277,9 +335,57 @@ async function toggle(k: Kind, v: boolean) {
               {{ t.types[k].desc }}
             </p>
           </div>
-          <Switch :disabled="!loaded" :model-value="enabled[k]" :aria-label="t.types[k].label" @update:model-value="(v: boolean) => toggle(k, v)" />
+          <div class="flex shrink-0 items-center gap-4">
+            <label class="flex items-center gap-2 text-xs text-muted-foreground">
+              {{ t.channels.inApp }}
+              <Switch :disabled="!loaded" :model-value="enabled[k]" :aria-label="`${t.types[k].label} ${t.channels.inApp}`" @update:model-value="(v: boolean) => toggle(k, v)" />
+            </label>
+            <label class="flex items-center gap-2 text-xs text-muted-foreground">
+              {{ t.channels.push }}
+              <Switch :disabled="!loaded" :model-value="pushOn[k]" :aria-label="`${t.types[k].label} ${t.channels.push}`" @update:model-value="(v: boolean) => toggle(k, v, 'push')" />
+            </label>
+          </div>
         </li>
       </ul>
+    </section>
+    <section class="space-y-3" data-testid="push-settings">
+      <h2 class="text-lg font-medium">
+        {{ t.push.title }}
+      </h2>
+      <p class="text-sm text-muted-foreground">
+        {{ t.push.desc }}
+      </p>
+      <div class="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+        <p class="text-sm" data-testid="push-state">
+          {{ pushState === 'loading' ? '' : t.push[pushState] }}
+        </p>
+        <Button v-if="pushState === 'off'" size="sm" :disabled="pushBusy" @click="setBrowserPush(true)">
+          {{ t.push.enable }}
+        </Button>
+        <Button v-else-if="pushState === 'on'" size="sm" variant="outline" :disabled="pushBusy" @click="setBrowserPush(false)">
+          {{ t.push.disable }}
+        </Button>
+      </div>
+      <div class="grid gap-3 sm:grid-cols-2">
+        <div v-for="r in (['review', 'journal'] as const)" :key="r" class="space-y-1">
+          <Label :for="`reminder-${r}`">{{ t.reminders[r] }}</Label>
+          <div class="flex gap-2">
+            <Input :id="`reminder-${r}`" v-model="reminders[r]" type="time" step="900" :disabled="!loaded" />
+            <Button v-if="reminders[r]" size="sm" variant="ghost" @click="reminders[r] = ''">
+              {{ t.reminders.clear }}
+            </Button>
+          </div>
+          <p class="text-xs text-muted-foreground">
+            {{ t.reminders[`${r}Desc`] }}
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-3">
+        <Button size="sm" :disabled="!loaded || remindersSaving" @click="saveReminders">
+          {{ t.reminders.save }}
+        </Button>
+        <span v-if="remindersSaved" class="text-sm text-muted-foreground">{{ t.reminders.savedNote }}</span>
+      </div>
     </section>
     <section class="space-y-3" data-testid="study-settings">
       <h2 class="text-lg font-medium">

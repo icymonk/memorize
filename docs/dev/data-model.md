@@ -33,7 +33,9 @@ users/{uid}
   streak: { current, best, lastDate }        # 서버 관리, 모든 공간 합산 (ACC-30)
 
 users/{uid}/notifications/{id}   spaceId?, type, actorId, refPath, title, body, read, createdAt
-users/{uid}/fcmTokens/{token}    platform, createdAt
+users/{uid}/fcmTokens/{token}    platform: 'web', createdAt   # CMN-31 본인이 등록·삭제, 서버가 죽은 토큰 정리
+# users/{uid}.reminders: { review, journal: 15분 단위 'HH:mm'|null, tz, reviewUtc, journalUtc }  # ACC-21·NOTE-38, UTC 칸은 저장할 때 계산
+# users/{uid}.notifications.{type}: { inApp, push }  # 없으면 켜짐
 users/{uid}/uploads/{fileId}     spaceId, path, size, contentType, refType?, refId?, createdAt   # CMN-62
 users/{uid}/badges/{badgeId}     spaceId, earnedAt
 

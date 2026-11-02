@@ -66,6 +66,7 @@
 | `giveFeedback` | 피드백 권한 검사 후 `comments(kind:'feedback')` 작성, 요청 완료 처리 | CMN-24·25 | 2 |
 | `adjustPoints` | 소유자·매니저의 포인트 조정·회수 (원장 기록, 알림) | CMN-77 | 4 |
 | `searchAll` | 통합 검색. 공간 안 노트·단어장·시험·미션 제목, 카드 앞면, 내 책장 책 제목을 서버에서 훑어 볼 수 있는 것만 종류별 8개씩. 꺼진 기능은 빼고 레슨 필기는 제외 | CMN-50 | 3 |
+| `cronReminders` | 15분마다. `reminders.reviewUtc`/`journalUtc`가 지금 칸인 사용자에게 웹 푸시 (복습은 due 카드가 있을 때, 일지는 오늘 안 썼을 때). 알림함 알림(`notifyMembers`)도 `notifications.{type}.push`가 꺼지지 않았으면 푸시로 보낸다 | CMN-31, ACC-21, NOTE-38 | 3 |
 
 ### 노트 (NOTE)
 | 이름 | 하는 일 | 기능 ID | 단계 |
