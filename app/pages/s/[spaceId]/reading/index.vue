@@ -32,6 +32,17 @@ if (!space.current?.modules?.reading) {
 
 const sid = computed(() => space.current!.id)
 const workspace = computed(() => space.current?.kind === 'workspace')
+const route = useRoute()
+const router = useRouter()
+/** CMN-50 검색 결과에서 ?book=으로 오면 그 책 상세를 연다 */
+function openFromQuery() {
+  const key = typeof route.query.book === 'string' ? route.query.book : ''
+  if (!key) return
+  const b = mine.value.find(x => x.bookKey === key)
+  if (b) openDetail(b)
+  router.replace({ query: { ...route.query, book: undefined } })
+}
+watch(() => route.query.book, () => { if (!loading.value) openFromQuery() })
 const mine = ref<ShelfItem[]>([])
 const recSections = computed(() => {
   const r = recommendBooks(books.value, mine.value)
@@ -80,6 +91,7 @@ async function load() {
     mine.value = m
     books.value = b.sort((x, y) => y.readerUids.length - x.readerUids.length)
     members.value = mb
+    openFromQuery()
   }
   catch (e) {
     toast.error(errorMessage(e) ?? ko.errors.unknown)

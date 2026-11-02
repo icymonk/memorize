@@ -22,6 +22,16 @@ test('sign up, create a personal deck, study flashcards, review', async ({ page 
   await page.keyboard.press('Escape')
   await expect(page.getByText('카드 4장')).toBeVisible()
 
+  // CMN-50 통합 검색: Ctrl+K → 단어장 제목·카드 앞면
+  await page.keyboard.press('Control+k')
+  await page.locator('#global-search').fill('여행')
+  const results = page.getByTestId('search-results')
+  await expect(results.getByRole('button', { name: /여행 영어/ })).toBeVisible()
+  await page.locator('#global-search').fill('cat')
+  await results.getByRole('button', { name: /cat/ }).click()
+  await expect(page.locator('#global-search')).toBeHidden()
+  await expect(page).toHaveURL(/\/decks\/[^/?]+$/)
+
   await page.getByRole('link', { name: '낱말카드' }).first().click()
   await page.waitForURL(/mode=flashcards/)
   for (let i = 0; i < words.length; i++) await page.getByRole('button', { name: '알아요' }).click()
