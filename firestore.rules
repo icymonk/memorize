@@ -684,12 +684,13 @@ service cloud.firestore {
         function readsTarget(c) { return c.targetType == 'page' && (target(c).ownerId == uid() || seesPage(target(c))); }
         function validComment(c) {
           return c.targetType == 'page' && isText(c.targetId, 1, 128) && c.kind == 'comment' && isText(c.body, 1, 2000)
-            && c.mentions is list && c.mentions.size() <= 20;
+            && c.mentions is list && c.mentions.size() <= 20
+            && ('blockId' in c) == ('quote' in c) && (!('blockId' in c) || (isText(c.blockId, 1, 64) && isText(c.quote, 1, 300)));
         }
         allow read: if isMember(sid) && readsTarget(resource.data);
         allow create: if isMember(sid) && request.resource.data.uid == uid() && validComment(request.resource.data)
           && readsTarget(request.resource.data) && request.resource.data.createdAt == request.time
-          && request.resource.data.keys().hasOnly(['targetType', 'targetId', 'uid', 'kind', 'body', 'mentions', 'createdAt']);
+          && request.resource.data.keys().hasOnly(['targetType', 'targetId', 'uid', 'kind', 'body', 'mentions', 'blockId', 'quote', 'createdAt']);
         allow update: if isMember(sid) && resource.data.uid == uid() && validComment(request.resource.data)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['body', 'mentions', 'editedAt'])
           && request.resource.data.editedAt == request.time;

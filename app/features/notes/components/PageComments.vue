@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { Member } from '~/features/space/services/invites'
-import type { Comment } from '../services/comments'
+import type { Comment, CommentAnchor } from '../services/comments'
 import { toast } from 'vue-sonner'
 import { listMembers } from '~/features/space/services/invites'
 import { errorMessage } from '~/lib/errors'
@@ -19,6 +19,26 @@ const draft = ref('')
 const editing = ref<string | null>(null)
 const editText = ref('')
 const pending = ref(false)
+const anchor = ref<CommentAnchor | null>(null)
+
+/** 본문에서 문장을 골라 댓글 달기 (NOTE-62·REV-13) */
+function quote(a: CommentAnchor) {
+  anchor.value = a
+  nextTick(() => {
+    const el = document.getElementById('page-comment-draft')
+    el?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    el?.focus()
+  })
+}
+defineExpose({ quote })
+
+function jump(blockId: string) {
+  const el = document.querySelector(`.note-editor [data-id="${CSS.escape(blockId)}"]`) as HTMLElement | null
+  if (!el) return toast.info(t.blockGone)
+  el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  el.classList.add('bg-yellow-100', 'dark:bg-yellow-900/40')
+  setTimeout(() => el.classList.remove('bg-yellow-100', 'dark:bg-yellow-900/40'), 1500)
+}
 let stop: (() => void) | undefined
 
 onMounted(async () => {
@@ -40,8 +60,9 @@ async function run(fn: () => Promise<void>) {
 const submit = () => run(async () => {
   const body = draft.value.trim()
   if (!body) return
-  await addComment($firestore, props.sid, auth.user!.uid, props.pageId, body.slice(0, 2000), findMentions(body, members.value))
+  await addComment($firestore, props.sid, auth.user!.uid, props.pageId, body.slice(0, 2000), findMentions(body, members.value), anchor.value ?? undefined)
   draft.value = ''
+  anchor.value = null
 })
 function startEdit(c: Comment) {
   editing.value = c.id
@@ -83,11 +104,18 @@ const remove = (c: Comment) => run(async () => {
             <Button type="button" size="sm" variant="outline" @click="editing = null">{{ t.cancel }}</Button>
           </div>
         </form>
-        <p v-else class="whitespace-pre-wrap break-words">{{ c.body }}</p>
+        <button v-if="c.blockId && c.quote" type="button" data-testid="comment-quote" class="text-muted-foreground border-l-2 pl-2 text-left text-xs hover:underline" :title="t.jump" @click="jump(c.blockId)">
+          {{ c.quote }}
+        </button>
+        <p v-if="editing !== c.id" class="whitespace-pre-wrap break-words">{{ c.body }}</p>
       </li>
     </ul>
     <form class="flex flex-col gap-2" @submit.prevent="submit">
-      <Textarea v-model="draft" rows="2" maxlength="2000" :placeholder="t.placeholder" :aria-label="t.placeholder" @keydown.meta.enter="submit" @keydown.ctrl.enter="submit" />
+      <div v-if="anchor" class="bg-muted/50 flex items-start gap-2 rounded-md px-2 py-1.5 text-xs">
+        <span class="text-muted-foreground border-l-2 pl-2">{{ anchor.quote }}</span>
+        <Button type="button" variant="ghost" size="sm" class="ml-auto h-6 px-2 text-xs" @click="anchor = null">{{ t.clearQuote }}</Button>
+      </div>
+      <Textarea id="page-comment-draft" v-model="draft" rows="2" maxlength="2000" :placeholder="t.placeholder" :aria-label="t.placeholder" @keydown.meta.enter="submit" @keydown.ctrl.enter="submit" />
       <div class="flex items-center gap-2">
         <span class="text-muted-foreground text-xs">{{ t.hint }}</span>
         <Button type="submit" size="sm" class="ml-auto" :disabled="pending || !draft.trim()">{{ t.submit }}</Button>

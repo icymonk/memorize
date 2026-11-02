@@ -97,7 +97,7 @@ spaces/{sid}/feedDigests/{uid}_{date}     # 작은 활동 묶음 (CMN-13), 서�
   uid, date, lines: [{ module, text }], updatedAt
 
 spaces/{sid}/comments/{id}
-  targetType, targetId, blockId?, uid
+  targetType, targetId, blockId?, quote?, uid   # NOTE-62·REV-13 블록 댓글: blockId·quote(고른 문장, 300자)는 같이 있거나 같이 없다
   kind: 'comment' | 'feedback'
   body, stamp?, score?                      # feedback일 때 (CMN-24). score: { format: '100'|'grade'|'stars', value } — 남길 때의 형식을 함께 저장
   mentions[], createdAt, editedAt?

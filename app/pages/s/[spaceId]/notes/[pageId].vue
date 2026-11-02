@@ -63,6 +63,7 @@ const titleFailed = ref(false)
 const blockCount = ref(0)
 const editorRef = ref<InstanceType<typeof BlockEditor>>()
 const versionsOpen = ref(false)
+const commentsRef = ref<InstanceType<typeof PageComments>>()
 const editorKey = ref(0)
 const notes = useNotesStore()
 const headings = ref<{ id: string, level: number, text: string }[]>([])
@@ -304,6 +305,7 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
       <BlockEditor
         :key="editorKey"
         ref="editorRef"
+        :commentable="!!page && !page.deletedAt"
         :space-id="sid"
         :page-id="pageId"
         :editable="editable"
@@ -312,11 +314,12 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         @loaded="blockCount = $event"
         @error="loadError = true"
         @headings="headings = $event"
+        @comment="commentsRef?.quote($event)"
       />
       <PageReactions v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
       <PageFeedback v-if="page && !page.deletedAt && space.current?.kind !== 'personal'" :sid="sid" :page="live ?? page" @saved="page = { ...page!, ...$event }" />
       <RelatedNotes v-if="page && !page.deletedAt" :sid="sid" ref-type="page" :ref-id="pageId" />
-      <PageComments v-if="page && !page.deletedAt" :sid="sid" :page-id="pageId" />
+      <PageComments v-if="page && !page.deletedAt" ref="commentsRef" :sid="sid" :page-id="pageId" />
     </template>
   </div>
   <aside v-if="headings.length" class="sticky top-4 hidden w-48 shrink-0 self-start xl:block">

@@ -13,6 +13,9 @@ export interface Comment {
   stamp?: Stamp
   score?: FeedbackScore
   mentions: string[]
+  /** NOTE-62·REV-13 블록 댓글: 단 블록과 고른 문장 */
+  blockId?: string
+  quote?: string
   createdAt?: Timestamp
   editedAt?: Timestamp
 }
@@ -26,8 +29,10 @@ export function watchPageComments(db: Firestore, sid: string, pageId: string, cb
     .sort((a, b) => (a.createdAt?.toMillis() ?? Date.now()) - (b.createdAt?.toMillis() ?? Date.now()))), onError)
 }
 
-export async function addComment(db: Firestore, sid: string, uid: string, pageId: string, body: string, mentions: string[]) {
-  await addDoc(commentsOf(db, sid), { targetType: 'page', targetId: pageId, uid, kind: 'comment', body, mentions, createdAt: serverTimestamp() })
+export interface CommentAnchor { blockId: string, quote: string }
+
+export async function addComment(db: Firestore, sid: string, uid: string, pageId: string, body: string, mentions: string[], anchor?: CommentAnchor) {
+  await addDoc(commentsOf(db, sid), { targetType: 'page', targetId: pageId, uid, kind: 'comment', body, mentions, ...anchor, createdAt: serverTimestamp() })
 }
 
 export async function editComment(db: Firestore, sid: string, id: string, body: string, mentions: string[]) {

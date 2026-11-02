@@ -623,6 +623,10 @@ export const ko = {
       removeConfirm: '이 댓글을 삭제할까요?',
       edited: '(수정됨)',
       someone: '알 수 없음',
+      onSelection: '댓글 달기',
+      clearQuote: '인용 빼기',
+      jump: '본문에서 보기',
+      blockGone: '그 블록은 지금 본문에 없어요.',
     },
     feedback: {
       title: '피드백',
