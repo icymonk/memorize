@@ -6,6 +6,7 @@ import type { StorageUsage } from '#shared/schemas/upload'
 import type { Upload } from '~/features/files/services/uploads'
 import { formatBytes, storageLevel } from '#shared/schemas/upload'
 import { remindersDoc, remindersInput } from '#shared/reminders'
+import { callFn } from '~/lib/functions'
 import { doc, getDoc, updateDoc } from 'firebase/firestore'
 import { disablePush, enablePush, pushSupported, savedPushToken } from '~/features/notifications/services/push'
 import { toast } from 'vue-sonner'
@@ -90,6 +91,45 @@ async function setBrowserPush(on: boolean) {
   }
   catch (e) { toast.error(errorMessage(e) ?? ko.errors.unknown) }
   finally { pushBusy.value = false }
+}
+
+// ACC-40 내 데이터 내려받기
+const exporting = ref(false)
+async function exportData() {
+  exporting.value = true
+  try {
+    const data = await callFn($functions, 'exportMyData', {})
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `memorize-data-${data.exportedAt.slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success(t.data.exported)
+  }
+  catch (e) { toast.error(errorMessage(e) ?? ko.errors.unknown) }
+  finally { exporting.value = false }
+}
+
+// ACC-41 회원 탈퇴
+const deleteShared = ref(false)
+const deleteConfirm = ref('')
+const deleting = ref(false)
+async function deleteMyAccount() {
+  deleting.value = true
+  try {
+    await callFn($functions, 'deleteAccount', { confirm: '탈퇴', deleteShared: deleteShared.value })
+    toast.success(t.deletion.done)
+    await auth.signOut()
+    await navigateTo('/login')
+  }
+  catch (e) {
+    const err = e as { message?: string, details?: { names?: string[] } }
+    if (err.message === 'owns-workspaces') toast.error(t.deletion.ownsWorkspaces((err.details?.names ?? []).join(', ')))
+    else if (err.message === 'has-wards') toast.error(t.deletion.hasWards)
+    else toast.error(errorMessage(e) ?? ko.errors.unknown)
+  }
+  finally { deleting.value = false }
 }
 
 async function saveReminders() {
@@ -417,6 +457,36 @@ async function toggle(k: Kind, v: boolean, channel: 'inApp' | 'push' = 'inApp') 
         </Button>
         <span v-if="studySaved" class="text-sm text-muted-foreground">{{ t.study.savedNote }}</span>
       </div>
+    </section>
+    <section class="space-y-3" data-testid="my-data">
+      <h2 class="text-lg font-medium">
+        {{ t.data.title }}
+      </h2>
+      <p class="text-sm text-muted-foreground">
+        {{ t.data.desc }}
+      </p>
+      <Button size="sm" variant="outline" :disabled="exporting" @click="exportData">
+        {{ exporting ? t.data.exporting : t.data.export }}
+      </Button>
+    </section>
+    <section class="space-y-3 rounded-md border border-destructive/40 p-4" data-testid="delete-account">
+      <h2 class="text-lg font-medium text-destructive">
+        {{ t.deletion.title }}
+      </h2>
+      <p class="text-sm text-muted-foreground">
+        {{ t.deletion.desc }}
+      </p>
+      <label class="flex items-center gap-2 text-sm">
+        <input v-model="deleteShared" type="checkbox" class="size-4">
+        {{ t.deletion.deleteShared }}
+      </label>
+      <div class="space-y-1">
+        <Label for="delete-confirm">{{ t.deletion.confirmLabel }}</Label>
+        <Input id="delete-confirm" v-model="deleteConfirm" class="max-w-xs" autocomplete="off" />
+      </div>
+      <Button size="sm" variant="destructive" :disabled="deleteConfirm.trim() !== '탈퇴' || deleting" @click="deleteMyAccount">
+        {{ t.deletion.button }}
+      </Button>
     </section>
   </div>
 </template>

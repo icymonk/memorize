@@ -28,8 +28,9 @@
 | `childSignIn` | **로그인 없이 호출**. 코드 확인 → 커스텀 토큰 반환 (R7). IP·코드별 시도 제한 | ACC-06 | 2 |
 | `inviteGuardian` / `acceptGuardianInvite` | 보호자 추가 | ACC-09 | 2 |
 | `convertChildAccount` | 만 14세 이후 일반 계정으로 전환 (이메일 연결) | ACC 예외 | 3 |
-| `exportMyData` | 내 노트·일지·독후감·단어장을 파일로 묶어 Storage 임시 링크 | ACC-40 | 3 |
-| `deleteAccount` | 탈퇴: 소유 워크스페이스 확인, 개인 데이터 삭제, 공유 콘텐츠는 기본 남김 | ACC-41 | 3 |
+| `exportMyData` | 내 공간·참여·나간 공간에서 내가 쓴 노트·일지·독후감(블록 포함), 단어장(카드 포함), 책장·독서 기록·구절을 JSON으로 돌려준다. 브라우저가 파일로 저장 | ACC-40 | 3 |
+| `deleteAccount` | 탈퇴: 소유 워크스페이스(삭제 예약 안 한 것)·관리 중인 아이 계정이 있으면 거절. 멤버 문서를 "탈퇴한 사용자"·`left`로 바꾸고 Auth 계정 삭제, `accountDeletions/{uid}` 생성 | ACC-41 | 3 |
+| `onAccountDeletion` | `accountDeletions/{uid}` 생성 시: 내 공간·`users/{uid}`·공간별 개인 기록(cardStates·studySessions·shelf·readingLogs·quotes 등)·비공개 노트 삭제. `deleteShared`면 공유 노트·단어장·올린 파일도 | ACC-41 | 3 |
 
 ### 공간 · 멤버 (WS)
 | 이름 | 하는 일 | 기능 ID | 단계 |

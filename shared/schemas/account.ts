@@ -36,8 +36,27 @@ export const completeOnboardingInput = z.object({
 export type CompleteOnboardingInput = z.infer<typeof completeOnboardingInput>
 
 /** callable 이름 → 입력·출력 타입 (앱의 callFn과 서버가 함께 쓴다) */
+/** ACC-41 회원 탈퇴: '탈퇴'를 입력해 확인. deleteShared면 공유한 단어장·노트·파일도 지운다 */
+export const deleteAccountInput = z.object({ confirm: z.literal('탈퇴'), deleteShared: z.boolean() })
+export type DeleteAccountInput = z.infer<typeof deleteAccountInput>
+
+/** ACC-40 내 데이터: 공간마다 내가 쓴 노트(블록 포함)·단어장(카드 포함)·책장·독서 기록·구절 */
+export interface ExportedSpace {
+  id: string
+  name: string
+  kind: string
+  pages: Record<string, unknown>[]
+  decks: Record<string, unknown>[]
+  shelf: Record<string, unknown>[]
+  readingLogs: Record<string, unknown>[]
+  quotes: Record<string, unknown>[]
+}
+export interface ExportMyDataOutput { exportedAt: string, profile: Record<string, unknown>, spaces: ExportedSpace[] }
+
 export interface Callables {
   ensureAccount: { input: EnsureAccountInput, output: EnsureAccountOutput }
+  exportMyData: { input: Record<string, never>, output: ExportMyDataOutput }
+  deleteAccount: { input: DeleteAccountInput, output: { ok: true } }
   completeOnboarding: { input: CompleteOnboardingInput, output: { ok: true } }
   createWorkspace: { input: CreateWorkspaceInput, output: CreateWorkspaceOutput }
   scheduleSpaceDeletion: { input: ScheduleSpaceDeletionInput, output: { deleteScheduledAt: string } }

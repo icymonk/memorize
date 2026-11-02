@@ -247,6 +247,20 @@
         }
       },
       {
+        "source": "/fn/exportMyData",
+        "function": {
+          "functionId": "exportMyData",
+          "region": "asia-northeast3"
+        }
+      },
+      {
+        "source": "/fn/deleteAccount",
+        "function": {
+          "functionId": "deleteAccount",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/restoreVersion",
         "function": {
           "functionId": "restoreVersion",
