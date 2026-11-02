@@ -44,3 +44,5 @@ function structureNode(name: string, key: string, fallback: unknown) {
 
 export const SimpleTable = structureNode('simpleTable', 'rows', [{ cells: ['', ''] }, { cells: ['', ''] }] satisfies TableRow[])
 export const Columns = structureNode('columns', 'cols', ['', ''])
+/** NOTE-11 그리기 블록: 획 목록 (drawing.ts) */
+export const Drawing = structureNode('drawing', 'strokes', [])
