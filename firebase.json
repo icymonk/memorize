@@ -240,6 +240,13 @@
         }
       },
       {
+        "source": "/fn/searchAll",
+        "function": {
+          "functionId": "searchAll",
+          "region": "asia-northeast3"
+        }
+      },
+      {
         "source": "/fn/restoreVersion",
         "function": {
           "functionId": "restoreVersion",

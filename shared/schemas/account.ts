@@ -11,6 +11,7 @@ import type { DeleteUploadInput, RegisterUploadInput, RegisterUploadOutput } fro
 import type { CheckWrongInput, CheckWrongOutput, WrongRefInput, WrongView } from '../wrong-notes'
 import type { GenerateInput, GenerateOutput, GenItem, PreviewTemplateInput, SaveGeneratedInput, SaveGeneratedOutput } from '../math/generate'
 import type { CheckProblemInput, DrawProblemInput, ProblemRefInput, ProblemResult, ProblemView, RevealHintOutput } from '../math/solve'
+import type { SearchInput, SearchOutput } from '../search'
 import { z } from 'zod'
 
 export const personalSpaceId = (uid: string) => `p_${uid}`
@@ -69,6 +70,7 @@ export interface Callables {
   trashPage: { input: PageRefInput, output: PageOpOutput }
   getVersion: { input: VersionRefInput, output: GetVersionOutput }
   restoreVersion: { input: VersionRefInput, output: PageOpOutput }
+  searchAll: { input: SearchInput, output: SearchOutput }
   restorePage: { input: PageRefInput, output: PageOpOutput }
   deleteCollection: { input: CollectionRefInput, output: PageOpOutput }
   leaveFeedback: { input: LeaveFeedbackInput, output: { ok: true } }

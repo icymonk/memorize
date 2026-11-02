@@ -1676,6 +1676,17 @@ export const ko = {
       button: '수식',
     },
   },
+  search: {
+    open: '검색',
+    title: '통합 검색',
+    desc: '이 공간의 노트, 단어장, 단어, 책, 미션, 시험 제목에서 찾아요.',
+    placeholder: '노트·단어장·단어·책·미션·시험 찾기',
+    hint: '제목이나 단어를 입력하세요. 어디서든 Ctrl+K로 열 수 있어요.',
+    loading: '찾는 중…',
+    empty: '찾는 결과가 없어요.',
+    untitled: '제목 없음',
+    types: { page: '노트', deck: '단어장', card: '단어', book: '내 책장', mission: '미션', test: '시험' },
+  },
   dialog: { ok: '확인', cancel: '취소' },
   errors: {
     popupClosed: '로그인 창이 닫혔어요.',
