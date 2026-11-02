@@ -2,6 +2,7 @@
 import type { MyJournal } from '~/features/notes/services/journal'
 import { ChevronLeftIcon, ChevronRightIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
+import { bundleMarkdown, downloadText, journalsInRange, printUrl } from '~/features/notes/services/exportPages'
 import { listMyJournals } from '~/features/notes/services/journal'
 import { errorMessage } from '~/lib/errors'
 import { cn } from '~/lib/utils'
@@ -48,10 +49,27 @@ function toggle(sid: string) {
   off.value = next
 }
 
+/** NOTE-71 일지 묶어 내보내기: 기본 기간은 보고 있는 달 */
+const ex = ko.notes.export
+const monthEnd = (m: Date) => ymd(new Date(m.getFullYear(), m.getMonth() + 1, 0))
+const from = ref(ymd(month.value))
+const to = ref(monthEnd(month.value))
+watch(month, (m) => { from.value = ymd(m); to.value = monthEnd(m) })
+const picked = computed(() => journalsInRange(all.value.filter(j => !off.value.has(j.sid) && spaceOf(j.sid)), from.value, to.value))
+const bundling = ref(false)
+async function bundleMd() {
+  bundling.value = true
+  try { downloadText(`${ex.file}-${from.value}~${to.value}.md`, await bundleMarkdown($firestore, picked.value)) }
+  catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
+  finally { bundling.value = false }
+}
+const bundlePdf = () => window.open(printUrl(picked.value), '_blank')
+
 onMounted(async () => {
   try {
     await auth.ensureAccount()
-    all.value = await listMyJournals($firestore, auth.user!.uid)
+    const [list] = await Promise.all([listMyJournals($firestore, auth.user!.uid), space.loadMySpaces()])
+    all.value = list
   }
   catch (error) { toast.error(errorMessage(error) ?? ko.errors.unknown) }
   finally { loading.value = false }
@@ -110,5 +128,30 @@ onMounted(async () => {
         </NuxtLink>
       </div>
     </div>
+    <section v-if="all.length" class="flex flex-wrap items-end gap-2 rounded-lg border p-3" data-testid="journal-bundle">
+      <div class="w-full">
+        <h2 class="text-sm font-medium">
+          {{ ex.bundle }}
+        </h2>
+        <p class="text-muted-foreground text-xs">
+          {{ ex.bundleHint }}
+        </p>
+      </div>
+      <label class="flex flex-col gap-1 text-xs">
+        {{ ex.from }}
+        <Input v-model="from" type="date" class="h-8 w-40" />
+      </label>
+      <label class="flex flex-col gap-1 text-xs">
+        {{ ex.to }}
+        <Input v-model="to" type="date" class="h-8 w-40" />
+      </label>
+      <span class="text-muted-foreground pb-2 text-xs">{{ ex.count(picked.length) }}</span>
+      <Button size="sm" variant="outline" :disabled="!picked.length || bundling" @click="bundleMd">
+        {{ ex.markdown }}
+      </Button>
+      <Button size="sm" variant="outline" :disabled="!picked.length" @click="bundlePdf">
+        {{ ex.pdf }}
+      </Button>
+    </section>
   </div>
 </template>
