@@ -1515,3 +1515,89 @@ describe('courses (CRS-01~03·10)', () => {
     await assertFails(setDoc(doc(db('bob'), 'spaces', SID, 'pages', 'lp2'), page({ parentId: 'lp1', ancestorIds: ['lp1'] })))
   })
 })
+
+describe('answer leaks (3-I1): answers and other people\'s results never reach takers', () => {
+  const settings = { timeLimitMin: null, openAt: null, closeAt: null, maxAttempts: 1, scoring: 'best', shuffleQuestions: false, shuffleChoices: false, resultRelease: 'scoreOnly', practice: false }
+  const q = (over: object = {}) => ({ type: 'short', prompt: '2+3', choices: [], tags: [], difficulty: 'normal', defaultPoints: 10, createdBy: 'bob', sharing: 'space', answerVisibility: 'authors', rev: 1, deletedAt: null, ...over })
+  const key = (over: object = {}) => ({ answer: ['5'], ignoreCase: true, ignoreSpaces: false, explanation: '더하기', rubric: '', authorIds: ['bob'], answerVisibility: 'authors', ...over })
+  const tdoc = (...p: string[]) => (uid: string) => doc(db(uid), 'spaces', SID, 'tests', 'x1', ...p)
+  beforeEach(async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      const sp = (...p: string[]) => doc(d, 'spaces', SID, ...p)
+      await setDoc(sp('questions', 'q1'), q())
+      await setDoc(sp('questionKeys', 'q1'), key())
+      await setDoc(sp('questions', 'q2'), q({ answerVisibility: 'space' }))
+      await setDoc(sp('questionKeys', 'q2'), key({ answerVisibility: 'space' }))
+      await setDoc(sp('tests', 'x1'), { title: 't', description: '', questionRefs: [{ questionId: 'q1', points: 10 }], settings, assignees: { all: true, uids: [], groupIds: [] }, status: 'open', createdBy: 'bob', hostIds: ['bob'], participantIds: ['alice', 'mia'], deletedAt: null })
+      await setDoc(sp('tests', 'x1', 'paper', 'main'), { items: [{ questionId: 'q1', type: 'short', prompt: '2+3', choices: [], media: [], points: 10 }], hostIds: ['bob'] })
+      await setDoc(sp('tests', 'x1', 'secret', 'key'), { items: { q1: { answer: ['5'] } } })
+      const base = { uid: 'alice', isPractice: false, order: ['q1'], choiceOrder: {}, answers: { q1: '4' }, maxScore: 10, hostIds: ['bob'], gradingStatus: 'done', deadlineAt: null, submittedAt: Timestamp.now() }
+      await setDoc(sp('tests', 'x1', 'attempts', 'a1'), { ...base, score: 0 })
+      await setDoc(sp('tests', 'x1', 'attempts', 'p1'), { ...base, isPractice: true })
+      const res = { uid: 'alice', isPractice: false, score: 0, maxScore: 10, gradingStatus: 'done', items: { q1: { score: 0, points: 10 } }, comments: { q1: '정답은 5' }, hostIds: ['bob'] }
+      await setDoc(sp('tests', 'x1', 'results', 'a1'), res)
+      await setDoc(sp('tests', 'x1', 'results', 'p1'), { ...res, isPractice: true })
+    })
+  })
+
+  it('takers read the paper but never the key, hidden answers or someone else\'s attempt', async () => {
+    await assertSucceeds(getDoc(tdoc('paper', 'main')('alice')))
+    await assertFails(getDoc(tdoc('secret', 'key')('alice')))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'tests', 'x1', 'secret')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'questionKeys', 'q1')))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'questionKeys')))
+    await assertSucceeds(getDoc(doc(db('alice'), 'spaces', SID, 'questionKeys', 'q2')))
+    await assertFails(getDoc(tdoc('attempts', 'a1')('mia')))
+    await assertFails(getDocs(collection(db('mia'), 'spaces', SID, 'tests', 'x1', 'attempts')))
+    await assertFails(getDoc(tdoc('results', 'a1')('mia')))
+    await assertFails(getDoc(tdoc('paper', 'main')('lee')))
+  })
+
+  it('score-only tests keep per-question results with the host; the taker sees the score on the attempt', async () => {
+    await assertFails(getDoc(tdoc('results', 'a1')('alice')))
+    await assertSucceeds(getDoc(tdoc('results', 'a1')('bob')))
+    await assertSucceeds(getDoc(tdoc('results', 'p1')('alice')))
+    await assertSucceeds(getDoc(tdoc('attempts', 'a1')('alice')))
+    await assertFails(updateDoc(tdoc('attempts', 'a1')('alice'), { score: 10 }))
+    await env.withSecurityRulesDisabled(ctx => updateDoc(doc(ctx.firestore(), 'spaces', SID, 'tests', 'x1'), { 'settings.resultRelease': 'instant' }))
+    await assertSucceeds(getDoc(tdoc('results', 'a1')('alice')))
+  })
+
+  it('a member cannot read questions or keys the author kept private', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'spaces', SID, 'questions', 'q3'), q({ sharing: 'private' }))
+      await setDoc(doc(ctx.firestore(), 'spaces', SID, 'questionKeys', 'q3'), key())
+    })
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'questions', 'q3')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'questionKeys', 'q3')))
+    await assertFails(updateDoc(doc(db('alice'), 'spaces', SID, 'questionKeys', 'q2'), { answer: ['6'] }))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'questionKeys', 'q3')))
+  })
+
+  it('problem attempts and wrong notes cannot be listed for someone else', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'spaces', SID, 'problemAttempts', 'bob_q1'), { uid: 'bob', questionId: 'q1', seed: 3, tries: 1 })
+      await setDoc(doc(ctx.firestore(), 'spaces', SID, 'wrongNotes', 'bob_question_q1'), { uid: 'bob', refType: 'question', refId: 'q1', wrongCount: 1, resolved: false, consecutiveCorrect: 0 })
+    })
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'problemAttempts')))
+    await assertFails(getDocs(query(collection(db('alice'), 'spaces', SID, 'wrongNotes'), where('uid', '==', 'bob'))))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'wrongNotes')))
+  })
+
+  it('reading-group talk stays with participants; private course lessons and hidden progress stay with their owner', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const d = ctx.firestore()
+      await setDoc(doc(d, 'spaces', SID, 'readingGroups', 'g1'), { participantIds: ['bob'], hostIds: ['bob'], createdBy: 'bob' })
+      await setDoc(doc(d, 'spaces', SID, 'readingGroups', 'g1', 'comments', 'c1'), { uid: 'bob', itemId: 'w1', body: '결말이…', createdAt: Timestamp.now() })
+      await setDoc(doc(d, 'spaces', SID, 'courses', 'c1'), { title: '비공개', visibility: 'private', groupIds: [], editPolicy: 'author', collaboratorIds: [], createdBy: 'bob', deletedAt: null })
+      await setDoc(doc(d, 'spaces', SID, 'courses', 'c1', 'lessons', 'l1'), { title: '1강', order: 1, bodyPageId: null, createdBy: 'bob' })
+      await setDoc(doc(d, 'spaces', SID, 'lessonProgress', 'bob_l1'), { uid: 'bob', courseId: 'c1', lessonId: 'l1', shared: false })
+    })
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'readingGroups', 'g1', 'comments')))
+    await assertFails(getDocs(collection(db('alice'), 'spaces', SID, 'courses', 'c1', 'lessons')))
+    await assertFails(getDoc(doc(db('alice'), 'spaces', SID, 'courses', 'c1', 'lessons', 'l1')))
+    await assertFails(getDocs(query(collection(db('alice'), 'spaces', SID, 'lessonProgress'), where('courseId', '==', 'c1'))))
+    await assertSucceeds(getDoc(doc(db('bob'), 'spaces', SID, 'courses', 'c1', 'lessons', 'l1')))
+  })
+})

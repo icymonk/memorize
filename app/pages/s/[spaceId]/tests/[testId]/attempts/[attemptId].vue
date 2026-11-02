@@ -98,6 +98,10 @@ async function save() {
       <h1 class="flex-1 truncate text-xl font-semibold">{{ test?.title }} · {{ g.title }}</h1>
     </div>
     <p v-if="loading" class="text-muted-foreground text-sm">{{ t.loading }}</p>
+    <div v-else-if="!result && attempt?.score != null" class="flex flex-wrap items-center gap-2 rounded-md border p-3" data-testid="score-only">
+      <span class="text-2xl font-semibold">{{ t.take.score(attempt.score, attempt.maxScore) }}</span>
+      <Badge v-if="attempt.gradingStatus === 'pending'" variant="secondary">{{ t.take.pending }}</Badge>
+    </div>
     <p v-else-if="!result" class="text-muted-foreground rounded-md border p-4 text-sm">{{ g.hiddenNote }}</p>
     <template v-else>
       <div class="flex flex-wrap items-center gap-2 rounded-md border p-3">

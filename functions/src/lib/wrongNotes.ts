@@ -20,8 +20,8 @@ export async function recordWrong(sid: string, uid: string, refType: 'card' | 'q
   }, { merge: true })
 }
 
-/** 결과를 바로 보여 주는 시험(바로·점수만)만 제출·채점 때 넣는다. 마감 후·비공개는 결과가 공개될 때 (3-C2 이후) */
-export const RELEASES_WRONG_NOW = ['instant', 'scoreOnly']
+/** 문제별 결과를 바로 보여 주는 시험만 제출·채점 때 넣는다. 점수만은 어느 문제를 틀렸는지 알려 주지 않으므로 넣지 않고, 마감 후·비공개는 결과가 공개될 때 (3-C2 이후) */
+export const RELEASES_WRONG_NOW = ['instant']
 
 export async function recordTestWrongs(testRef: FirebaseFirestore.DocumentReference, test: FirebaseFirestore.DocumentSnapshot, uid: string, questionIds: string[]) {
   if (!questionIds.length || !RELEASES_WRONG_NOW.includes(test.get('settings.resultRelease'))) return

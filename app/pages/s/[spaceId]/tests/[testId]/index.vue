@@ -87,7 +87,7 @@ onMounted(async () => {
       personal.value ? [] : listGroups($firestore, sid.value).catch(() => []),
       isNew.value ? null : getTest($firestore, sid.value, String(route.params.testId)),
     ])
-    questions.value = [...q.mine, ...q.shared]
+    questions.value = [...q.mine, ...q.shared.filter(s => s.createdBy !== uid.value)]
     members.value = m
     groups.value = g
     if (!isNew.value && !tst) {

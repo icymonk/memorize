@@ -1,6 +1,6 @@
 # 데이터 모델
 
-> 상태: 확정 · v2.28 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
+> 상태: 확정 · v2.29 — 데이터 구조의 원본. 기능명세 ID를 괄호로 표시한다.
 
 ## 0. 원칙
 1. **공간 격리**: 공간에 속한 데이터는 모두 `spaces/{spaceId}/...` 아래에 둔다. 규칙에서 멤버십 하나로 대부분 보호된다. 내 공간도 같은 구조다 ([architecture.md](./architecture.md#2-핵심-설계-공간space)).
@@ -366,6 +366,7 @@ spaces/{sid}/tests/{testId}/attempts/{attemptId}
   uid, isPractice, startedAt, deadlineAt?, submittedAt?
   order[], choiceOrder: { [questionId]: number[] }, answers: map   # 답은 원래 보기 번호. 응시자는 answers만, deadlineAt+30초 전까지 저장
   maxScore, gradingStatus: null|'pending'|'done'
+  score?                                  # 점수만 공개(scoreOnly) 시험의 총점. 응시자는 results를 못 읽는다 (TST-15)
   hostIds[]                               # 검사용 복사본
   # 시작·제출은 startAttempt / submitAttempt (서버 시각). 시간이 지난 미제출 응시는 다음 startAttempt에서 제출 처리
 
@@ -489,5 +490,6 @@ users/{uid}/avatar/{fileName}
 - v2.28: 오답 노트 `retrySeed`, 해결 기준 (WRN-20~22)
 - v2.27: 오답 노트 3-C1 쓰기 경로·snapshot 범위 (WRN-01·03)
 - v2.26: 단원별 만들기 저장 규칙(내장 틀 위치, 다른 사람 틀 복사 시 authorIds) (MATH-15)
+- v2.29: 점수만 공개 시험은 `attempts.score`로 총점만, `results`는 진행자만 (3-I1)
 - v2.25: 문제집 풀기 `problemAttempts` 필드 확정, `problemNotes`, `questionKeys.hints`, `problemSets.hintPenalty` (MATH-20~24)
 - v2.22: 변형 문제 `questionKeys.template`, `problemAttempts.seed`, `curricula` 영역 단계·원본 위치, 내장 문제 틀 위치 (MATH-14·15·17)
