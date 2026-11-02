@@ -3,7 +3,7 @@ import RelatedNotes from '~/features/notes/components/RelatedNotes.vue'
 import { withSubjects } from '~/features/space/services/subjects'
 import type { Page } from '~/features/notes/services/pages'
 import type { SaveStatus } from '~/features/notes/sync/writer'
-import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon, CopyIcon, HistoryIcon } from '@lucide/vue'
+import { ArrowLeftIcon, ChevronRightIcon, CloudOffIcon, LoaderIcon, SmileIcon, StarIcon, Trash2Icon, CopyIcon, DownloadIcon, HistoryIcon } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import { useDebounceFn } from '@vueuse/core'
 import { LIMITS } from '#shared/limits'
@@ -21,6 +21,7 @@ import { useTags } from '~/features/space/composables/useTags'
 import { ensureTags, isTagProp, tagAwareDef, withTags } from '~/features/space/services/tags'
 import ShareDialog from '~/features/notes/components/ShareDialog.vue'
 import VersionHistoryDialog from '~/features/notes/components/VersionHistoryDialog.vue'
+import { downloadText, pageMarkdown, printUrl, safeName } from '~/features/notes/services/exportPages'
 import { canEditPage, getPage, LOCK_REFRESH_MS, publishPage, setLock, setPageProp, updatePageIcon, updatePageTitle } from '~/features/notes/services/pages'
 import { SAVE_DELAY_MS } from '~/features/notes/sync/writer'
 import { errorMessage } from '~/lib/errors'
@@ -49,6 +50,25 @@ const spaceTags = useTags()
 const defs = computed(() => (collection.value?.schema ?? []).map(d => withSubjects(withTags(d, spaceTags.value), space.current?.subjects ?? [])))
 
 const sid = computed(() => space.current!.id)
+/** NOTE-70 페이지 내보내기: 저장 대기 중인 본문·제목을 먼저 저장한다 */
+async function flushForExport() {
+  await editorRef.value?.flush()
+  const next = title.value.trim().slice(0, 200)
+  if (editable.value && page.value && next !== page.value.title) await updatePageTitle($firestore, sid.value, pageId.value, next).catch(() => {})
+}
+async function exportMarkdown() {
+  const p = page.value!
+  const name = title.value.trim() || p.title || t.untitled
+  try {
+    await flushForExport()
+    downloadText(`${safeName(name)}.md`, await pageMarkdown($firestore, sid.value, p.id, `${p.icon ? `${p.icon} ` : ''}${name}`))
+  }
+  catch (e) { toast.error(errorMessage(e) ?? ko.errors.unknown) }
+}
+async function exportPdf() {
+  await flushForExport()
+  window.open(printUrl([{ sid: sid.value, id: page.value!.id }]), '_blank')
+}
 /** 페이지마다 새로 마운트해서 편집기·잠금·자동 저장 상태가 이전 페이지와 섞이지 않게 한다 */
 const mountedPageId = route.params.pageId as string
 const pageId = computed(() => mountedPageId)
@@ -208,6 +228,21 @@ onBeforeRouteLeave(() => { editorRef.value?.flush() })
         <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="t.copy.button" :title="t.copy.button" @click="copyOpen = true">
           <CopyIcon />
         </Button>
+        <DropdownMenu v-if="page && !page.deletedAt">
+          <DropdownMenuTrigger as-child>
+            <Button variant="ghost" size="icon" class="size-8" :aria-label="t.export.button" :title="t.export.button">
+              <DownloadIcon />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem @select="exportMarkdown">
+              {{ t.export.markdown }}
+            </DropdownMenuItem>
+            <DropdownMenuItem @select="exportPdf">
+              {{ t.export.pdf }}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <Button v-if="page && !page.deletedAt" variant="ghost" size="icon" class="size-8" :aria-label="t.versions.button" :title="t.versions.button" @click="editorRef?.flush(); versionsOpen = true">
           <HistoryIcon />
         </Button>
