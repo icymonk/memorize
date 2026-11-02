@@ -13,6 +13,8 @@ export interface Attempt {
   answers: Record<string, unknown>
   maxScore: number
   gradingStatus: 'done' | 'pending' | null
+  /** TST-15 점수만 공개일 때 서버가 넣는 총점 */
+  score?: number
 }
 export interface AttemptResult {
   id: string

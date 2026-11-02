@@ -214,6 +214,7 @@ async function submit(auto = false) {
             <NuxtLink v-if="results[a.id]" :to="`/s/${sid}/tests/${tid}/attempts/${a.id}`" class="font-medium hover:underline">
               {{ k.graded(results[a.id]!.score, results[a.id]!.maxScore) }}<template v-if="results[a.id]!.gradingStatus === 'pending'"> · {{ k.pending }}</template>
             </NuxtLink>
+            <span v-else-if="a.score != null" class="font-medium">{{ k.graded(a.score, a.maxScore) }}<template v-if="a.gradingStatus === 'pending'"> · {{ k.pending }}</template></span>
             <span v-else class="text-muted-foreground">{{ k.hidden }}</span>
           </li>
         </ul>

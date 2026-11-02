@@ -133,6 +133,10 @@ async function loadTest(uid: string, spaceId: string, testId: string): Promise<L
 
 type Key = { answer: (number | boolean | string)[], ignoreCase: boolean, ignoreSpaces: boolean, explanation: string, rubric: string, tolerance?: number | null }
 
+/** TST-15 점수만: 응시자는 결과 문서(문제별 결과)를 못 읽으므로 총점만 응시 문서에 둔다 */
+const scoreOnAttempt = (test: FirebaseFirestore.DocumentSnapshot, isPractice: boolean, score: number) =>
+  !isPractice && test.get('settings.resultRelease') === 'scoreOnly' ? { score } : {}
+
 /** 제출 처리와 자동 채점 (TST-23·30). 서술형이 있으면 채점 대기 */
 async function finalize(testRef: FirebaseFirestore.DocumentReference, test: FirebaseFirestore.DocumentSnapshot, attempt: FirebaseFirestore.DocumentSnapshot): Promise<SubmitAttemptOutput> {
   const [paper, secret] = await Promise.all([testRef.collection('paper').doc('main').get(), testRef.collection('secret').doc('key').get()])
@@ -154,7 +158,7 @@ async function finalize(testRef: FirebaseFirestore.DocumentReference, test: Fire
   const isPractice = !!attempt.get('isPractice')
   const db = getFirestore()
   const batch = db.batch()
-  batch.update(attempt.ref, { submittedAt: FieldValue.serverTimestamp(), gradingStatus })
+  batch.update(attempt.ref, { submittedAt: FieldValue.serverTimestamp(), gradingStatus, ...scoreOnAttempt(test, isPractice, score) })
   batch.set(testRef.collection('results').doc(attempt.id), {
     uid: attempt.get('uid'), isPractice, score, maxScore, gradingStatus, items: results, comments: {},
     hostIds: attempt.get('hostIds') ?? [], submittedAt: FieldValue.serverTimestamp(),
@@ -236,7 +240,7 @@ export const gradeAttempt = authedCallable(gradeAttemptInput, async ({ uid, data
     const next = applyGrades(r.get('items') ?? {}, data.scores)
     const comments = { ...(r.get('comments') ?? {}), ...data.comments }
     tx.update(resultRef, { items: next.items, score: next.score, gradingStatus: next.gradingStatus, comments, gradedBy: uid, gradedAt: FieldValue.serverTimestamp() })
-    tx.update(testRef.collection('attempts').doc(data.attemptId), { gradingStatus: next.gradingStatus })
+    tx.update(testRef.collection('attempts').doc(data.attemptId), { gradingStatus: next.gradingStatus, ...scoreOnAttempt(test, !!r.get('isPractice'), next.score) })
     if (!r.get('isPractice') && next.score !== before) tx.update(testRef, { 'stats.scoreSum': FieldValue.increment(next.score - before) })
     return { ...next, maxScore: r.get('maxScore') as number, taker: r.get('uid') as string, isPractice: !!r.get('isPractice'), justDone: !wasDone && next.gradingStatus === 'done' }
   })

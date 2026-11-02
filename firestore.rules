@@ -520,11 +520,11 @@ service cloud.firestore {
           && request.resource.data.answers is map && request.resource.data.answers.size() <= 100
           && (resource.data.deadlineAt == null || request.time < resource.data.deadlineAt + duration.value(30, 's'));
       }
-      // 3-B2 결과 (TST-15·32). 결과 공개 설정에 따라 응시자가 읽는다
+      // 3-B2 결과 (TST-15·32). 결과 공개 설정에 따라 응시자가 읽는다. 점수만(scoreOnly)이면 문제별 결과는 진행자만, 점수는 응시 문서(score)로
       match /tests/{testId}/results/{attemptId} {
         function rt() { return get(/databases/$(database)/documents/spaces/$(sid)/tests/$(testId)).data; }
         function released() {
-          return resource.data.isPractice || rt().settings.resultRelease in ['instant', 'scoreOnly']
+          return resource.data.isPractice || rt().settings.resultRelease == 'instant'
             || (rt().settings.resultRelease == 'afterClose'
                 && (rt().status == 'closed' || (rt().settings.closeAt != null && request.time.toMillis() >= rt().settings.closeAt)));
         }
