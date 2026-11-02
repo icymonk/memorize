@@ -15,7 +15,7 @@ import { Callout, Quote, Video } from './blocks'
 import { AppEmbed, PageLink, TodaySummary } from './link-card'
 import { BlockKeymap, BulletItem, ItemLine, NumberedItem, TodoItem, Toggle } from './flat-list'
 import { SlashCommand } from './slash'
-import { Columns, SimpleTable } from './structure'
+import { Columns, Drawing, SimpleTable } from './structure'
 
 export const newBlockId = () => crypto.randomUUID()
 
@@ -39,7 +39,7 @@ const PageLinkTrigger = Extension.create<{ onTrigger?: () => void }>({
   },
 })
 
-export function noteExtensions(opts: { structure?: { simpleTable?: Component, columns?: Component }, onPageLink?: () => void, placeholder?: string, slash?: Partial<SlashCommandOptions>, link?: Partial<LinkCardOptions>, math?: NoteMathOptions } = {}) {
+export function noteExtensions(opts: { structure?: { simpleTable?: Component, columns?: Component, drawing?: Component }, onPageLink?: () => void, placeholder?: string, slash?: Partial<SlashCommandOptions>, link?: Partial<LinkCardOptions>, math?: NoteMathOptions } = {}) {
   return [
     StarterKit.configure({
       bulletList: false,
@@ -61,6 +61,7 @@ export function noteExtensions(opts: { structure?: { simpleTable?: Component, co
     ...[PageLink, AppEmbed, TodaySummary].map(n => n.configure(opts.link ?? {})),
     SimpleTable.configure({ view: opts.structure?.simpleTable }),
     Columns.configure({ view: opts.structure?.columns }),
+    Drawing.configure({ view: opts.structure?.drawing }),
     BlockKeymap,
     TextStyle,
     Color,

@@ -28,7 +28,7 @@
 | 구조 | `table`(표 전체가 블록 1개), `columns` → `column` | 표: attrs에 셀 / 열: 자식 블록 | NOTE-06 |
 | 연결 | `pageLink`, `appEmbed`, `todaySummary`, `bookQuote` | attrs (refType, refId …) | NOTE-07 |
 | 학습 | `flashcard` | 앞/뒤 인라인 텍스트 | NOTE-08 |
-| 그리기 | `drawing` | attrs: `fileId`(획 데이터 JSON은 Storage), 미리보기 이미지 | NOTE-11 |
+| 그리기 | `drawing` | attrs: `strokes[{ c: 색, w: 굵기, p: "x,y x,y …" }]` (800×450 좌표, 블록당 최대 6000점이라 블록 문서에 바로 저장) | NOTE-11 |
 
 - 목록은 Tiptap 기본(`bulletList > listItem > paragraph`) 대신 **평평한 목록 블록 + 들여쓰기 = 자식 블록** 방식(노션식)으로 만든다. 블록 경계가 분명해져 저장 단위와 1:1로 맞는다.
 - 표는 셀 단위로 나누지 않는다 (작은 표 위주, 쪼개면 비용만 늘어남).

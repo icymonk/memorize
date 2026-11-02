@@ -13,7 +13,9 @@ import { sectionsTemplate } from '../sync/template'
 const props = defineProps<{ sid: string, book?: ShelfItem | null }>()
 const open = defineModel<boolean>('open', { default: false })
 const t = ko.notes.review
-const BUILTIN = ['free', 'basic', 'kids', 'debate']
+const BUILTIN = ['free', 'basic', 'kids', 'picture', 'debate']
+/** REV-08: 그림 칸에는 그리기 블록을 넣는다 */
+const DRAW_AT: Record<string, number[]> = { kids: [0], picture: [0] }
 const auth = useAuthStore()
 const notes = useNotesStore()
 const { $firestore } = useNuxtApp()
@@ -44,7 +46,7 @@ async function start() {
       ...(b.finishedAt ? { finishedAt: b.finishedAt } : {}),
     }, {
       book: { bookKey: b.bookKey, title: b.title, authors: b.authors ?? [], cover: b.cover ?? '' },
-      ...(BUILTIN.includes(template.value) ? { blocks: sectionsTemplate(t.sections[template.value] ?? []) } : { templateId: template.value }),
+      ...(BUILTIN.includes(template.value) ? { blocks: sectionsTemplate(t.sections[template.value] ?? [], DRAW_AT[template.value]) } : { templateId: template.value }),
     })
     open.value = false
     await navigateTo(`/s/${props.sid}/notes/${id}`)

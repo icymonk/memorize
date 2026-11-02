@@ -132,6 +132,32 @@ test('a note survives reload and is read-only for another member while locked', 
   await expect(pa.getByLabel('칸 1-1')).toHaveValue('단어', { timeout: 10_000 })
   await expect(pa.getByTestId('simple-table').locator('tr')).toHaveCount(3)
 
+  // NOTE-11 그리기 블록: 두 획을 긋고 하나를 지우개로 지운다 (끝은 표라 첫 문단 뒤에 넣는다)
+  await pa.locator('.ProseMirror').focus()
+  await pa.keyboard.press('Control+Home')
+  await pa.keyboard.press('End')
+  await pa.keyboard.press('Enter')
+  await pa.keyboard.type('/그리기')
+  await pa.keyboard.press('Enter')
+  const canvas = pa.getByTestId('drawing-block').locator('svg')
+  const box = (await canvas.boundingBox())!
+  const stroke = async (y: number) => {
+    await pa.mouse.move(box.x + box.width * 0.2, box.y + box.height * y)
+    await pa.mouse.down()
+    await pa.mouse.move(box.x + box.width * 0.5, box.y + box.height * y, { steps: 5 })
+    await pa.mouse.move(box.x + box.width * 0.8, box.y + box.height * y, { steps: 5 })
+    await pa.mouse.up()
+  }
+  await stroke(0.3)
+  await stroke(0.7)
+  await expect(canvas.locator('[data-stroke]')).toHaveCount(2)
+  await pa.getByRole('button', { name: '지우개' }).click()
+  await pa.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.7)
+  await expect(canvas.locator('[data-stroke]')).toHaveCount(1)
+  await expect(pa.getByText('저장됨')).toBeVisible()
+  await pa.reload()
+  await expect(pa.getByTestId('drawing-block').locator('[data-stroke]')).toHaveCount(1, { timeout: 10_000 })
+
   // NOTE-63 버전 기록: 다른 페이지로 나가면 잠금이 풀리며 버전이 남는다. 칸을 바꾼 뒤 그 버전으로 되돌린다
   const noteUrl = pa.url()
   await pa.getByTestId('related-notes').getByText('링크 노트').click()

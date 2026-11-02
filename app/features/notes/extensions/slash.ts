@@ -29,6 +29,7 @@ export const SLASH_ITEMS: SlashItem[] = [
   { key: 'table', keywords: ['table', 'grid', '표'], run: e => insertBlock(e, 'simpleTable') },
   { key: 'columns2', keywords: ['column', 'columns', '단', '2단', '나누기'], run: e => insertBlock(e, 'columns', { cols: ['', ''] }) },
   { key: 'columns3', keywords: ['column', 'columns', '단', '3단', '나누기'], run: e => insertBlock(e, 'columns', { cols: ['', '', ''] }) },
+  { key: 'drawing', keywords: ['draw', 'drawing', 'sketch', '그리기', '그림', '손글씨'], run: e => insertBlock(e, 'drawing', { strokes: [] }) },
   { key: 'inlineMath', keywords: ['math', 'latex', 'tex', '수식', '수학'], run: () => false },
   { key: 'blockMath', keywords: ['math', 'latex', 'equation', '수식', '수학'], run: () => false },
   { key: 'video', keywords: ['youtube', 'video', '유튜브', '영상'], run: () => false },
