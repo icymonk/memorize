@@ -52,7 +52,7 @@ service cloud.firestore {
       allow update: if signedIn() && userId == uid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notifications'])
         && request.resource.data.notifications is map
-        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group']);
+        && request.resource.data.notifications.keys().hasOnly(['mention', 'comment', 'feedbackRequest', 'feedback', 'mission', 'missionReview', 'group', 'test']);
       // ACC-24 학습 설정: 본인이 study 맵만 ({ dailyNewCards 0~200, dailyReviewCards 10~1000, flashcardFront })
       allow update: if signedIn() && userId == uid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['study'])
@@ -68,6 +68,15 @@ service cloud.firestore {
         && request.resource.data.readingGoal.keys().hasOnly(['year', 'books'])
         && request.resource.data.readingGoal.year is int && request.resource.data.readingGoal.year >= 2000 && request.resource.data.readingGoal.year <= 2100
         && request.resource.data.readingGoal.books is int && request.resource.data.readingGoal.books >= 1 && request.resource.data.readingGoal.books <= 365;
+      // ACC-21·NOTE-38 리마인더: 본인이 reminders 맵만 ({ review, journal: 15분 단위 'HH:mm'|null, tz, reviewUtc, journalUtc })
+      function reminderSlot(v) { return v == null || (v is string && v.matches('([01][0-9]|2[0-3]):(00|15|30|45)')); }
+      allow update: if signedIn() && userId == uid()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reminders'])
+        && request.resource.data.reminders is map
+        && request.resource.data.reminders.keys().hasOnly(['review', 'journal', 'tz', 'reviewUtc', 'journalUtc'])
+        && reminderSlot(request.resource.data.reminders.get('review', null)) && reminderSlot(request.resource.data.reminders.get('journal', null))
+        && reminderSlot(request.resource.data.reminders.get('reviewUtc', null)) && reminderSlot(request.resource.data.reminders.get('journalUtc', null))
+        && isText(request.resource.data.reminders.tz, 1, 64);
       // CMN-30 알림함: 서버가 만들고, 본인은 읽기·읽음 표시·삭제만
       // CMN-62 내 업로드 목록: 서버(registerUpload·deleteUpload)만 쓴다
       match /uploads/{fileId} {
@@ -77,6 +86,13 @@ service cloud.firestore {
         allow read, delete: if signedIn() && userId == uid();
         allow update: if signedIn() && userId == uid()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      }
+      // CMN-31 웹 푸시 토큰: 본인 브라우저 토큰만 등록·삭제
+      match /fcmTokens/{token} {
+        allow read, delete: if signedIn() && userId == uid();
+        allow create, update: if signedIn() && userId == uid() && token.size() <= 400
+          && request.resource.data.keys().hasOnly(['platform', 'createdAt'])
+          && request.resource.data.platform == 'web' && request.resource.data.createdAt == request.time;
       }
     }
 

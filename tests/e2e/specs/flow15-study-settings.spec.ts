@@ -16,4 +16,14 @@ test('study settings are saved to the account', async ({ page }) => {
   await expect(box.locator('#study-new')).toHaveValue('3')
   await expect(box.locator('#study-review')).toHaveValue('40')
   await expect(box.locator('#study-front')).toHaveValue('back')
+
+  // ACC-21·NOTE-38 리마인더: 15분 단위 시각을 저장하면 다시 열어도 남는다
+  const push = page.getByTestId('push-settings')
+  await push.locator('#reminder-review').fill('21:00')
+  await push.locator('#reminder-journal').fill('22:30')
+  await push.getByRole('button', { name: '리마인더 저장' }).click()
+  await expect(push.getByText('저장됨')).toBeVisible({ timeout: 20000 })
+  await page.reload()
+  await expect(push.locator('#reminder-review')).toHaveValue('21:00')
+  await expect(push.locator('#reminder-journal')).toHaveValue('22:30')
 })
